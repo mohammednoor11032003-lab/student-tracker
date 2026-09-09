@@ -34,12 +34,16 @@ function StudentTasks({
   studentName,
   weeklyPoints: initWeeklyPoints,
   initialPlan,
+  isStarOfWeek = false,
+  isStarOfMonth = false,
 }: {
   assignments: Assignment[]
   studentId: string
   studentName: string
   weeklyPoints: number
   initialPlan?: StudentPlan
+  isStarOfWeek?: boolean
+  isStarOfMonth?: boolean
 }) {
   const supabase = createClient()
   const todayStr = new Date().toISOString().split("T")[0]
@@ -548,6 +552,14 @@ function StudentTasks({
   ]
   const PENALTY_ORDER = ["الغياب", "الحضور بدون حفظ الدرس", "الحضور بدون حفظ"]
 
+  // Penalty detection for conditional task locking
+  const hasAbsencePenalty = assignments.some(
+    a => (a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب")) && a.completed
+  )
+  const hasNoMemorizationPenalty = assignments.some(
+    a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed
+  )
+
   const regularTasks = assignments
     .filter(a => (a.tasks?.points ?? 0) >= 0)
     .filter(a => {
@@ -596,6 +608,10 @@ function StudentTasks({
       toast.error("🔒 لا يمكن التفاعل مع مهام الأيام السابقة", { icon: "🔒" })
       return
     }
+    if (hasAbsencePenalty) {
+      toast.error("🔒 هذه المهمة معطلة بسبب تسجيل الغياب", { icon: "🔒" })
+      return
+    }
     const target = planDetails.consolidationTask?.target || 10
     setConsolidationCount(prev => {
       const next = Math.min(target, prev + 1)
@@ -607,7 +623,7 @@ function StudentTasks({
   }
 
   async function handleCompleteConsolidation() {
-    if (!isToday || isSavingConsolidation) return
+    if (!isToday || isSavingConsolidation || hasAbsencePenalty) return
     const target = planDetails.consolidationTask?.target || 10
     if (consolidationCount < target) {
       toast.error(`يجب إكمال العداد إلى ${target} تكرارات أولاً!`, { icon: "⚠️" })
@@ -784,6 +800,17 @@ function StudentTasks({
     }
 
     const taskName = a.tasks?.name ?? ""
+
+    // Conditional Task Locking checks
+    if (hasAbsencePenalty) {
+      toast.error("🔒 هذه المهمة معطلة بسبب تسجيل الغياب", { icon: "🔒" })
+      return
+    }
+    if (hasNoMemorizationPenalty && (taskName === "الدرس" || taskName === "السماع" || taskName === "قيام الليل")) {
+      toast.error("🔒 هذه المهمة معطلة بسبب الحضور بدون حفظ الدرس", { icon: "🔒" })
+      return
+    }
+
     const isRevision = taskName.includes("المراجعة") || taskName === "المراجعة"
 
     // If currently completed, clicking it is an undo/toggle back -> directly toggle
@@ -865,9 +892,53 @@ function StudentTasks({
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {/* Top Banner */}
       <div style={{ textAlign: "center" }} className="fade-in-down">
-        <h1 style={{ fontSize: "2.2rem", fontWeight: 900, color: "white", margin: 0, textShadow: "0 2px 15px rgba(0,0,0,0.2)" }}>
-          أهلاً {studentName}! 👋
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
+          <h1 style={{ fontSize: "2.2rem", fontWeight: 900, color: "white", margin: 0, textShadow: "0 2px 15px rgba(0,0,0,0.2)" }}>
+            أهلاً {studentName}! 👋
+          </h1>
+          {isStarOfWeek && (
+            <span
+              title="نجم الأسبوع: من أفضل 3 طلاب في الأسبوع السابق!"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                color: "white",
+                padding: "0.3rem 0.85rem",
+                borderRadius: "9999px",
+                fontWeight: 900,
+                fontSize: "0.85rem",
+                boxShadow: "0 4px 15px rgba(245,158,11,0.45)",
+                border: "1.5px solid #fef08a",
+              }}
+            >
+              <span>🌟</span>
+              <span>نجم الأسبوع</span>
+            </span>
+          )}
+          {isStarOfMonth && (
+            <span
+              title="نجم الشهر: من أفضل 3 طلاب في الشهر السابق!"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                background: "linear-gradient(135deg, #e11d48, #be123c)",
+                color: "white",
+                padding: "0.3rem 0.85rem",
+                borderRadius: "9999px",
+                fontWeight: 900,
+                fontSize: "0.85rem",
+                boxShadow: "0 4px 15px rgba(225,29,72,0.45)",
+                border: "1.5px solid #fecdd3",
+              }}
+            >
+              <span>🏆</span>
+              <span>نجم الشهر</span>
+            </span>
+          )}
+        </div>
         <p style={{ color: "rgba(255,255,255,0.9)", margin: "0.25rem 0 0.75rem", fontSize: "0.95rem" }}>
           اختر الشهر أو الأسبوع أو اليوم للمتابعة والمراجعة
         </p>
@@ -1369,52 +1440,59 @@ function StudentTasks({
                     <button
                       type="button"
                       onClick={handleIncrementConsolidation}
-                      disabled={!isToday || isTargetReached}
+                      disabled={!isToday || isTargetReached || hasAbsencePenalty}
                       style={{
                         width: "100%",
                         padding: "1rem",
                         borderRadius: "1rem",
-                        border: "none",
-                        background: isTargetReached
+                        border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
+                        background: hasAbsencePenalty
+                          ? "rgba(241, 245, 249, 0.85)"
+                          : isTargetReached
                           ? "linear-gradient(135deg, #10b981, #059669)"
                           : "linear-gradient(135deg, #e11d48, #be123c)",
-                        color: "white",
+                        color: hasAbsencePenalty ? "#64748b" : "white",
                         fontWeight: 900,
                         fontSize: "1.2rem",
-                        cursor: isTargetReached || !isToday ? "default" : "pointer",
+                        cursor: hasAbsencePenalty ? "not-allowed" : isTargetReached || !isToday ? "default" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        boxShadow: isTargetReached ? "0 4px 12px rgba(16,185,129,0.3)" : "0 4px 14px rgba(225,29,72,0.3)",
+                        boxShadow: hasAbsencePenalty ? "none" : isTargetReached ? "0 4px 12px rgba(16,185,129,0.3)" : "0 4px 14px rgba(225,29,72,0.3)",
                         position: "relative",
                         overflow: "hidden",
                         transition: "all 0.15s",
+                        opacity: hasAbsencePenalty ? 0.6 : 1,
                       }}
                       onMouseDown={e => {
-                        if (!isTargetReached && isToday) e.currentTarget.style.transform = "scale(0.97)"
+                        if (!isTargetReached && isToday && !hasAbsencePenalty) e.currentTarget.style.transform = "scale(0.97)"
                       }}
                       onMouseUp={e => {
-                        if (!isTargetReached && isToday) e.currentTarget.style.transform = "scale(1)"
+                        if (!isTargetReached && isToday && !hasAbsencePenalty) e.currentTarget.style.transform = "scale(1)"
                       }}
                     >
                       {/* Background progress fill */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: `${pct}%`,
-                          background: "rgba(255,255,255,0.22)",
-                          pointerEvents: "none",
-                          transition: "width 0.2s ease",
-                        }}
-                      />
+                      {!hasAbsencePenalty && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: `${pct}%`,
+                            background: "rgba(255,255,255,0.22)",
+                            pointerEvents: "none",
+                            transition: "width 0.2s ease",
+                          }}
+                        />
+                      )}
 
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", zIndex: 1 }}>
-                        <span style={{ fontSize: "1.4rem" }}>{isTargetReached ? "🎉" : "📿"}</span>
+                        <span style={{ fontSize: "1.4rem" }}>{hasAbsencePenalty ? "🔒" : isTargetReached ? "🎉" : "📿"}</span>
                         <span>
-                          {isTargetReached
+                          {hasAbsencePenalty
+                            ? "🔒 معطلة بسبب تسجيل الغياب"
+                            : isTargetReached
                             ? "اكتمل عدد التكرارات المطلوبة!"
                             : "انقر لاحتساب تكرار الورد"}
                         </span>
@@ -1423,13 +1501,14 @@ function StudentTasks({
                       <div
                         style={{
                           zIndex: 1,
-                          background: "rgba(0,0,0,0.2)",
+                          background: hasAbsencePenalty ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.2)",
                           padding: "0.3rem 0.75rem",
                           borderRadius: "0.6rem",
                           fontSize: "1.1rem",
                           fontWeight: 900,
                           minWidth: "75px",
                           textAlign: "center",
+                          color: hasAbsencePenalty ? "#64748b" : "white",
                         }}
                       >
                         {consolidationCount} / {target}
@@ -1441,7 +1520,7 @@ function StudentTasks({
                       <button
                         type="button"
                         onClick={handleCompleteConsolidation}
-                        disabled={!isToday || isSavingConsolidation}
+                        disabled={!isToday || isSavingConsolidation || hasAbsencePenalty}
                         style={{
                           width: "100%",
                           padding: "0.85rem",
@@ -1557,8 +1636,20 @@ function StudentTasks({
                 </div>
 
                 {regularTasks.map(a => {
-                  const canClick = isToday
-                  const isDouble = !a.completed && !!doubleRevisionIds[a.id]
+                  const taskName = a.tasks?.name || ""
+                  const isLockedByAbsence = hasAbsencePenalty
+                  const isLockedByUnprepared = !hasAbsencePenalty && hasNoMemorizationPenalty && (
+                    taskName === "الدرس" || taskName === "السماع" || taskName === "قيام الليل"
+                  )
+                  const isLocked = isLockedByAbsence || isLockedByUnprepared
+                  const lockReason = isLockedByAbsence
+                    ? "معطلة بسبب تسجيل الغياب"
+                    : isLockedByUnprepared
+                    ? "معطلة بسبب الحضور بدون حفظ الدرس"
+                    : null
+
+                  const canClick = isToday && !isLocked
+                  const isDouble = !a.completed && !isLocked && !!doubleRevisionIds[a.id]
                   const taskDisplayName = isDouble ? "مراجعة مضاعفة (مرتين)" : a.tasks?.name
                   const taskEmoji = isDouble ? "🔁" : a.tasks?.emoji ?? "📖"
 
@@ -1581,24 +1672,28 @@ function StudentTasks({
                       className="task-btn"
                       style={{
                         width: "100%",
-                        background: a.completed
+                        background: isLocked
+                          ? "rgba(241, 245, 249, 0.85)"
+                          : a.completed
                           ? "rgba(255,255,255,0.7)"
                           : isDouble
                           ? "#fffbeb"
                           : "white",
-                        border: a.completed
+                        border: isLocked
+                          ? "1.5px dashed #cbd5e1"
+                          : a.completed
                           ? "2px solid #86efac"
                           : isDouble
                           ? "2px solid #f59e0b"
                           : "none",
                         borderRadius: "1rem",
                         padding: "0.85rem 1rem",
-                        cursor: canClick ? "pointer" : "default",
+                        cursor: isLocked ? "not-allowed" : canClick ? "pointer" : "default",
                         display: "flex",
                         alignItems: "center",
                         gap: "0.85rem",
-                        boxShadow: a.completed ? "none" : isDouble ? "0 4px 15px rgba(245,158,11,0.2)" : "0 4px 15px rgba(0,0,0,0.08)",
-                        opacity: a.completed ? 0.85 : isPast ? 0.85 : 1,
+                        boxShadow: isLocked || a.completed ? "none" : isDouble ? "0 4px 15px rgba(245,158,11,0.2)" : "0 4px 15px rgba(0,0,0,0.08)",
+                        opacity: isLocked ? 0.6 : a.completed ? 0.85 : isPast ? 0.85 : 1,
                       }}
                     >
                       <div
@@ -1606,7 +1701,13 @@ function StudentTasks({
                           width: "3rem",
                           height: "3rem",
                           borderRadius: "0.75rem",
-                          background: a.completed ? "#dcfce7" : isDouble ? "#fef3c7" : "#f3e8ff",
+                          background: isLocked
+                            ? "#e2e8f0"
+                            : a.completed
+                            ? "#dcfce7"
+                            : isDouble
+                            ? "#fef3c7"
+                            : "#f3e8ff",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -1615,7 +1716,7 @@ function StudentTasks({
                           transition: "all 0.2s",
                         }}
                       >
-                        {a.completed ? "✅" : taskEmoji}
+                        {isLocked ? "🔒" : a.completed ? "✅" : taskEmoji}
                       </div>
                       <div style={{ flex: 1, textAlign: "right" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -1624,13 +1725,28 @@ function StudentTasks({
                               fontWeight: 800,
                               fontSize: "1.05rem",
                               margin: 0,
-                              color: a.completed ? "#16a34a" : isDouble ? "#b45309" : "#1f2937",
+                              color: isLocked ? "#64748b" : a.completed ? "#16a34a" : isDouble ? "#b45309" : "#1f2937",
                               textDecoration: a.completed ? "line-through" : "none",
                             }}
                           >
                             {taskDisplayName}
                           </p>
-                          {isDouble && !a.completed && (
+                          {isLocked && (
+                            <span
+                              style={{
+                                background: "#fee2e2",
+                                color: "#b91c1c",
+                                border: "1px solid #fca5a5",
+                                padding: "0.12rem 0.5rem",
+                                borderRadius: "9999px",
+                                fontSize: "0.68rem",
+                                fontWeight: 800,
+                              }}
+                            >
+                              معطلة
+                            </span>
+                          )}
+                          {isDouble && !a.completed && !isLocked && (
                             <span
                               style={{
                                 background: "#fef3c7",
@@ -1650,7 +1766,7 @@ function StudentTasks({
                           <span
                             style={{
                               fontSize: "0.82rem",
-                              color: a.completed ? "#15803d" : "#7c3aed",
+                              color: isLocked ? "#94a3b8" : a.completed ? "#15803d" : "#7c3aed",
                               fontWeight: 800,
                               margin: "0.15rem 0 0.1rem",
                               display: "block",
@@ -1662,16 +1778,20 @@ function StudentTasks({
                         <p
                           style={{
                             fontSize: "0.75rem",
-                            color: a.completed
+                            color: isLocked
+                              ? "#dc2626"
+                              : a.completed
                               ? "#16a34a"
                               : isDouble
                               ? "#d97706"
                               : "#6b7280",
                             margin: "0.15rem 0 0",
-                            fontWeight: 600,
+                            fontWeight: isLocked ? 800 : 600,
                           }}
                         >
-                          {a.completed
+                          {isLocked
+                            ? `🔒 ${lockReason}`
+                            : a.completed
                             ? isToday
                               ? "تم الإنجاز بنجاح ✓ (اضغط للتراجع ↩️)"
                               : "تم الإنجاز بنجاح ✓"
@@ -1683,10 +1803,10 @@ function StudentTasks({
                         </p>
                       </div>
                       <div style={{ textAlign: "center", flexShrink: 0 }}>
-                        <div style={{ fontSize: "1.3rem", fontWeight: 900, color: a.completed ? "#16a34a" : isDouble ? "#d97706" : "#7c3aed" }}>
+                        <div style={{ fontSize: "1.3rem", fontWeight: 900, color: isLocked ? "#94a3b8" : a.completed ? "#16a34a" : isDouble ? "#d97706" : "#7c3aed" }}>
                           +{a.tasks?.points}
                         </div>
-                        <div style={{ fontSize: "0.65rem", color: "#d97706" }}>⭐ نقاط</div>
+                        <div style={{ fontSize: "0.65rem", color: isLocked ? "#94a3b8" : "#d97706" }}>⭐ نقاط</div>
                       </div>
                     </button>
                   )

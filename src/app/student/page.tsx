@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import StudentPortal from "@/components/student/StudentPortal"
 import { getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
 import { getStudentPlan } from "@/lib/student-plan"
+import { getStudentStarBadges } from "@/lib/badge-utils"
 
 interface PageProps {
   searchParams: Promise<{ tab?: string }>
@@ -58,13 +59,14 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     }
   }
 
-  const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes] = await Promise.all([
+  const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes, starBadges] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
     supabase.from("weekly_summaries").select("total_points").eq("student_id", session.user.id).eq("week_start", weekStartStr).single(),
     supabase.from("daily_assignments").select("completed, tasks(points)").eq("student_id", session.user.id).gte("assigned_date", weekStartStr).lte("assigned_date", weekEndStr).eq("completed", true),
     getStudentPlan(session.user.id),
     supabase.from("weekly_summaries").select("*, profiles(full_name)").eq("week_start", weekStartStr).order("total_points", { ascending: false }),
     supabase.from("monthly_summaries").select("*, profiles(full_name)").eq("month", month).eq("year", year).order("total_points", { ascending: false }),
+    getStudentStarBadges(supabase, session.user.id),
   ])
 
   // Compute live weekly points from actual completed tasks of this week as primary truth
@@ -83,6 +85,8 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
       leaderboardWeekly={leaderboardWeeklyRes.data ?? []}
       leaderboardMonthly={leaderboardMonthlyRes.data ?? []}
       initialTab={initialTab}
+      isStarOfWeek={starBadges.isStarOfWeek}
+      isStarOfMonth={starBadges.isStarOfMonth}
     />
   )
 }

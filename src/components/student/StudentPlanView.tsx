@@ -8,9 +8,17 @@ interface StudentPlanViewProps {
   plan: StudentPlan
   studentName: string
   todayStr: string
+  isStarOfWeek?: boolean
+  isStarOfMonth?: boolean
 }
 
-function StudentPlanView({ plan, studentName, todayStr }: StudentPlanViewProps) {
+function StudentPlanView({
+  plan,
+  studentName,
+  todayStr,
+  isStarOfWeek = false,
+  isStarOfMonth = false,
+}: StudentPlanViewProps) {
   const [selectedDate, setSelectedDate] = useState<string>(todayStr)
 
   const isProjected = selectedDate > todayStr
@@ -69,8 +77,38 @@ function StudentPlanView({ plan, studentName, todayStr }: StudentPlanViewProps) 
         <h1 style={{ fontSize: "2.2rem", fontWeight: 900, color: "white", margin: 0, textShadow: "0 2px 15px rgba(0,0,0,0.2)" }}>
           خطة الحفظ اليومية 📖
         </h1>
-        <p style={{ color: "rgba(255,255,255,0.9)", margin: "0.25rem 0 0.75rem", fontSize: "0.95rem" }}>
-          متابعة واستشراف ورد الحفظ والمراجعة للطالب: <strong>{studentName}</strong>
+        <p style={{ color: "rgba(255,255,255,0.9)", margin: "0.25rem 0 0.75rem", fontSize: "0.95rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+          <span>متابعة واستشراف ورد الحفظ والمراجعة للطالب: <strong>{studentName}</strong></span>
+          {isStarOfWeek && (
+            <span
+              style={{
+                background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                color: "white",
+                padding: "0.15rem 0.55rem",
+                borderRadius: "9999px",
+                fontSize: "0.75rem",
+                fontWeight: 800,
+                boxShadow: "0 2px 6px rgba(245,158,11,0.3)",
+              }}
+            >
+              🌟 نجم الأسبوع
+            </span>
+          )}
+          {isStarOfMonth && (
+            <span
+              style={{
+                background: "linear-gradient(135deg, #e11d48, #be123c)",
+                color: "white",
+                padding: "0.15rem 0.55rem",
+                borderRadius: "9999px",
+                fontSize: "0.75rem",
+                fontWeight: 800,
+                boxShadow: "0 2px 6px rgba(225,29,72,0.3)",
+              }}
+            >
+              🏆 نجم الشهر
+            </span>
+          )}
         </p>
       </div>
 

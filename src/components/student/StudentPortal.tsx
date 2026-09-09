@@ -33,6 +33,8 @@ interface StudentPortalProps {
   leaderboardWeekly: LeaderboardEntry[]
   leaderboardMonthly: LeaderboardEntry[]
   initialTab?: "plan" | "tasks" | "leaderboard"
+  isStarOfWeek?: boolean
+  isStarOfMonth?: boolean
 }
 
 export default function StudentPortal({
@@ -45,6 +47,8 @@ export default function StudentPortal({
   leaderboardWeekly,
   leaderboardMonthly,
   initialTab = "plan",
+  isStarOfWeek = false,
+  isStarOfMonth = false,
 }: StudentPortalProps) {
   const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "leaderboard">(initialTab)
 
@@ -169,6 +173,8 @@ export default function StudentPortal({
           plan={initialPlan || DEFAULT_PLAN}
           studentName={studentName}
           todayStr={todayStr}
+          isStarOfWeek={isStarOfWeek}
+          isStarOfMonth={isStarOfMonth}
         />
       </div>
 
@@ -179,6 +185,8 @@ export default function StudentPortal({
           studentName={studentName}
           weeklyPoints={weeklyPoints}
           initialPlan={initialPlan}
+          isStarOfWeek={isStarOfWeek}
+          isStarOfMonth={isStarOfMonth}
         />
       </div>
 

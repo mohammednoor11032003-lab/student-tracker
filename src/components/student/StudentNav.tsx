@@ -5,7 +5,15 @@ import { createClient } from "@/lib/supabase/client"
 import { BookOpen, ClipboardList, Trophy, LogOut } from "lucide-react"
 import toast from "react-hot-toast"
 
-export default function StudentNav({ studentName }: { studentName: string }) {
+export default function StudentNav({
+  studentName,
+  isStarOfWeek = false,
+  isStarOfMonth = false,
+}: {
+  studentName: string
+  isStarOfWeek?: boolean
+  isStarOfMonth?: boolean
+}) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -46,10 +54,50 @@ export default function StudentNav({ studentName }: { studentName: string }) {
   return (
     <nav style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(255,255,255,0.2)" }}>
       <div style={{ maxWidth: "700px", margin: "0 auto", padding: "0 1rem" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 0" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontSize: "1.5rem" }}>🎓</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.75rem 0", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "1.3rem" }}>🎓</span>
             <span style={{ color: "white", fontWeight: 700, fontSize: "0.95rem" }}>{studentName}</span>
+            {isStarOfWeek && (
+              <span
+                title="نجم الأسبوع: من أفضل 3 طلاب في الأسبوع السابق!"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.2rem",
+                  background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                  color: "white",
+                  fontSize: "0.7rem",
+                  fontWeight: 800,
+                  padding: "0.15rem 0.5rem",
+                  borderRadius: "9999px",
+                  boxShadow: "0 2px 6px rgba(245,158,11,0.4)",
+                  border: "1px solid rgba(254,240,138,0.6)",
+                }}
+              >
+                🌟 نجم الأسبوع
+              </span>
+            )}
+            {isStarOfMonth && (
+              <span
+                title="نجم الشهر: من أفضل 3 طلاب في الشهر السابق!"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.2rem",
+                  background: "linear-gradient(135deg, #e11d48, #be123c)",
+                  color: "white",
+                  fontSize: "0.7rem",
+                  fontWeight: 800,
+                  padding: "0.15rem 0.5rem",
+                  borderRadius: "9999px",
+                  boxShadow: "0 2px 6px rgba(225,29,72,0.4)",
+                  border: "1px solid rgba(254,205,211,0.6)",
+                }}
+              >
+                🏆 نجم الشهر
+              </span>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
