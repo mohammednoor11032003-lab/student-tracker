@@ -9,16 +9,67 @@ const particles = ["🏆","⭐","📖","🌙","🎯","✨","🏅","💡","📚",
 export default function LoginPage() {
   const router = useRouter()
   const supabase = createClient()
-  const [email, setEmail] = useState("")
+  const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+
     try {
+      const clean = identifier.trim().toLowerCase()
+      let email = clean
+
+      if (!clean.includes("@")) {
+        const norm = clean
+          .replace(/[أإآ]/g, "ا")
+          .replace(/ة/g, "ه")
+          .replace(/ى/g, "ي")
+          .replace(/\s+/g, "")
+
+        const map: Record<string, string> = {
+          "ahmed_m": "ahmed_m@tracker.app",
+          "ahmedm": "ahmed_m@tracker.app",
+          "abdelrahman": "abdelrahman@tracker.app",
+          "ahmed_a": "ahmed_a@tracker.app",
+          "ahmeda": "ahmed_a@tracker.app",
+          "anas": "anas@tracker.app",
+          "bashar": "bashar@tracker.app",
+          "yamen": "yamen@tracker.app",
+          "mojahed": "mojahed@tracker.app",
+          "mujahed": "mojahed@tracker.app",
+          "abdallah": "abdallah@tracker.app",
+          "abdullah": "abdallah@tracker.app",
+          "yahya": "yahya@tracker.app",
+
+          "احمدالحلو": "ahmed_m@tracker.app",
+          "احمدمعتز": "ahmed_m@tracker.app",
+          "احمدالعداربه": "ahmed_a@tracker.app",
+          "احمدعبداللطيف": "ahmed_a@tracker.app",
+          "عبدالرحمن": "abdelrahman@tracker.app",
+          "عبدالرحمنالعداربه": "abdelrahman@tracker.app",
+          "انس": "anas@tracker.app",
+          "انسالحلو": "anas@tracker.app",
+          "بشار": "bashar@tracker.app",
+          "بشارالرفايعه": "bashar@tracker.app",
+          "يامن": "yamen@tracker.app",
+          "يامنالرفايعه": "yamen@tracker.app",
+          "مجاهد": "mojahed@tracker.app",
+          "مجاهدالصالحي": "mojahed@tracker.app",
+          "عبدالله": "abdallah@tracker.app",
+          "عبداللهالصالحي": "abdallah@tracker.app",
+          "يحيي": "yahya@tracker.app",
+          "يحييجمعه": "yahya@tracker.app",
+          "يحييالرواشده": "yahya@tracker.app",
+        }
+
+        email = map[norm] || `${clean}@tracker.app`
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
+
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).single()
       toast.success("اهلاً وسهلاً! 🎉")
       if (profile?.role === "teacher") router.push("/teacher")
@@ -27,8 +78,10 @@ export default function LoginPage() {
       else router.push("/")
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "حدث خطأ"
-      toast.error(msg === "Invalid login credentials" ? "البريد أو كلمة السر غلط ❌" : msg)
-    } finally { setLoading(false) }
+      toast.error(msg === "Invalid login credentials" ? "اسم المستخدم أو كلمة السر غير صحيحة ❌" : msg)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -50,7 +103,7 @@ export default function LoginPage() {
         ))}
       </div>
 
-      <div style={{ width: "100%", maxWidth: "420px", position: "relative", zIndex: 1 }}>
+      <div style={{ width: "100%", maxWidth: "440px", position: "relative", zIndex: 1 }}>
         <div className="fade-in-down" style={{ textAlign: "center", marginBottom: "2rem" }}>
           <div className="bounce" style={{ fontSize: "5rem", marginBottom: "1rem", display: "inline-block" }}>🏆</div>
           <h1 style={{ fontSize: "2.5rem", fontWeight: 900, color: "white", margin: 0, textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}>منصة الطلاب</h1>
@@ -65,18 +118,31 @@ export default function LoginPage() {
           </h2>
           <form onSubmit={handleLogin}>
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontWeight: 700, marginBottom: "0.5rem", color: "#374151", fontSize: "0.9rem" }}>
-                البريد الإلكتروني
+              <label style={{ display: "block", fontWeight: 700, marginBottom: "0.5rem", color: "#374151", fontSize: "0.95rem" }}>
+                اسم المستخدم أو البريد الإلكتروني
               </label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                className="input" placeholder="example@email.com" required dir="ltr" />
+              <input
+                type="text"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                className="input"
+                placeholder="مثال: anas أو أنس"
+                required
+                dir="auto"
+              />
             </div>
             <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", fontWeight: 700, marginBottom: "0.5rem", color: "#374151", fontSize: "0.9rem" }}>
+              <label style={{ display: "block", fontWeight: 700, marginBottom: "0.5rem", color: "#374151", fontSize: "0.95rem" }}>
                 كلمة السر
               </label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                className="input" placeholder="••••••••" required />
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="input"
+                placeholder="••••••••"
+                required
+              />
             </div>
             <button type="submit" disabled={loading} className="btn-primary"
               style={{ width: "100%", fontSize: "1.1rem", padding: "0.875rem" }}>
@@ -89,7 +155,7 @@ export default function LoginPage() {
           </form>
           <div style={{ marginTop: "1.5rem", padding: "1rem", background: "linear-gradient(to right, #f3e8ff, #fce7f3)", borderRadius: "0.75rem", textAlign: "center" }}>
             <p style={{ color: "#7c3aed", fontSize: "0.875rem", fontWeight: 600, margin: 0 }}>
-              📌 حسابك يُنشأ من قِبَل المدرس
+              💡 كلمة السر الافتراضية للطلاب: <strong>123456</strong>
             </p>
           </div>
         </div>
