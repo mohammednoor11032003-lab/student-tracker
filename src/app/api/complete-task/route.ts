@@ -8,21 +8,25 @@ export async function POST(req: NextRequest) {
   )
 
   try {
-    const { assignmentId, studentId, taskId, points, completed = true } = await req.json()
+    const { assignmentId, studentId, taskId, points, completed = true, assignedDate } = await req.json()
+
+    const todayStr = new Date().toISOString().split("T")[0]
+    const effectiveDate = assignedDate || todayStr
 
     // 1. Strict midnight deadline check:
-    const todayStr = new Date().toISOString().split("T")[0]
-    const { data: assignment } = await supabase
-      .from("daily_assignments")
-      .select("assigned_date, completed")
-      .eq("id", assignmentId)
-      .single()
+    if (assignmentId) {
+      const { data: assignment } = await supabase
+        .from("daily_assignments")
+        .select("assigned_date, completed")
+        .eq("id", assignmentId)
+        .single()
 
-    if (assignment && assignment.assigned_date !== todayStr) {
-      return NextResponse.json(
-        { error: "انتهت مهلة هذا اليوم عند الساعة 12:00 منتصف الليل ولا يمكن تعديله" },
-        { status: 403 }
-      )
+      if (assignment && assignment.assigned_date !== todayStr) {
+        return NextResponse.json(
+          { error: "انتهت مهلة هذا اليوم عند الساعة 12:00 منتصف الليل ولا يمكن تعديله" },
+          { status: 403 }
+        )
+      }
     }
 
     const deltaPoints = completed ? points : -points

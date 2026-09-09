@@ -132,28 +132,87 @@ export default function StudentTasks({
   function handleOpenMysteryBox() {
     if (isOpeningChest) return
     setIsOpeningChest(true)
-    setTimeout(() => {
+    setTimeout(async () => {
       const outcome = generateMysteryBoxOutcome()
       if (outcome.isExempt) {
         // 5% Rare Exemption!
-        // Instantly restore the 10 points!
+        const completedState: AlternativeTaskState = {
+          active: true,
+          opened: true,
+          completed: true,
+          completedAt: new Date().toISOString(),
+          completionSummary: "إعفاء نادر من العقوبة (5%)",
+          exempted: true,
+          tasks: [],
+          createdAt: altTaskState?.createdAt || new Date().toISOString(),
+          assignedDate: altTaskState?.assignedDate || todayStr,
+        }
+        saveAltTaskState(completedState)
+
+        // 1. Optimistic UI: restore +10 points to weeklyPoints and add to today's assignments
         setWeeklyPoints(prev => prev + 10)
-        saveAltTaskState(null)
+
+        // Insert or update 'المهمة البديلة' into assignments for today so todayPoints net is 0
+        const altAssignmentId = `alt_task_${Date.now()}`
+        const altAssignmentObj: Assignment = {
+          id: altAssignmentId,
+          student_id: studentId,
+          task_id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+          assigned_date: todayStr,
+          completed: true,
+          tasks: {
+            id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+            name: "المهمة البديلة",
+            description: "إعفاء نادر من العقوبة (5%)",
+            points: 10,
+            emoji: "🎁",
+            created_by: "",
+            created_at: new Date().toISOString(),
+          },
+        }
+
+        const newAssignments = [...assignments, altAssignmentObj]
+        setAssignments(newAssignments)
+        setAssignmentsCache(prev => ({ ...prev, [todayStr]: newAssignments }))
+
         setIsOpeningChest(false)
         setIsMysteryModalOpen(false)
         toast.success("🎊 مبروووك! حصلت على إعفاء نادر من العقوبة (5%)! تم استرداد الـ 10 نقاط فوراً! 🌟", {
           duration: 6000,
         })
-        // Background sync points recovery
-        fetch("/api/complete-task", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            studentId,
-            points: 10,
-            completed: true,
-          }),
-        }).catch(err => console.error(err))
+
+        // 2. Database Sync
+        try {
+          const { data: insertedDA } = await supabase
+            .from("daily_assignments")
+            .upsert(
+              {
+                student_id: studentId,
+                task_id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+                assigned_date: todayStr,
+                completed: true,
+                completed_at: new Date().toISOString(),
+              },
+              { onConflict: "student_id,task_id,assigned_date" }
+            )
+            .select()
+            .single()
+
+          fetch("/api/complete-task", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              assignmentId: insertedDA?.id,
+              studentId,
+              taskId: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+              points: 10,
+              completed: true,
+              assignedDate: todayStr,
+            }),
+          }).catch(err => console.error(err))
+        } catch (err) {
+          console.error("DB error on exemption:", err)
+        }
       } else {
         // 95%: 1 or 2 tasks
         if (altTaskState) {
@@ -171,7 +230,7 @@ export default function StudentTasks({
 
   // Handle Counter click for sub-task
   function handleIncrementSubTask(subTaskId: string) {
-    if (!altTaskState) return
+    if (!altTaskState || altTaskState.completed) return
     const updatedTasks = altTaskState.tasks.map(t => {
       if (t.id === subTaskId && t.current < t.target) {
         return { ...t, current: t.current + 1 }
@@ -182,30 +241,91 @@ export default function StudentTasks({
     saveAltTaskState(updated)
   }
 
-  // Handle Final Compensation Button (+10 points restore)
-  function handleClaimCompensation() {
-    if (!altTaskState) return
+  // Handle Final Compensation Button (+10 points restore & permanent retention)
+  async function handleClaimCompensation() {
+    if (!altTaskState || altTaskState.completed) return
     const allDone = altTaskState.tasks.every(t => t.current >= t.target)
     if (!allDone) return
 
-    // 1. Optimistic UI update: restore 10 points and remove task immediately!
+    // Generate readable summary of what was accomplished
+    const summaryText = altTaskState.tasks.map(t => `${t.title} (${t.target} مرات)`).join(" + ")
+
+    // 1. Mark state as COMPLETED (retain permanently for history and documentation)
+    const completedState: AlternativeTaskState = {
+      ...altTaskState,
+      completed: true,
+      completedAt: new Date().toISOString(),
+      completionSummary: summaryText,
+    }
+    saveAltTaskState(completedState)
+
+    // 2. Optimistic UI update:
+    // Update weekly points (+10)
     setWeeklyPoints(prev => prev + 10)
-    saveAltTaskState(null)
+
+    // Add 'المهمة البديلة' (+10 pts) into daily assignments list so todayPoints updates from -10 to 0!
+    const altAssignmentId = `alt_task_${Date.now()}`
+    const altAssignmentObj: Assignment = {
+      id: altAssignmentId,
+      student_id: studentId,
+      task_id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+      assigned_date: altTaskState.assignedDate || todayStr,
+      completed: true,
+      tasks: {
+        id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+        name: "المهمة البديلة",
+        description: `تم إنجاز: ${summaryText}`,
+        points: 10,
+        emoji: "🎁",
+        created_by: "",
+        created_at: new Date().toISOString(),
+      },
+    }
+
+    const targetDate = altTaskState.assignedDate || todayStr
+    if (selectedDate === targetDate) {
+      const updatedList = [...assignments.filter(x => x.tasks?.name !== "المهمة البديلة"), altAssignmentObj]
+      setAssignments(updatedList)
+      setAssignmentsCache(prev => ({ ...prev, [targetDate]: updatedList }))
+    }
+
     setIsMysteryModalOpen(false)
-    toast.success("🎉 أحسنت صنعاً! تم إنجاز المهمة البديلة واستعادة الـ 10 نقاط بنجاح! ⭐", {
+    toast.success(`🎉 أحسنت صنعاً! تم توثيق المهمة البديلة واستعادة الـ 10 نقاط بنجاح! ⭐`, {
       duration: 5000,
     })
 
-    // 2. Background sync
-    fetch("/api/complete-task", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        studentId,
-        points: 10,
-        completed: true,
-      }),
-    }).catch(err => console.error("Failed to sync compensation points:", err))
+    // 3. Save to Supabase daily_assignments table & update weekly_summaries
+    try {
+      const { data: insertedDA } = await supabase
+        .from("daily_assignments")
+        .upsert(
+          {
+            student_id: studentId,
+            task_id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+            assigned_date: targetDate,
+            completed: true,
+            completed_at: new Date().toISOString(),
+          },
+          { onConflict: "student_id,task_id,assigned_date" }
+        )
+        .select()
+        .single()
+
+      await fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignmentId: insertedDA?.id,
+          studentId,
+          taskId: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+          points: 10,
+          completed: true,
+          assignedDate: targetDate,
+        }),
+      })
+    } catch (err) {
+      console.error("Failed to sync alternative task completion to database:", err)
+    }
   }
 
   const isToday = selectedDate === todayStr
@@ -781,14 +901,19 @@ export default function StudentTasks({
             >
               <div
                 style={{
-                  background: "linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)",
+                  background: altTaskState.completed
+                    ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+                    : "linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)",
                   borderRadius: "1.25rem",
                   padding: "1.1rem 1.25rem",
                   color: "white",
-                  boxShadow: "0 10px 25px rgba(217,119,6,0.35)",
-                  border: "2px solid #fde68a",
+                  boxShadow: altTaskState.completed
+                    ? "0 10px 25px rgba(16,185,129,0.3)"
+                    : "0 10px 25px rgba(217,119,6,0.35)",
+                  border: altTaskState.completed ? "2px solid #86efac" : "2px solid #fde68a",
                   position: "relative",
                   overflow: "hidden",
+                  transition: "all 0.3s ease",
                 }}
               >
                 {/* Pin badge */}
@@ -801,7 +926,7 @@ export default function StudentTasks({
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <span style={{ fontSize: "1.2rem" }}>📌</span>
+                    <span style={{ fontSize: "1.2rem" }}>{altTaskState.completed ? "✅" : "📌"}</span>
                     <span
                       style={{
                         background: "rgba(0,0,0,0.25)",
@@ -812,20 +937,20 @@ export default function StudentTasks({
                         letterSpacing: "0.5px",
                       }}
                     >
-                      مهمة إجبارية مُثبتة (مرحّلة كدَين حتى الإنجاز)
+                      {altTaskState.completed ? "مهمة بديلة موثقة ومكتملة ✓" : "مهمة إجبارية مُثبتة (مرحّلة كدَين حتى الإنجاز)"}
                     </span>
                   </div>
                   <span
                     style={{
-                      background: "#ef4444",
-                      color: "white",
+                      background: altTaskState.completed ? "#ffffff" : "#ef4444",
+                      color: altTaskState.completed ? "#059669" : "white",
                       fontSize: "0.75rem",
                       fontWeight: 800,
-                      padding: "0.15rem 0.5rem",
+                      padding: "0.15rem 0.6rem",
                       borderRadius: "0.5rem",
                     }}
                   >
-                    تعويض -10 نقاط
+                    {altTaskState.completed ? "تم استرداد (+10 نقاط) 🌟" : "تعويض -10 نقاط"}
                   </span>
                 </div>
 
@@ -839,7 +964,7 @@ export default function StudentTasks({
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
                     <div
-                      className="chest-wobble"
+                      className={altTaskState.completed ? "" : "chest-wobble"}
                       style={{
                         width: "3.5rem",
                         height: "3.5rem",
@@ -853,14 +978,16 @@ export default function StudentTasks({
                         border: "1px solid rgba(255,255,255,0.4)",
                       }}
                     >
-                      🎁
+                      {altTaskState.completed ? "🏆" : "🎁"}
                     </div>
                     <div>
                       <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900 }}>
-                        المهمة البديلة (صندوق الحظ)
+                        {altTaskState.completed ? "المهمة البديلة (مكتملة وموثقة)" : "المهمة البديلة (صندوق الحظ)"}
                       </h3>
                       <p style={{ margin: "0.2rem 0 0", fontSize: "0.85rem", opacity: 0.95, fontWeight: 600 }}>
-                        {!altTaskState.opened
+                        {altTaskState.completed
+                          ? altTaskState.completionSummary || "تم إنجاز كافة الشروط البديلة بنجاح وتم تعويض النقاط ✓"
+                          : !altTaskState.opened
                           ? "اضغط لفتح صندوق الحظ واكتشاف مهمتك لتعويض نقاطك!"
                           : `${altTaskState.tasks.filter(t => t.current >= t.target).length} من ${altTaskState.tasks.length} مهام مكتملة`}
                       </p>
@@ -873,7 +1000,7 @@ export default function StudentTasks({
                     style={{
                       border: "none",
                       background: "white",
-                      color: "#b45309",
+                      color: altTaskState.completed ? "#059669" : "#b45309",
                       padding: "0.65rem 1.1rem",
                       borderRadius: "0.85rem",
                       fontWeight: 900,
@@ -889,7 +1016,13 @@ export default function StudentTasks({
                     onMouseDown={e => (e.currentTarget.style.transform = "scale(0.96)")}
                     onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
                   >
-                    <span>{!altTaskState.opened ? "افتح الصندوق 📦" : "متابعة المهمة 🎯"}</span>
+                    <span>
+                      {altTaskState.completed
+                        ? "عرض التوثيق 📜"
+                        : !altTaskState.opened
+                        ? "افتح الصندوق 📦"
+                        : "متابعة المهمة 🎯"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1421,40 +1554,75 @@ export default function StudentTasks({
                   )
                 })}
 
-                {/* Final Compensation Claim Button */}
-                {(() => {
-                  const allDone = altTaskState.tasks.every(t => t.current >= t.target)
-                  return (
-                    <button
-                      type="button"
-                      onClick={handleClaimCompensation}
-                      disabled={!allDone}
+                {/* Final Compensation Claim Button / Completed Documentation View */}
+                {altTaskState.completed ? (
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      background: "linear-gradient(135deg, #f0fdf4, #dcfce7)",
+                      border: "2px solid #86efac",
+                      borderRadius: "1rem",
+                      padding: "1.25rem",
+                      textAlign: "center",
+                      color: "#166534",
+                    }}
+                  >
+                    <div style={{ fontSize: "2rem", marginBottom: "0.25rem" }}>🏆</div>
+                    <h4 style={{ margin: "0 0 0.25rem", fontWeight: 900, fontSize: "1.1rem" }}>
+                      تم إنجاز المهمة البديلة بنجاح!
+                    </h4>
+                    <p style={{ margin: "0 0 0.5rem", fontSize: "0.9rem", fontWeight: 700 }}>
+                      {altTaskState.completionSummary}
+                    </p>
+                    <span
                       style={{
-                        marginTop: "0.5rem",
-                        width: "100%",
-                        padding: "1rem",
-                        borderRadius: "1rem",
-                        border: "none",
-                        background: allDone
-                          ? "linear-gradient(135deg, #10b981, #059669)"
-                          : "#e5e7eb",
-                        color: allDone ? "white" : "#9ca3af",
-                        fontWeight: 900,
-                        fontSize: "1.1rem",
-                        cursor: allDone ? "pointer" : "not-allowed",
-                        boxShadow: allDone ? "0 6px 20px rgba(16,185,129,0.4)" : "none",
-                        transition: "all 0.2s",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "0.5rem",
+                        background: "#16a34a",
+                        color: "white",
+                        padding: "0.25rem 0.75rem",
+                        borderRadius: "9999px",
+                        fontSize: "0.85rem",
+                        fontWeight: 800,
+                        display: "inline-block",
                       }}
                     >
-                      <span>{allDone ? "🎉" : "🔒"}</span>
-                      <span>استعادة النقاط (10 نقاط)</span>
-                    </button>
-                  )
-                })()}
+                      ✓ تم استرداد الـ 10 نقاط كاملة
+                    </span>
+                  </div>
+                ) : (
+                  (() => {
+                    const allDone = altTaskState.tasks.every(t => t.current >= t.target)
+                    return (
+                      <button
+                        type="button"
+                        onClick={handleClaimCompensation}
+                        disabled={!allDone}
+                        style={{
+                          marginTop: "0.5rem",
+                          width: "100%",
+                          padding: "1rem",
+                          borderRadius: "1rem",
+                          border: "none",
+                          background: allDone
+                            ? "linear-gradient(135deg, #10b981, #059669)"
+                            : "#e5e7eb",
+                          color: allDone ? "white" : "#9ca3af",
+                          fontWeight: 900,
+                          fontSize: "1.1rem",
+                          cursor: allDone ? "pointer" : "not-allowed",
+                          boxShadow: allDone ? "0 6px 20px rgba(16,185,129,0.4)" : "none",
+                          transition: "all 0.2s",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        <span>{allDone ? "🎉" : "🔒"}</span>
+                        <span>استعادة النقاط (10 نقاط)</span>
+                      </button>
+                    )
+                  })()
+                )}
               </div>
             )}
           </div>

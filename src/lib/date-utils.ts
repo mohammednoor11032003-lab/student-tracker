@@ -81,6 +81,9 @@ export interface AlternativeSubTask {
 export interface AlternativeTaskState {
   active: boolean
   opened: boolean
+  completed?: boolean
+  completedAt?: string
+  completionSummary?: string
   exempted?: boolean
   tasks: AlternativeSubTask[]
   createdAt: string
