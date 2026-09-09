@@ -13,33 +13,14 @@ interface Assignment {
   tasks: Task | null
 }
 
-const ARABIC_DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
-const WEEK_NAMES = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس"]
-
-function formatArabicDate(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00")
-  const dayName = ARABIC_DAYS[d.getDay()]
-  const day = d.getDate()
-  const month = d.getMonth() + 1
-  const year = d.getFullYear()
-  return { dayName, day, month, year, full: `${dayName} ${day}/${month}/${year}` }
-}
-
-function getWeekTitle(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00")
-  const month = d.getMonth() + 1
-  const day = d.getDate()
-  const weekIdx = Math.min(4, Math.max(0, Math.ceil(day / 7) - 1))
-  return `شهر ${month} - الأسبوع ${WEEK_NAMES[weekIdx]}`
-}
-
-function getSaturdayStart(date: Date) {
-  const d = new Date(date)
-  const day = d.getDay() // 0 Sun, 1 Mon, 2 Tue, 3 Wed, 4 Thu, 5 Fri, 6 Sat
-  const diff = day === 6 ? 0 : -(day + 1)
-  d.setDate(d.getDate() + diff)
-  return d
-}
+import {
+  ARABIC_DAYS,
+  WEEK_NAMES,
+  MONTH_NAMES,
+  getMonthFirstSaturday,
+  formatDateStr,
+  getWeekAndMonthInfo,
+} from "@/lib/date-utils"
 
 export default function StudentTasks({
   assignments: initAssignments,
@@ -57,27 +38,83 @@ export default function StudentTasks({
 
   // State
   const [selectedDate, setSelectedDate] = useState(todayStr)
-  const [weekStartDate, setWeekStartDate] = useState(() => getSaturdayStart(new Date()))
   const [assignments, setAssignments] = useState<Assignment[]>(initAssignments)
   const [weeklyPoints, setWeeklyPoints] = useState(initWeeklyPoints)
   const [loading, setLoading] = useState<string | null>(null)
   const [fetchingDate, setFetchingDate] = useState(false)
+  const [activeModal, setActiveModal] = useState<"month" | "week" | "day" | null>(null)
 
   const isToday = selectedDate === todayStr
   const isPast = selectedDate < todayStr
-  const isFuture = selectedDate > todayStr
 
-  // Generate the 7 days of the currently viewed week (Saturday to Friday)
+  // Selected date info
+  const dateObj = new Date(selectedDate + "T00:00:00")
+  const currentInfo = getWeekAndMonthInfo(selectedDate)
+  const activeMonth = currentInfo.month
+  const activeYear = currentInfo.year
+  const activeWeekNum = currentInfo.weekNum
+  const currentWeekStart = new Date(currentInfo.weekStart)
+
+  // 7 days of currently viewed week (Saturday to Friday)
   const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStartDate)
+    const d = new Date(currentWeekStart)
     d.setDate(d.getDate() + i)
-    const str = d.toISOString().split("T")[0]
+    const str = formatDateStr(d)
     return {
       dateStr: str,
       dayName: ARABIC_DAYS[d.getDay()],
       dayNumber: d.getDate(),
       isCurrentDay: str === todayStr,
       isSelected: str === selectedDate,
+    }
+  })
+
+  // All 4 weeks of the active month
+  const firstSatOfMonth = getMonthFirstSaturday(activeYear, activeMonth)
+  const monthWeeks = [1, 2, 3, 4].map(w => {
+    const start = new Date(firstSatOfMonth)
+    start.setDate(start.getDate() + (w - 1) * 7)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 6)
+    return {
+      weekNum: w,
+      weekName: `الأسبوع ${WEEK_NAMES[w - 1]}`,
+      startDate: start,
+      endDate: end,
+      startDateStr: formatDateStr(start),
+      endDateStr: formatDateStr(end),
+      label: `من السبت ${start.getDate()}/${start.getMonth() + 1} إلى الجمعة ${end.getDate()}/${end.getMonth() + 1}`,
+      isCurrent: w === activeWeekNum,
+    }
+  })
+
+  // All 28 days of the active month
+  const allMonthDays: {
+    dateStr: string
+    dayName: string
+    dayNum: number
+    monthNum: number
+    weekNum: number
+    isToday: boolean
+    isPast: boolean
+    isSelected: boolean
+  }[] = []
+
+  monthWeeks.forEach(w => {
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(w.startDate)
+      d.setDate(d.getDate() + i)
+      const str = formatDateStr(d)
+      allMonthDays.push({
+        dateStr: str,
+        dayName: ARABIC_DAYS[d.getDay()],
+        dayNum: d.getDate(),
+        monthNum: d.getMonth() + 1,
+        weekNum: w.weekNum,
+        isToday: str === todayStr,
+        isPast: str < todayStr,
+        isSelected: str === selectedDate,
+      })
     }
   })
 
@@ -103,9 +140,9 @@ export default function StudentTasks({
   }, [selectedDate])
 
   function navigateWeek(direction: number) {
-    const next = new Date(weekStartDate)
-    next.setDate(next.getDate() + direction * 7)
-    setWeekStartDate(next)
+    const d = new Date(selectedDate + "T00:00:00")
+    d.setDate(d.getDate() + direction * 7)
+    setSelectedDate(formatDateStr(d))
   }
 
   // Points and Progress calculation for currently selected date
@@ -175,8 +212,24 @@ export default function StudentTasks({
     setLoading(null)
   }
 
-  const dateDetails = formatArabicDate(selectedDate)
-  const weekLabel = getWeekTitle(selectedDate)
+  const selectedDayName = ARABIC_DAYS[dateObj.getDay()]
+  const selectedDayDateFormatted = `${selectedDayName} ${dateObj.getDate()}-${dateObj.getMonth() + 1}-${dateObj.getFullYear()}`
+
+  function selectMonth(monthNum: number) {
+    const firstSat = getMonthFirstSaturday(activeYear, monthNum)
+    setSelectedDate(formatDateStr(firstSat))
+    setActiveModal(null)
+  }
+
+  function selectWeek(weekStartStr: string) {
+    setSelectedDate(weekStartStr)
+    setActiveModal(null)
+  }
+
+  function selectDay(dateStr: string) {
+    setSelectedDate(dateStr)
+    setActiveModal(null)
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -185,14 +238,90 @@ export default function StudentTasks({
         <h1 style={{ fontSize: "2.2rem", fontWeight: 900, color: "white", margin: 0, textShadow: "0 2px 15px rgba(0,0,0,0.2)" }}>
           أهلاً {studentName}! 👋
         </h1>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-          <span style={{ background: "rgba(255,255,255,0.25)", color: "white", padding: "0.3rem 0.85rem", borderRadius: "9999px", fontSize: "0.9rem", fontWeight: 700 }}>
-            🗓️ {weekLabel}
+        <p style={{ color: "rgba(255,255,255,0.9)", margin: "0.25rem 0 0.75rem", fontSize: "0.95rem" }}>
+          اختر الشهر أو الأسبوع أو اليوم للمتابعة والمراجعة
+        </p>
+      </div>
+
+      {/* 3 Clickable Filter Boxes: Month, Week, Day */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.2fr", gap: "0.5rem" }}>
+        {/* Month Box */}
+        <button
+          type="button"
+          onClick={() => setActiveModal("month")}
+          className="card"
+          style={{
+            padding: "0.85rem 0.5rem",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.25rem",
+            cursor: "pointer",
+            border: activeModal === "month" ? "2px solid #7c3aed" : "2px solid transparent",
+            background: "rgba(255,255,255,0.95)",
+            backdropFilter: "blur(10px)",
+            borderRadius: "1rem",
+            transition: "all 0.2s",
+          }}
+        >
+          <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 700 }}>الشهر ▾</span>
+          <span style={{ fontSize: "1.05rem", fontWeight: 900, color: "#7c3aed" }}>
+            🗓️ شهر {activeMonth}
           </span>
-          <span style={{ background: "rgba(255,255,255,0.25)", color: "white", padding: "0.3rem 0.85rem", borderRadius: "9999px", fontSize: "0.9rem", fontWeight: 700 }}>
-            📍 {dateDetails.full}
+        </button>
+
+        {/* Week Box */}
+        <button
+          type="button"
+          onClick={() => setActiveModal("week")}
+          className="card"
+          style={{
+            padding: "0.85rem 0.5rem",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.25rem",
+            cursor: "pointer",
+            border: activeModal === "week" ? "2px solid #7c3aed" : "2px solid transparent",
+            background: "rgba(255,255,255,0.95)",
+            backdropFilter: "blur(10px)",
+            borderRadius: "1rem",
+            transition: "all 0.2s",
+          }}
+        >
+          <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 700 }}>الأسبوع ▾</span>
+          <span style={{ fontSize: "1.05rem", fontWeight: 900, color: "#9333ea" }}>
+            📌 الأسبوع {WEEK_NAMES[activeWeekNum - 1]}
           </span>
-        </div>
+        </button>
+
+        {/* Day Box */}
+        <button
+          type="button"
+          onClick={() => setActiveModal("day")}
+          className="card"
+          style={{
+            padding: "0.85rem 0.5rem",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.25rem",
+            cursor: "pointer",
+            border: activeModal === "day" ? "2px solid #7c3aed" : "2px solid transparent",
+            background: "rgba(255,255,255,0.95)",
+            backdropFilter: "blur(10px)",
+            borderRadius: "1rem",
+            transition: "all 0.2s",
+          }}
+        >
+          <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 700 }}>اليوم والتاريخ ▾</span>
+          <span style={{ fontSize: "0.95rem", fontWeight: 900, color: "#1f2937" }}>
+            📍 {selectedDayDateFormatted}
+          </span>
+        </button>
       </div>
 
       {/* Week Calendar Bar */}
@@ -205,7 +334,7 @@ export default function StudentTasks({
             ◀ الأسبوع السابق
           </button>
           <span style={{ fontWeight: 800, color: "#4b5563", fontSize: "0.95rem" }}>
-            📅 التقويم الأسبوعي
+            شهر {activeMonth} - الأسبوع {WEEK_NAMES[activeWeekNum - 1]}
           </span>
           <button
             onClick={() => navigateWeek(1)}
@@ -306,7 +435,7 @@ export default function StudentTasks({
       {positiveTasks.length > 0 && (
         <div style={{ background: "rgba(255,255,255,0.22)", backdropFilter: "blur(8px)", borderRadius: "1rem", padding: "0.85rem 1rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", color: "white", fontSize: "0.9rem", fontWeight: 700, marginBottom: "0.4rem" }}>
-            <span>إنجاز اليوم ({dateDetails.dayName})</span>
+            <span>إنجاز اليوم ({selectedDayName})</span>
             <span>{progress}%</span>
           </div>
           <div style={{ background: "rgba(255,255,255,0.3)", borderRadius: "9999px", height: "0.9rem", overflow: "hidden" }}>
@@ -349,7 +478,7 @@ export default function StudentTasks({
             <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h2 style={{ color: "white", fontWeight: 800, margin: 0, fontSize: "1.15rem" }}>
-                  📋 المهام اليومية ({dateDetails.dayName})
+                  📋 المهام اليومية ({selectedDayName})
                 </h2>
                 {!isToday && (
                   <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.85)", background: "rgba(0,0,0,0.2)", padding: "0.2rem 0.5rem", borderRadius: "0.5rem" }}>
@@ -493,6 +622,248 @@ export default function StudentTasks({
             </div>
           )}
         </>
+      )}
+
+      {/* ================= MODALS ================= */}
+
+      {/* 1. MONTH PICKER MODAL */}
+      {activeModal === "month" && (
+        <div
+          onClick={() => setActiveModal(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="card"
+            style={{ width: "100%", maxWidth: "380px", maxHeight: "80vh", overflowY: "auto", padding: "1.5rem" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+              <h3 style={{ margin: 0, fontWeight: 900, color: "#1f2937", fontSize: "1.2rem" }}>
+                🗓️ اختر الشهر ({activeYear})
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                style={{ border: "none", background: "none", fontSize: "1.3rem", cursor: "pointer", color: "#9ca3af" }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: "0 0 1rem" }}>
+              كل شهر مقسم إلى 4 أسابيع ويبدأ من أول سبت:
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {MONTH_NAMES.map((name, idx) => {
+                const mNum = idx + 1
+                const firstSat = getMonthFirstSaturday(activeYear, mNum)
+                const isSelectedMonth = mNum === activeMonth
+                return (
+                  <button
+                    key={mNum}
+                    type="button"
+                    onClick={() => selectMonth(mNum)}
+                    style={{
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.75rem",
+                      border: isSelectedMonth ? "2px solid #7c3aed" : "1px solid #e5e7eb",
+                      background: isSelectedMonth ? "#f3e8ff" : "white",
+                      color: isSelectedMonth ? "#7c3aed" : "#374151",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      textAlign: "right",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <span>{name}</span>
+                    <span style={{ fontSize: "0.75rem", color: isSelectedMonth ? "#7c3aed" : "#9ca3af", fontWeight: 600 }}>
+                      يبدأ السبت {firstSat.getDate()}/{firstSat.getMonth() + 1}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. WEEK PICKER MODAL */}
+      {activeModal === "week" && (
+        <div
+          onClick={() => setActiveModal(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="card"
+            style={{ width: "100%", maxWidth: "380px", padding: "1.5rem" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+              <h3 style={{ margin: 0, fontWeight: 900, color: "#1f2937", fontSize: "1.2rem" }}>
+                📌 أسابيع شهر {activeMonth}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                style={{ border: "none", background: "none", fontSize: "1.3rem", cursor: "pointer", color: "#9ca3af" }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: "0 0 1rem" }}>
+              اختر الأسبوع للانتقال إلى أول يوم سبت فيه:
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              {monthWeeks.map(w => {
+                const isSelectedWeek = w.weekNum === activeWeekNum
+                return (
+                  <button
+                    key={w.weekNum}
+                    type="button"
+                    onClick={() => selectWeek(w.startDateStr)}
+                    style={{
+                      padding: "0.85rem 1rem",
+                      borderRadius: "0.75rem",
+                      border: isSelectedWeek ? "2px solid #7c3aed" : "1px solid #e5e7eb",
+                      background: isSelectedWeek ? "linear-gradient(135deg, #7c3aed, #a855f7)" : "white",
+                      color: isSelectedWeek ? "white" : "#374151",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      textAlign: "right",
+                      transition: "all 0.15s",
+                      boxShadow: isSelectedWeek ? "0 4px 12px rgba(124,58,237,0.3)" : "none",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: "1rem" }}>{w.weekName}</div>
+                      <div style={{ fontSize: "0.75rem", opacity: 0.85, marginTop: "0.15rem" }}>
+                        {w.label}
+                      </div>
+                    </div>
+                    {isSelectedWeek && <span>✓ الحالي</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. DAY PICKER MODAL (ALL 28 DAYS OF THE 4-WEEK MONTH) */}
+      {activeModal === "day" && (
+        <div
+          onClick={() => setActiveModal(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="card"
+            style={{ width: "100%", maxWidth: "420px", maxHeight: "85vh", overflowY: "auto", padding: "1.5rem" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+              <h3 style={{ margin: 0, fontWeight: 900, color: "#1f2937", fontSize: "1.2rem" }}>
+                📍 أيام شهر {activeMonth} (الأسابيع الـ 4)
+              </h3>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                style={{ border: "none", background: "none", fontSize: "1.3rem", cursor: "pointer", color: "#9ca3af" }}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: "0.8rem", color: "#6b7280", margin: "0 0 1rem" }}>
+              اضغط على أي يوم للانتقال إليه مباشرة:
+            </p>
+
+            {[1, 2, 3, 4].map(wNum => {
+              const daysInThisWeek = allMonthDays.filter(d => d.weekNum === wNum)
+              return (
+                <div key={wNum} style={{ marginBottom: "1rem" }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 800, color: "#7c3aed", marginBottom: "0.4rem", display: "flex", justifyContent: "space-between" }}>
+                    <span>الأسبوع {WEEK_NAMES[wNum - 1]}</span>
+                    <span style={{ fontSize: "0.75rem", color: "#9ca3af", fontWeight: 600 }}>
+                      {daysInThisWeek[0]?.dayNum}/{daysInThisWeek[0]?.monthNum} - {daysInThisWeek[6]?.dayNum}/{daysInThisWeek[6]?.monthNum}
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "0.25rem" }}>
+                    {daysInThisWeek.map(d => {
+                      return (
+                        <button
+                          key={d.dateStr}
+                          type="button"
+                          onClick={() => selectDay(d.dateStr)}
+                          style={{
+                            padding: "0.45rem 0.15rem",
+                            borderRadius: "0.6rem",
+                            border: d.isSelected ? "2px solid #7c3aed" : "1px solid #e5e7eb",
+                            background: d.isSelected
+                              ? "linear-gradient(135deg, #7c3aed, #a855f7)"
+                              : d.isToday
+                              ? "#fef3c7"
+                              : d.isPast
+                              ? "#f9fafb"
+                              : "white",
+                            color: d.isSelected ? "white" : d.isToday ? "#92400e" : "#374151",
+                            cursor: "pointer",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            fontSize: "0.75rem",
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <span style={{ fontSize: "0.65rem", fontWeight: 700 }}>{d.dayName}</span>
+                          <span style={{ fontSize: "0.95rem", fontWeight: 900 }}>{d.dayNum}</span>
+                          {d.isToday && (
+                            <span style={{ fontSize: "0.55rem", color: d.isSelected ? "white" : "#d97706", fontWeight: 800 }}>
+                              اليوم
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
     </div>
   )
