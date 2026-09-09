@@ -446,13 +446,14 @@ export default function StudentTasks({
       // If student is in consolidation week, hide the 5 lesson tasks!
       if (studentPlan?.is_in_consolidation) {
         const name = a.tasks?.name || ""
-        const isLessonRelated =
+        const isSuspendedDuringConsolidation =
           name === "الدرس" ||
           name === "السماع" ||
           name === "التفسير" ||
           name === "قيام الليل" ||
-          name === "جنب الدرس"
-        if (isLessonRelated) return false
+          name === "جنب الدرس" ||
+          name === "المراجعة"
+        if (isSuspendedDuringConsolidation) return false
       }
       return true
     })

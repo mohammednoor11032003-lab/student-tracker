@@ -226,6 +226,59 @@ export function getJuzNumber(page: number): number {
   return Math.min(30, Math.max(1, Math.floor((page - 2) / 20) + 1))
 }
 
+// Get page range for any Juz (1 to 30) according to Madinah Mushaf (604 pages)
+export function getJuzPageRange(juz: number): { start: number; end: number; count: number } {
+  const safeJuz = Math.max(1, Math.min(30, Number(juz) || 1))
+  const start = safeJuz === 1 ? 1 : (safeJuz - 1) * 20 + 2
+  const end = safeJuz === 30 ? 604 : safeJuz * 20 + 1
+  return { start, end, count: end - start + 1 }
+}
+
+// Calculate total unique pages memorized (sequential current_page + memorized_ajza with zero double counting)
+export function calculateTotalMemorizedPages(plan: StudentPlan | null | undefined): {
+  totalPages: number
+  percentComplete: number
+} {
+  const safePlan = plan || DEFAULT_PLAN
+  const currentPage = Math.max(1, Math.min(604, safePlan.current_page || 1))
+  const pagePart = safePlan.page_part === "bottom" ? "bottom" : "top"
+  const memorizedAjza = Array.isArray(safePlan.memorized_ajza) ? safePlan.memorized_ajza : [1]
+
+  const memorizedPagesSet = new Set<number>()
+
+  // 1. Add all sequential pages up to currentPage - 1
+  for (let p = 1; p < currentPage; p++) {
+    memorizedPagesSet.add(p)
+  }
+
+  // 2. Handle currentPage: if bottom, page is completed; if top, half is completed
+  let hasCurrentHalf = false
+  if (pagePart === "bottom") {
+    memorizedPagesSet.add(currentPage)
+  } else {
+    hasCurrentHalf = true
+  }
+
+  // 3. Add all pages from memorized_ajza (union without any duplicate counting)
+  for (const j of memorizedAjza) {
+    if (j >= 1 && j <= 30) {
+      const { start, end } = getJuzPageRange(j)
+      for (let p = start; p <= end; p++) {
+        memorizedPagesSet.add(p)
+      }
+    }
+  }
+
+  let totalPages = memorizedPagesSet.size
+  if (hasCurrentHalf && !memorizedPagesSet.has(currentPage)) {
+    totalPages += 0.5
+  }
+
+  const percentComplete = Math.min(100, Math.round((totalPages / 604) * 100))
+
+  return { totalPages, percentComplete }
+}
+
 // Get daily tasks based on student plan
 export function getDailyPlanDetails(plan: StudentPlan | null | undefined, dateStr: string): DailyPlanDetails {
   const safePlan = plan || DEFAULT_PLAN
@@ -269,6 +322,7 @@ export function getDailyPlanDetails(plan: StudentPlan | null | undefined, dateSt
   let listeningTaskText = `سماع ${portionDesc}`
   let tafsirTaskText = `تفسير ${portionDesc}`
   let nightPrayerTaskText = `قيام الليل بـ ${portionDesc}`
+  let revisionTaskText = `مراجعة ${reviewHizb.name} (الجزء ${reviewHizb.juz})`
 
   if (isInConsolidation) {
     lessonTaskText = `أسبوع التثبيت (اليوم ${consolidationDay} من 7) - ${schedItem.title} (الهدف: ${schedItem.target} تكرارات)`
@@ -276,6 +330,7 @@ export function getDailyPlanDetails(plan: StudentPlan | null | undefined, dateSt
     listeningTaskText = "معلّق خلال أسبوع التثبيت"
     tafsirTaskText = "معلّق خلال أسبوع التثبيت"
     nightPrayerTaskText = "معلّق خلال أسبوع التثبيت"
+    revisionTaskText = "معلّق خلال أسبوع التثبيت"
   }
 
   return {
@@ -298,7 +353,7 @@ export function getDailyPlanDetails(plan: StudentPlan | null | undefined, dateSt
       tafsir: tafsirTaskText,
       nightPrayer: nightPrayerTaskText,
       adjacentLesson: adjacentTaskText,
-      revision: `مراجعة ${reviewHizb.name} (الجزء ${reviewHizb.juz})`,
+      revision: revisionTaskText,
     },
   }
 }
@@ -466,8 +521,8 @@ export function calculateProjectedPlan(
       }
     }
 
-    // Review Hizb progression
-    if (cycle.length > 0) {
+    // Review Hizb progression: FROZEN during consolidation week!
+    if (!sim.is_in_consolidation && cycle.length > 0) {
       sim.current_review_index = (sim.current_review_index + 1) % cycle.length
       sim.current_review_hizb = cycle[sim.current_review_index].hizb
     }

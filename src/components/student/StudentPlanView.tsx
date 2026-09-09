@@ -1,7 +1,7 @@
 "use client"
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { StudentPlan, getDailyPlanDetails, calculateProjectedPlan } from "@/lib/plan-utils"
+import { StudentPlan, getDailyPlanDetails, calculateProjectedPlan, calculateTotalMemorizedPages } from "@/lib/plan-utils"
 
 interface StudentPlanViewProps {
   plan: StudentPlan
@@ -30,7 +30,21 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
     }
   }, [plan, selectedDate, todayStr, isProjected])
 
-  const percentComplete = Math.min(100, Math.round((activePlan.current_page / 604) * 100))
+  const { totalPages: memorizedPagesCount, percentComplete } = useMemo(() => {
+    return calculateTotalMemorizedPages(activePlan)
+  }, [activePlan])
+
+  function stepDate(delta: number) {
+    const [y, m, d] = selectedDate.split("-").map(Number)
+    const dt = new Date(y, m - 1, d)
+    dt.setDate(dt.getDate() + delta)
+    const yyyy = dt.getFullYear()
+    const mm = String(dt.getMonth() + 1).padStart(2, "0")
+    const dd = String(dt.getDate()).padStart(2, "0")
+    const nextDate = `${yyyy}-${mm}-${dd}`
+    if (nextDate < todayStr) return
+    setSelectedDate(nextDate)
+  }
 
   function addDaysToSelected(days: number) {
     const [y, m, d] = todayStr.split("-").map(Number)
@@ -79,8 +93,34 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
             </div>
           </div>
 
-          {/* Date Picker Input */}
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {/* Date Picker & Navigation Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            {/* Previous Day Button < */}
+            <button
+              type="button"
+              onClick={() => stepDate(-1)}
+              disabled={selectedDate <= todayStr}
+              title="اليوم السابق"
+              style={{
+                width: "2.35rem",
+                height: "2.35rem",
+                borderRadius: "0.65rem",
+                border: "1.5px solid #cbd5e1",
+                background: selectedDate <= todayStr ? "#f1f5f9" : "white",
+                color: selectedDate <= todayStr ? "#94a3b8" : "#0284c7",
+                fontWeight: 900,
+                fontSize: "1.2rem",
+                cursor: selectedDate <= todayStr ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.15s",
+              }}
+            >
+              ‹
+            </button>
+
+            {/* Date Picker Input */}
             <input
               type="date"
               min={todayStr}
@@ -88,7 +128,7 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
               value={selectedDate}
               onChange={e => setSelectedDate(e.target.value || todayStr)}
               style={{
-                padding: "0.55rem 0.85rem",
+                padding: "0.5rem 0.75rem",
                 borderRadius: "0.65rem",
                 border: "2px solid #0284c7",
                 fontWeight: 800,
@@ -99,12 +139,37 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
                 cursor: "pointer",
               }}
             />
+
+            {/* Next Day Button > */}
+            <button
+              type="button"
+              onClick={() => stepDate(1)}
+              title="اليوم التالي"
+              style={{
+                width: "2.35rem",
+                height: "2.35rem",
+                borderRadius: "0.65rem",
+                border: "1.5px solid #0284c7",
+                background: "#f0f9ff",
+                color: "#0284c7",
+                fontWeight: 900,
+                fontSize: "1.2rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.15s",
+              }}
+            >
+              ›
+            </button>
+
             {isProjected && (
               <button
                 type="button"
                 onClick={() => setSelectedDate(todayStr)}
                 style={{
-                  padding: "0.55rem 0.85rem",
+                  padding: "0.5rem 0.85rem",
                   borderRadius: "0.65rem",
                   background: "#e0f2fe",
                   color: "#0284c7",
@@ -323,7 +388,7 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
         <div style={{ marginTop: "0.75rem" }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem", fontWeight: 700, color: "#c7d2fe", marginBottom: "0.35rem" }}>
             <span>مسار ختم المصحف الشريف</span>
-            <span>{activePlan.current_page} / 604 صفحة</span>
+            <span>إجمالي المحفوظ: {memorizedPagesCount} / 604 صفحة ({percentComplete}%)</span>
           </div>
           <div style={{ width: "100%", height: "0.65rem", background: "rgba(255,255,255,0.2)", borderRadius: "9999px", overflow: "hidden" }}>
             <div
@@ -393,7 +458,7 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
               </div>
             </div>
             <p style={{ margin: "0.25rem 0 0", fontSize: "0.9rem", color: "#fecaca", lineHeight: 1.5 }}>
-              تهانينا بإتمام الجزء! تم تعليق مهام الدرس الخمس للتركيز التام على إتقان هذا الجزء، وتستمر مهمة المراجعة كالمعتاد.
+              تهانينا بإتمام الجزء! تم تعليق مهام الدرس الخمس ومهمة المراجعة بالكامل للتركيز التام على إتقان هذا الجزء، وتُستأنف الخطة والمراجعة تلقائياً بعد اليوم السابع.
             </p>
           </div>
 
@@ -422,23 +487,25 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
             </div>
           </div>
 
-          {/* Revision Task Card (remains active!) */}
-          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.25rem", borderLeft: "5px solid #ec4899" }}>
-            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: "#fce7f3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.75rem" }}>
-              🔄
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 900, fontSize: "1.1rem", color: "#1f2937" }}>المراجعة</span>
-                <span style={{ fontSize: "0.75rem", background: "#fce7f3", color: "#db2777", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>حزب كامل</span>
-              </div>
-              <p style={{ margin: "0.25rem 0 0", color: "#6b7280", fontSize: "1rem", fontWeight: 700 }}>
-                {planDetails.tasks.revision}
-              </p>
-              <span style={{ display: "inline-block", fontSize: "0.75rem", color: "#db2777", marginTop: "0.2rem", fontWeight: 700 }}>
-                الحزب {planDetails.hizbIndex + 1} من أصل {planDetails.totalCycleHizbs} في دورة المراجعة الخاصة بك
-              </span>
-            </div>
+          {/* Revision Suspended Notice */}
+          <div
+            style={{
+              background: "#f8fafc",
+              borderRadius: "1rem",
+              padding: "0.85rem 1.25rem",
+              border: "1.5px dashed #cbd5e1",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              color: "#475569",
+              fontSize: "0.9rem",
+              fontWeight: 700,
+            }}
+          >
+            <span style={{ fontSize: "1.2rem" }}>⏸️</span>
+            <span>
+              مهمة المراجعة مجمّدة مؤقتاً طوال أسبوع التثبيت، وستُستأنف تلقائياً من نفس موضعها بعد إتمام اليوم السابع.
+            </span>
           </div>
         </div>
       ) : (
