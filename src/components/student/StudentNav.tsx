@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -22,8 +22,12 @@ export default function StudentNav({ studentName }: { studentName: string }) {
             <span style={{ fontSize: "1.5rem" }}>🎓</span>
             <span style={{ color: "white", fontWeight: 700, fontSize: "0.95rem" }}>{studentName}</span>
           </div>
-          <div style={{ display: "flex", gap: "0.25rem" }}>
-            {[{ href: "/student", label: "مهامي" }, { href: "/student/leaderboard", label: "🏆 الترتيب" }].map(l => (
+          <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+            {[
+              { href: "/student", label: "مهامي" },
+              { href: "/student/plan", label: "📖 خطة الحفظ" },
+              { href: "/student/leaderboard", label: "🏆 الترتيب" }
+            ].map(l => (
               <Link key={l.href} href={l.href} style={{
                 padding: "0.4rem 0.75rem", borderRadius: "0.75rem", fontSize: "0.85rem", fontWeight: 700,
                 textDecoration: "none", background: active(l.href) ? "white" : "transparent",

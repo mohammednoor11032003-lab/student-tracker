@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
+import { getStudentPlan, updateStudentPlan } from "@/lib/student-plan"
+import { calculateNextPlanState } from "@/lib/plan-utils"
 
 export async function POST(req: NextRequest) {
   const supabase = createClient(
@@ -106,6 +108,21 @@ export async function POST(req: NextRequest) {
         total_points: deltaPoints,
         tasks_completed: Math.max(0, deltaCompleted),
       })
+    }
+
+    // Auto-progression for Daily Memorization Plan (الدرس والمراجعة)
+    try {
+      if (taskId && studentId) {
+        const { data: taskObj } = await supabase.from("tasks").select("name").eq("id", taskId).single()
+        const tName = taskObj?.name || ""
+        if ((tName.includes("الدرس") && !tName.includes("جنب")) || tName.includes("المراجعة")) {
+          const currentPlan = await getStudentPlan(studentId)
+          const nextPlan = calculateNextPlanState(currentPlan, tName, completed)
+          await updateStudentPlan(studentId, nextPlan)
+        }
+      }
+    } catch (planErr) {
+      console.error("Auto-progression error:", planErr)
     }
 
     // WhatsApp notification via Twilio (only when completed)

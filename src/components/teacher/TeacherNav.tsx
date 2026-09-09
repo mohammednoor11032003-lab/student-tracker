@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -17,6 +17,7 @@ export default function TeacherNav({ teacherName }: { teacherName: string }) {
 
   const links = [
     { href: "/teacher", label: "الرئيسية", icon: "🏠" },
+    { href: "/teacher/plans", label: "خطة الحفظ", icon: "📖" },
     { href: "/teacher/tasks", label: "المهام", icon: "📋" },
     { href: "/teacher/assign", label: "تعيين", icon: "📅" },
     { href: "/teacher/students", label: "الطلاب", icon: "👨‍🎓" },

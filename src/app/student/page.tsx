@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import StudentTasks from "@/components/student/StudentTasks"
 import { getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
+import { getStudentPlan } from "@/lib/student-plan"
 
 export default async function StudentDashboard() {
   const supabase = await createClient()
@@ -45,10 +46,11 @@ export default async function StudentDashboard() {
     }
   }
 
-  const [profileRes, weeklyRes, weekAssignmentsRes] = await Promise.all([
+  const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", session!.user.id).single(),
     supabase.from("weekly_summaries").select("total_points").eq("student_id", session!.user.id).eq("week_start", weekStartStr).single(),
     supabase.from("daily_assignments").select("completed, tasks(points)").eq("student_id", session!.user.id).gte("assigned_date", weekStartStr).lte("assigned_date", weekEndStr).eq("completed", true),
+    getStudentPlan(session!.user.id),
   ])
 
   // Compute live weekly points from actual completed tasks of this week as primary truth
@@ -62,6 +64,7 @@ export default async function StudentDashboard() {
       studentId={session!.user.id}
       studentName={profileRes.data?.full_name ?? ""}
       weeklyPoints={liveWeeklyPoints}
+      initialPlan={studentPlan}
     />
   )
 }

@@ -1,0 +1,8 @@
+-- SQL Migration to add Memorization Plan columns to profiles
+ALTER TABLE profiles 
+ADD COLUMN IF NOT EXISTS current_page INTEGER DEFAULT 1,
+ADD COLUMN IF NOT EXISTS page_part TEXT DEFAULT 'top',
+ADD COLUMN IF NOT EXISTS current_review_hizb INTEGER DEFAULT 1,
+ADD COLUMN IF NOT EXISTS plan_start_date DATE DEFAULT CURRENT_DATE,
+ADD COLUMN IF NOT EXISTS plan_end_date DATE DEFAULT '2027-12-31',
+ADD COLUMN IF NOT EXISTS plan_active BOOLEAN DEFAULT true;

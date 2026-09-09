@@ -13,6 +13,7 @@ interface Assignment {
   tasks: Task | null
 }
 
+import Link from "next/link"
 import {
   ARABIC_DAYS,
   WEEK_NAMES,
@@ -24,23 +25,27 @@ import {
   AlternativeTaskState,
   generateMysteryBoxOutcome,
 } from "@/lib/date-utils"
+import { StudentPlan, DEFAULT_PLAN, getDailyPlanDetails, calculateNextPlanState } from "@/lib/plan-utils"
 
 export default function StudentTasks({
   assignments: initAssignments,
   studentId,
   studentName,
   weeklyPoints: initWeeklyPoints,
+  initialPlan,
 }: {
   assignments: Assignment[]
   studentId: string
   studentName: string
   weeklyPoints: number
+  initialPlan?: StudentPlan
 }) {
   const supabase = createClient()
   const todayStr = new Date().toISOString().split("T")[0]
 
   // State
   const [selectedDate, setSelectedDate] = useState(todayStr)
+  const [studentPlan, setStudentPlan] = useState<StudentPlan>(initialPlan || DEFAULT_PLAN)
   const [assignmentsCache, setAssignmentsCache] = useState<Record<string, Assignment[]>>({
     [todayStr]: initAssignments,
   })
@@ -422,6 +427,9 @@ export default function StudentTasks({
     .filter(a => a.completed)
     .reduce((sum, a) => sum + (a.tasks?.points ?? 0), 0)
 
+  // Plan Details for current selected date
+  const planDetails = getDailyPlanDetails(studentPlan, selectedDate)
+
   const TASK_ORDER = [
     "السماع",
     "الدرس",
@@ -450,6 +458,11 @@ export default function StudentTasks({
 
   // Toggle task completion (Complete / Uncomplete) with instant Optimistic UI and Rollback
   async function completeTask(a: Assignment) {
+    if (planDetails.isFriday) {
+      toast("🕌 اليوم الجمعة إجازة قرآنية، لا توجد مهام مقررة اليوم!", { icon: "🕌", duration: 3500 })
+      return
+    }
+
     // Strict time check: after 12:00 AM midnight, the date changes, so past days cannot be edited!
     if (!isToday) {
       toast.error("🔒 انتهى وقت هذا اليوم عند الساعة 12:00 منتصف الليل (الذي فات مات)", {
@@ -467,6 +480,12 @@ export default function StudentTasks({
     const wasDoubleRevision = !!doubleRevisionIds[a.id]
     if (nextCompleted && wasDoubleRevision) {
       updateDoubleRevision(a.id, false)
+    }
+
+    // Check if task is 'الدرس' or 'المراجعة' to update plan state optimistically
+    const tName = a.tasks?.name || ""
+    if ((tName.includes("الدرس") && !tName.includes("جنب")) || tName.includes("المراجعة")) {
+      setStudentPlan(prev => calculateNextPlanState(prev, tName, nextCompleted))
     }
 
     // Check if task is 'الحضور بدون حفظ الدرس'
@@ -549,6 +568,9 @@ export default function StudentTasks({
         setAssignments(prevAssignments)
         setAssignmentsCache(prev => ({ ...prev, [selectedDate]: prevAssignments }))
         setWeeklyPoints(prevWeeklyPoints)
+        if ((tName.includes("الدرس") && !tName.includes("جنب")) || tName.includes("المراجعة")) {
+          setStudentPlan(prev => calculateNextPlanState(prev, tName, !nextCompleted))
+        }
         const errorMsg = err instanceof Error ? err.message : "حدث خطأ غير متوقع"
         toast.error(`❌ تعذر حفظ المهمة، تم التراجع: ${errorMsg}`, { duration: 4500 })
       }
@@ -557,6 +579,10 @@ export default function StudentTasks({
 
   // Intercept click on task to check if it's 'المراجعة'
   function handleTaskClick(a: Assignment) {
+    if (planDetails.isFriday) {
+      toast("🕌 اليوم الجمعة إجازة قرآنية، لا توجد مهام مقررة اليوم!", { icon: "🕌", duration: 3500 })
+      return
+    }
     if (!isToday) {
       toast.error("🔒 انتهى وقت هذا اليوم عند الساعة 12:00 منتصف الليل (الذي فات مات)", {
         duration: 4000,
@@ -864,6 +890,27 @@ export default function StudentTasks({
           <div style={{ fontSize: "2rem" }}>⏳</div>
           <p style={{ color: "#6b7280", margin: "0.5rem 0 0" }}>جاري تحميل مهام هذا اليوم...</p>
         </div>
+      ) : planDetails.isFriday ? (
+        <div
+          className="card"
+          style={{
+            background: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
+            color: "white",
+            textAlign: "center",
+            padding: "2.5rem 1.5rem",
+            borderRadius: "1.25rem",
+            border: "2px solid #34d399",
+            boxShadow: "0 10px 25px rgba(4,120,87,0.3)",
+          }}
+        >
+          <div style={{ fontSize: "3.5rem", marginBottom: "0.5rem" }}>🕌</div>
+          <h2 style={{ margin: "0 0 0.5rem", fontSize: "1.6rem", fontWeight: 900, color: "#fef08a" }}>
+            جمعة مباركة - إجازة قرآنية
+          </h2>
+          <p style={{ margin: "0 auto", maxWidth: "450px", fontSize: "1.05rem", lineHeight: 1.6, opacity: 0.95 }}>
+            اليوم الجمعة إجازة، لا توجد مهام حفظ أو مراجعة مقررة. تقبل الله طاعاتكم وصالح أعمالكم!
+          </p>
+        </div>
       ) : assignments.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "2.5rem" }}>
           <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>📭</div>
@@ -873,6 +920,40 @@ export default function StudentTasks({
         </div>
       ) : (
         <>
+          {/* Quick Plan Link Banner */}
+          <Link
+            href="/student/plan"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "rgba(255,255,255,0.95)",
+              backdropFilter: "blur(10px)",
+              borderRadius: "1rem",
+              padding: "0.75rem 1rem",
+              textDecoration: "none",
+              border: "1px solid rgba(124,58,237,0.25)",
+              boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
+              marginBottom: "0.75rem",
+              transition: "all 0.2s",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <span style={{ fontSize: "1.5rem" }}>📖</span>
+              <div>
+                <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 700, display: "block" }}>
+                  خطة الحفظ اليومية الحالية
+                </span>
+                <span style={{ fontSize: "0.95rem", fontWeight: 900, color: "#7c3aed" }}>
+                  صفحة {studentPlan.current_page} ({studentPlan.page_part === "top" ? "النصف العلوي" : "النصف السفلي"}) • الحزب {studentPlan.current_review_hizb}
+                </span>
+              </div>
+            </div>
+            <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "#7c3aed", background: "#f3e8ff", padding: "0.3rem 0.65rem", borderRadius: "0.5rem" }}>
+              عرض الخطة ◀
+            </span>
+          </Link>
+
           {/* ================= MANDATORY PINNED ALTERNATIVE TASK ================= */}
           {altTaskState && altTaskState.active && (assignments.some(a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed) || assignments.some(a => a.tasks?.name === "المهمة البديلة" && a.completed)) && (
             <div
@@ -1032,6 +1113,17 @@ export default function StudentTasks({
                 const taskDisplayName = isDouble ? "مراجعة مضاعفة (مرتين)" : a.tasks?.name
                 const taskEmoji = isDouble ? "🔁" : a.tasks?.emoji ?? "📖"
 
+                const planTaskDetail = (() => {
+                  const t = a.tasks?.name || ""
+                  if (t === "الدرس") return planDetails.tasks.lesson
+                  if (t === "السماع") return planDetails.tasks.listening
+                  if (t === "التفسير") return planDetails.tasks.tafsir
+                  if (t === "قيام الليل") return planDetails.tasks.nightPrayer
+                  if (t === "جنب الدرس") return planDetails.tasks.adjacentLesson
+                  if (t === "المراجعة") return planDetails.tasks.revision
+                  return null
+                })()
+
                 return (
                   <button
                     key={a.id}
@@ -1105,6 +1197,19 @@ export default function StudentTasks({
                           </span>
                         )}
                       </div>
+                      {planTaskDetail && (
+                        <span
+                          style={{
+                            fontSize: "0.82rem",
+                            color: a.completed ? "#15803d" : "#7c3aed",
+                            fontWeight: 800,
+                            margin: "0.15rem 0 0.1rem",
+                            display: "block",
+                          }}
+                        >
+                          📖 {planTaskDetail}
+                        </span>
+                      )}
                       <p
                         style={{
                           fontSize: "0.75rem",
