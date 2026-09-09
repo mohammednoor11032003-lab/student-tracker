@@ -47,6 +47,36 @@ export default function StudentTasks({
   const [fetchingDate, setFetchingDate] = useState(false)
   const [activeModal, setActiveModal] = useState<"month" | "week" | "day" | null>(null)
 
+  // Revision Test Modal state
+  const [pendingRevisionAssignment, setPendingRevisionAssignment] = useState<Assignment | null>(null)
+  // Track tasks that require double revision (keyed by assignment id)
+  const [doubleRevisionIds, setDoubleRevisionIds] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`double_revision_${studentId}`)
+        return saved ? JSON.parse(saved) : {}
+      } catch {
+        return {}
+      }
+    }
+    return {}
+  })
+
+  // Helper to save doubleRevisionIds to localStorage
+  function updateDoubleRevision(assignmentId: string, isDouble: boolean) {
+    setDoubleRevisionIds(prev => {
+      const next = { ...prev, [assignmentId]: isDouble }
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`double_revision_${studentId}`, JSON.stringify(next))
+        } catch (e) {
+          console.error("Failed to save double revision state to localStorage:", e)
+        }
+      }
+      return next
+    })
+  }
+
   const isToday = selectedDate === todayStr
   const isPast = selectedDate < todayStr
 
@@ -208,6 +238,12 @@ export default function StudentTasks({
     const pts = a.tasks?.points ?? 0
     const deltaPoints = nextCompleted ? pts : -pts
 
+    // If completing a task that was in double revision mode, mark it as fulfilled!
+    const wasDoubleRevision = !!doubleRevisionIds[a.id]
+    if (nextCompleted && wasDoubleRevision) {
+      updateDoubleRevision(a.id, false)
+    }
+
     // 1. Snapshot previous state for rollback in case of network/database failure
     const prevAssignments = [...assignments]
     const prevWeeklyPoints = weeklyPoints
@@ -223,7 +259,11 @@ export default function StudentTasks({
       if (pts < 0) {
         toast(`تم تسجيل خصم ${pts} نقطة`, { icon: "⚠️", duration: 3500 })
       } else {
-        toast.success(`🎉 أحسنت! كسبت +${pts} نقاط!`, { duration: 3500 })
+        if (wasDoubleRevision) {
+          toast.success(`🎉 أحسنت! أكملت المراجعة المضاعفة بنجاح وكسبت +${pts} نقاط!`, { duration: 4000 })
+        } else {
+          toast.success(`🎉 أحسنت! كسبت +${pts} نقاط!`, { duration: 3500 })
+        }
       }
     } else {
       if (pts < 0) {
@@ -272,6 +312,63 @@ export default function StudentTasks({
         toast.error(`❌ تعذر حفظ المهمة، تم التراجع: ${errorMsg}`, { duration: 4500 })
       }
     })()
+  }
+
+  // Intercept click on task to check if it's 'المراجعة'
+  function handleTaskClick(a: Assignment) {
+    if (!isToday) {
+      toast.error("🔒 انتهى وقت هذا اليوم عند الساعة 12:00 منتصف الليل (الذي فات مات)", {
+        duration: 4000,
+        icon: "🔒",
+      })
+      return
+    }
+
+    const taskName = a.tasks?.name ?? ""
+    const isRevision = taskName.includes("المراجعة") || taskName === "المراجعة"
+
+    // If currently completed, clicking it is an undo/toggle back -> directly toggle
+    if (a.completed) {
+      completeTask(a)
+      return
+    }
+
+    // If task is 'المراجعة' and currently not completed
+    if (isRevision) {
+      const isAlreadyDouble = !!doubleRevisionIds[a.id]
+      if (isAlreadyDouble) {
+        // The student already failed once and had to do double revision.
+        // Now clicking to complete the double revision:
+        completeTask(a)
+      } else {
+        // First time completing 'المراجعة' -> Open Modal asking if they passed teacher's test
+        setPendingRevisionAssignment(a)
+      }
+      return
+    }
+
+    // Regular task completion
+    completeTask(a)
+  }
+
+  // Handler when student clicks "نعم" (passed the test)
+  function handlePassRevision() {
+    if (!pendingRevisionAssignment) return
+    const a = pendingRevisionAssignment
+    setPendingRevisionAssignment(null)
+    completeTask(a)
+  }
+
+  // Handler when student clicks "لا" (did not pass -> double revision required)
+  function handleFailRevision() {
+    if (!pendingRevisionAssignment) return
+    const a = pendingRevisionAssignment
+    setPendingRevisionAssignment(null)
+    updateDoubleRevision(a.id, true)
+    toast("⚠️ تم تحويل المهمة إلى 'مراجعة مضاعفة (مرتين)'! أنجزها ثم اضغط لإكمال المهمة.", {
+      icon: "🔁",
+      duration: 5000,
+    })
   }
 
   const selectedDayName = ARABIC_DAYS[dateObj.getDay()]
@@ -551,23 +648,35 @@ export default function StudentTasks({
 
               {regularTasks.map(a => {
                 const canClick = isToday
+                const isDouble = !a.completed && !!doubleRevisionIds[a.id]
+                const taskDisplayName = isDouble ? "مراجعة مضاعفة (مرتين)" : a.tasks?.name
+                const taskEmoji = isDouble ? "🔁" : a.tasks?.emoji ?? "📖"
+
                 return (
                   <button
                     key={a.id}
-                    onClick={() => completeTask(a)}
+                    onClick={() => handleTaskClick(a)}
                     disabled={!canClick}
                     className="task-btn"
                     style={{
                       width: "100%",
-                      background: a.completed ? "rgba(255,255,255,0.7)" : "white",
-                      border: a.completed ? "2px solid #86efac" : "none",
+                      background: a.completed
+                        ? "rgba(255,255,255,0.7)"
+                        : isDouble
+                        ? "#fffbeb"
+                        : "white",
+                      border: a.completed
+                        ? "2px solid #86efac"
+                        : isDouble
+                        ? "2px solid #f59e0b"
+                        : "none",
                       borderRadius: "1rem",
                       padding: "0.85rem 1rem",
                       cursor: canClick ? "pointer" : "default",
                       display: "flex",
                       alignItems: "center",
                       gap: "0.85rem",
-                      boxShadow: a.completed ? "none" : "0 4px 15px rgba(0,0,0,0.08)",
+                      boxShadow: a.completed ? "none" : isDouble ? "0 4px 15px rgba(245,158,11,0.2)" : "0 4px 15px rgba(0,0,0,0.08)",
                       opacity: a.completed ? 0.85 : isPast ? 0.85 : 1,
                     }}
                   >
@@ -576,7 +685,7 @@ export default function StudentTasks({
                         width: "3rem",
                         height: "3rem",
                         borderRadius: "0.75rem",
-                        background: a.completed ? "#dcfce7" : "#f3e8ff",
+                        background: a.completed ? "#dcfce7" : isDouble ? "#fef3c7" : "#f3e8ff",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -585,32 +694,62 @@ export default function StudentTasks({
                         transition: "all 0.2s",
                       }}
                     >
-                      {a.completed ? "✅" : a.tasks?.emoji ?? "📖"}
+                      {a.completed ? "✅" : taskEmoji}
                     </div>
                     <div style={{ flex: 1, textAlign: "right" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <p
+                          style={{
+                            fontWeight: 800,
+                            fontSize: "1.05rem",
+                            margin: 0,
+                            color: a.completed ? "#6b7280" : isDouble ? "#b45309" : "#1f2937",
+                            textDecoration: a.completed ? "line-through" : "none",
+                          }}
+                        >
+                          {taskDisplayName}
+                        </p>
+                        {isDouble && !a.completed && (
+                          <span
+                            style={{
+                              background: "#fef3c7",
+                              color: "#b45309",
+                              border: "1px solid #fcd34d",
+                              padding: "0.15rem 0.5rem",
+                              borderRadius: "9999px",
+                              fontSize: "0.7rem",
+                              fontWeight: 800,
+                            }}
+                          >
+                            مضاعفة 2x
+                          </span>
+                        )}
+                      </div>
                       <p
                         style={{
-                          fontWeight: 800,
-                          fontSize: "1.05rem",
-                          margin: 0,
-                          color: a.completed ? "#6b7280" : "#1f2937",
-                          textDecoration: a.completed ? "line-through" : "none",
+                          fontSize: "0.75rem",
+                          color: a.completed
+                            ? "#16a34a"
+                            : isDouble
+                            ? "#d97706"
+                            : "#6b7280",
+                          margin: "0.15rem 0 0",
+                          fontWeight: 600,
                         }}
                       >
-                        {a.tasks?.name}
-                      </p>
-                      <p style={{ fontSize: "0.75rem", color: a.completed ? "#16a34a" : "#6b7280", margin: "0.15rem 0 0", fontWeight: 600 }}>
                         {a.completed
                           ? isToday
                             ? "تم الإنجاز بنجاح ✓ (اضغط للتراجع ↩️)"
                             : "تم الإنجاز بنجاح ✓"
+                          : isDouble
+                          ? "شرط مضاعف: راجع مرتين ثم اضغط للإكمال"
                           : isPast
                           ? "لم يتم الإنجاز (انتهت المهلة)"
                           : "اضغط للإكمال"}
                       </p>
                     </div>
                     <div style={{ textAlign: "center", flexShrink: 0 }}>
-                      <div style={{ fontSize: "1.3rem", fontWeight: 900, color: a.completed ? "#16a34a" : "#7c3aed" }}>
+                      <div style={{ fontSize: "1.3rem", fontWeight: 900, color: a.completed ? "#16a34a" : isDouble ? "#d97706" : "#7c3aed" }}>
                         +{a.tasks?.points}
                       </div>
                       <div style={{ fontSize: "0.65rem", color: "#d97706" }}>⭐ نقاط</div>
@@ -700,6 +839,134 @@ export default function StudentTasks({
       )}
 
       {/* ================= MODALS ================= */}
+
+      {/* 0. REVISION CONFIRMATION MODAL */}
+      {pendingRevisionAssignment && (
+        <div
+          onClick={() => setPendingRevisionAssignment(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 99999,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="card"
+            style={{
+              width: "100%",
+              maxWidth: "400px",
+              padding: "1.75rem 1.5rem",
+              textAlign: "center",
+              borderRadius: "1.25rem",
+              background: "white",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08)",
+              animation: "popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
+            <div
+              style={{
+                width: "4rem",
+                height: "4rem",
+                borderRadius: "50%",
+                background: "#f3e8ff",
+                color: "#7c3aed",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "2.2rem",
+                margin: "0 auto 1rem",
+              }}
+            >
+              🔁
+            </div>
+
+            <h3 style={{ margin: "0 0 0.5rem", fontWeight: 900, color: "#1f2937", fontSize: "1.35rem" }}>
+              مهمة المراجعة
+            </h3>
+
+            <p style={{ fontSize: "1.1rem", color: "#374151", margin: "0.5rem 0 1.5rem", fontWeight: 700, lineHeight: 1.5 }}>
+              هل اجتزت اختبار المعلم بنجاح؟
+            </p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              {/* خيار نعم */}
+              <button
+                type="button"
+                onClick={handlePassRevision}
+                style={{
+                  padding: "0.9rem 1rem",
+                  borderRadius: "0.85rem",
+                  border: "none",
+                  background: "linear-gradient(135deg, #10b981, #059669)",
+                  color: "white",
+                  fontSize: "1.05rem",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.4rem",
+                  boxShadow: "0 4px 12px rgba(16,185,129,0.3)",
+                  transition: "transform 0.1s, box-shadow 0.1s",
+                }}
+                onMouseDown={e => (e.currentTarget.style.transform = "scale(0.97)")}
+                onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                <span>✓ نعم</span>
+              </button>
+
+              {/* خيار لا (المضاعفة) */}
+              <button
+                type="button"
+                onClick={handleFailRevision}
+                style={{
+                  padding: "0.9rem 1rem",
+                  borderRadius: "0.85rem",
+                  border: "2px solid #f59e0b",
+                  background: "#fffbeb",
+                  color: "#b45309",
+                  fontSize: "1.05rem",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.4rem",
+                  transition: "transform 0.1s",
+                }}
+                onMouseDown={e => (e.currentTarget.style.transform = "scale(0.97)")}
+                onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+              >
+                <span>✕ لا</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPendingRevisionAssignment(null)}
+              style={{
+                marginTop: "1rem",
+                background: "transparent",
+                border: "none",
+                color: "#9ca3af",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: "0.25rem",
+              }}
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 1. MONTH PICKER MODAL */}
       {activeModal === "month" && (
