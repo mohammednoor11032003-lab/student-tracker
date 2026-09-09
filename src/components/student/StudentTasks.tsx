@@ -442,6 +442,20 @@ export default function StudentTasks({
 
   const regularTasks = assignments
     .filter(a => (a.tasks?.points ?? 0) >= 0)
+    .filter(a => {
+      // If student is in consolidation week, hide the 5 lesson tasks!
+      if (studentPlan?.is_in_consolidation) {
+        const name = a.tasks?.name || ""
+        const isLessonRelated =
+          name === "الدرس" ||
+          name === "السماع" ||
+          name === "التفسير" ||
+          name === "قيام الليل" ||
+          name === "جنب الدرس"
+        if (isLessonRelated) return false
+      }
+      return true
+    })
     .sort((a, b) => {
       const idxA = TASK_ORDER.indexOf(a.tasks?.name ?? "")
       const idxB = TASK_ORDER.indexOf(b.tasks?.name ?? "")
@@ -455,6 +469,75 @@ export default function StudentTasks({
       const idxB = PENALTY_ORDER.indexOf(b.tasks?.name ?? "")
       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99)
     })
+
+  // Consolidation Clicker Counter & Handlers
+  const consolidationDay = studentPlan?.consolidation_day || 1
+  const [consolidationCount, setConsolidationCount] = useState<number>(0)
+  const [isSavingConsolidation, setIsSavingConsolidation] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`consolidation_count_${studentId}_d${consolidationDay}`)
+      setConsolidationCount(saved ? Number(saved) : 0)
+    }
+  }, [studentId, consolidationDay])
+
+  function handleIncrementConsolidation() {
+    if (!isToday) {
+      toast.error("🔒 لا يمكن التفاعل مع مهام الأيام السابقة", { icon: "🔒" })
+      return
+    }
+    const target = planDetails.consolidationTask?.target || 10
+    setConsolidationCount(prev => {
+      const next = Math.min(target, prev + 1)
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`consolidation_count_${studentId}_d${consolidationDay}`, String(next))
+      }
+      return next
+    })
+  }
+
+  async function handleCompleteConsolidation() {
+    if (!isToday || isSavingConsolidation) return
+    const target = planDetails.consolidationTask?.target || 10
+    if (consolidationCount < target) {
+      toast.error(`يجب إكمال العداد إلى ${target} تكرارات أولاً!`, { icon: "⚠️" })
+      return
+    }
+
+    setIsSavingConsolidation(true)
+    try {
+      const nextPlan = calculateNextPlanState(studentPlan, "التثبيت", true)
+      setStudentPlan(nextPlan)
+
+      // Complete "الدرس" assignment if found to award points
+      const lessonAssignment = assignments.find(a => a.tasks?.name === "الدرس" && !a.completed)
+      if (lessonAssignment) {
+        await completeTask(lessonAssignment)
+      }
+
+      await fetch("/api/student-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          updates: nextPlan,
+          dateStr: todayStr,
+        }),
+      })
+
+      if (nextPlan.is_in_consolidation) {
+        toast.success(`✓ تم إنجاز تثبيت اليوم ${consolidationDay} بنجاح! بارك الله فيك 🌟`, { duration: 4500 })
+      } else {
+        toast.success("🎉 مبارك! أتممت أسبوع التثبيت كاملاً بنجاح وسيبدأ الجزء الجديد!", { duration: 6000 })
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error("حدث خطأ أثناء حفظ تقدم التثبيت")
+    } finally {
+      setIsSavingConsolidation(false)
+    }
+  }
 
   // Toggle task completion (Complete / Uncomplete) with instant Optimistic UI and Rollback
   async function completeTask(a: Assignment) {
@@ -1090,6 +1173,173 @@ export default function StudentTasks({
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Auto-Consolidation Week Card (when is_in_consolidation is true) */}
+          {studentPlan?.is_in_consolidation && planDetails.consolidationTask && (
+            <div
+              className="card"
+              style={{
+                borderRadius: "1.25rem",
+                padding: "1.25rem",
+                background: "linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%)",
+                border: "2px solid #f87171",
+                boxShadow: "0 8px 25px rgba(225,29,72,0.15)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1rem",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                  <span style={{ fontSize: "1.75rem" }}>🛡️</span>
+                  <div>
+                    <h3 style={{ margin: 0, fontWeight: 900, fontSize: "1.15rem", color: "#9f1239" }}>
+                      أسبوع التثبيت التلقائي - الجزء {studentPlan.consolidation_juz || planDetails.juz}
+                    </h3>
+                    <span style={{ fontSize: "0.8rem", color: "#be123c", fontWeight: 700 }}>
+                      اليوم {consolidationDay} من أصل 7 أيام تثبيت مكثف
+                    </span>
+                  </div>
+                </div>
+
+                <span
+                  style={{
+                    background: "#f43f5e",
+                    color: "white",
+                    padding: "0.3rem 0.75rem",
+                    borderRadius: "9999px",
+                    fontWeight: 900,
+                    fontSize: "0.8rem",
+                    boxShadow: "0 2px 8px rgba(244,63,94,0.3)",
+                  }}
+                >
+                  الهدف: {planDetails.consolidationTask.target} تكرارات
+                </span>
+              </div>
+
+              <div style={{ background: "white", borderRadius: "1rem", padding: "1rem", border: "1px solid #fecdd3" }}>
+                <div style={{ fontWeight: 800, fontSize: "1rem", color: "#1f2937", marginBottom: "0.25rem" }}>
+                  📌 {planDetails.consolidationTask.title}
+                </div>
+                <p style={{ margin: 0, fontSize: "0.85rem", color: "#6b7280" }}>
+                  كرر الورد بالتركيز والإتقان، واستخدم العداد أدناه لاحتساب كل تكرار
+                </p>
+              </div>
+
+              {/* Clicker Counter Button */}
+              {(() => {
+                const target = planDetails.consolidationTask.target
+                const isTargetReached = consolidationCount >= target
+                const pct = Math.min(100, Math.round((consolidationCount / target) * 100))
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    <button
+                      type="button"
+                      onClick={handleIncrementConsolidation}
+                      disabled={!isToday || isTargetReached}
+                      style={{
+                        width: "100%",
+                        padding: "1rem",
+                        borderRadius: "1rem",
+                        border: "none",
+                        background: isTargetReached
+                          ? "linear-gradient(135deg, #10b981, #059669)"
+                          : "linear-gradient(135deg, #e11d48, #be123c)",
+                        color: "white",
+                        fontWeight: 900,
+                        fontSize: "1.2rem",
+                        cursor: isTargetReached || !isToday ? "default" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        boxShadow: isTargetReached ? "0 4px 12px rgba(16,185,129,0.3)" : "0 4px 14px rgba(225,29,72,0.3)",
+                        position: "relative",
+                        overflow: "hidden",
+                        transition: "all 0.15s",
+                      }}
+                      onMouseDown={e => {
+                        if (!isTargetReached && isToday) e.currentTarget.style.transform = "scale(0.97)"
+                      }}
+                      onMouseUp={e => {
+                        if (!isTargetReached && isToday) e.currentTarget.style.transform = "scale(1)"
+                      }}
+                    >
+                      {/* Background progress fill */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: `${pct}%`,
+                          background: "rgba(255,255,255,0.22)",
+                          pointerEvents: "none",
+                          transition: "width 0.2s ease",
+                        }}
+                      />
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", zIndex: 1 }}>
+                        <span style={{ fontSize: "1.4rem" }}>{isTargetReached ? "🎉" : "📿"}</span>
+                        <span>
+                          {isTargetReached
+                            ? "اكتمل عدد التكرارات المطلوبة!"
+                            : "انقر لاحتساب تكرار الورد"}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          zIndex: 1,
+                          background: "rgba(0,0,0,0.2)",
+                          padding: "0.3rem 0.75rem",
+                          borderRadius: "0.6rem",
+                          fontSize: "1.1rem",
+                          fontWeight: 900,
+                          minWidth: "75px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {consolidationCount} / {target}
+                      </div>
+                    </button>
+
+                    {/* Completion Action Button */}
+                    {isTargetReached && (
+                      <button
+                        type="button"
+                        onClick={handleCompleteConsolidation}
+                        disabled={!isToday || isSavingConsolidation}
+                        style={{
+                          width: "100%",
+                          padding: "0.85rem",
+                          borderRadius: "0.85rem",
+                          border: "none",
+                          background: "linear-gradient(135deg, #059669, #047857)",
+                          color: "white",
+                          fontWeight: 900,
+                          fontSize: "1.05rem",
+                          cursor: isSavingConsolidation ? "not-allowed" : "pointer",
+                          boxShadow: "0 4px 14px rgba(5,150,105,0.35)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        <span>✓</span>
+                        <span>
+                          {isSavingConsolidation
+                            ? "جاري الحفظ..."
+                            : `اعتماد إنجاز تثبيت اليوم (${consolidationDay}/7)`}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           )}
 

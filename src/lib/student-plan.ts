@@ -44,6 +44,9 @@ export async function getStudentPlan(studentId: string): Promise<StudentPlan> {
       current_review_hizb: profile?.current_review_hizb ?? meta.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb,
       memorized_ajza: memorizedAjza,
       current_review_index: isNaN(reviewIndex) ? 0 : Math.max(0, reviewIndex),
+      is_in_consolidation: Boolean(profile?.is_in_consolidation ?? meta.is_in_consolidation ?? false),
+      consolidation_day: Number(profile?.consolidation_day ?? meta.consolidation_day ?? 0),
+      consolidation_juz: Number(profile?.consolidation_juz ?? meta.consolidation_juz ?? 0),
       plan_start_date: profile?.plan_start_date ?? meta.plan_start_date ?? DEFAULT_PLAN.plan_start_date,
       plan_end_date: profile?.plan_end_date ?? meta.plan_end_date ?? DEFAULT_PLAN.plan_end_date,
       plan_active: profile?.plan_active ?? meta.plan_active ?? DEFAULT_PLAN.plan_active,
@@ -68,6 +71,9 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
         ? (updates.memorized_ajza.length > 0 ? updates.memorized_ajza : [1])
         : current.memorized_ajza,
       current_review_index: updates.current_review_index !== undefined ? Math.max(0, updates.current_review_index) : current.current_review_index,
+      is_in_consolidation: updates.is_in_consolidation !== undefined ? Boolean(updates.is_in_consolidation) : current.is_in_consolidation,
+      consolidation_day: updates.consolidation_day !== undefined ? Number(updates.consolidation_day) : current.consolidation_day,
+      consolidation_juz: updates.consolidation_juz !== undefined ? Number(updates.consolidation_juz) : current.consolidation_juz,
     }
 
     // 1. Update Auth user_metadata
@@ -78,6 +84,9 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
         current_review_hizb: merged.current_review_hizb,
         memorized_ajza: merged.memorized_ajza,
         current_review_index: merged.current_review_index,
+        is_in_consolidation: merged.is_in_consolidation,
+        consolidation_day: merged.consolidation_day,
+        consolidation_juz: merged.consolidation_juz,
         plan_start_date: merged.plan_start_date,
         plan_end_date: merged.plan_end_date,
         plan_active: merged.plan_active,
@@ -94,6 +103,9 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
           current_review_hizb: merged.current_review_hizb,
           memorized_ajza: merged.memorized_ajza,
           current_review_index: merged.current_review_index,
+          is_in_consolidation: merged.is_in_consolidation,
+          consolidation_day: merged.consolidation_day,
+          consolidation_juz: merged.consolidation_juz,
           plan_start_date: merged.plan_start_date,
           plan_active: merged.plan_active,
         })
