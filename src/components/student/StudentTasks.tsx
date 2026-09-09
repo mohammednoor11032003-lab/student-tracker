@@ -395,9 +395,60 @@ function StudentTasks({
   useEffect(() => {
     let isCurrent = true
     async function loadDateAssignments() {
-      // If future date, assignments don't exist in DB - simulation handles display
+      // If future date, skip querying database (Supabase) and generate the default daily tasks template
       if (selectedDate > todayStr) {
-        setAssignments([])
+        const futureDailyTemplate: Assignment[] = [
+          {
+            id: `template_listening_${selectedDate}`,
+            student_id: studentId,
+            task_id: "template_listening",
+            assigned_date: selectedDate,
+            completed: false,
+            tasks: { id: "template_listening", name: "السماع", points: 5, emoji: "🎧", created_by: "", created_at: "" },
+          },
+          {
+            id: `template_lesson_${selectedDate}`,
+            student_id: studentId,
+            task_id: "template_lesson",
+            assigned_date: selectedDate,
+            completed: false,
+            tasks: { id: "template_lesson", name: "الدرس", points: 10, emoji: "📖", created_by: "", created_at: "" },
+          },
+          {
+            id: `template_adjacent_${selectedDate}`,
+            student_id: studentId,
+            task_id: "template_adjacent",
+            assigned_date: selectedDate,
+            completed: false,
+            tasks: { id: "template_adjacent", name: "جنب الدرس", points: 5, emoji: "🔁", created_by: "", created_at: "" },
+          },
+          {
+            id: `template_tafsir_${selectedDate}`,
+            student_id: studentId,
+            task_id: "template_tafsir",
+            assigned_date: selectedDate,
+            completed: false,
+            tasks: { id: "template_tafsir", name: "التفسير", points: 5, emoji: "💡", created_by: "", created_at: "" },
+          },
+          {
+            id: `template_revision_${selectedDate}`,
+            student_id: studentId,
+            task_id: "template_revision",
+            assigned_date: selectedDate,
+            completed: false,
+            tasks: { id: "template_revision", name: "المراجعة", points: 10, emoji: "🔄", created_by: "", created_at: "" },
+          },
+          {
+            id: `template_night_${selectedDate}`,
+            student_id: studentId,
+            task_id: "template_night",
+            assigned_date: selectedDate,
+            completed: false,
+            tasks: { id: "template_night", name: "قيام الليل", points: 5, emoji: "🌙", created_by: "", created_at: "" },
+          },
+        ]
+        setAssignments(futureDailyTemplate)
+        setAssignmentsCache(prev => ({ ...prev, [selectedDate]: futureDailyTemplate }))
         setFetchingDate(false)
         return
       }
@@ -779,8 +830,19 @@ function StudentTasks({
     })
   }
 
+  // Date Formatter: strictly DD-MM-YYYY (or DD-MM) with hyphens, zero textual month names
+  function formatTaskDate(dateStr: string, includeYear = true): string {
+    if (!dateStr) return ""
+    const parts = dateStr.split("-")
+    if (parts.length < 3) return dateStr
+    const [y, m, d] = parts
+    const dd = String(d).padStart(2, "0")
+    const mm = String(m).padStart(2, "0")
+    return includeYear ? `${dd}-${mm}-${y}` : `${dd}-${mm}`
+  }
+
   const selectedDayName = ARABIC_DAYS[dateObj.getDay()]
-  const selectedDayDateFormatted = `${selectedDayName} ${String(dateObj.getDate()).padStart(2, "0")}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${dateObj.getFullYear()}`
+  const selectedDayDateFormatted = formatTaskDate(selectedDate, true)
 
   function selectMonth(monthNum: number, yearNum?: number) {
     const yr = yearNum || modalYear || activeYear
@@ -885,8 +947,8 @@ function StudentTasks({
             transition: "all 0.2s",
           }}
         >
-          <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 700 }}>اليوم والتاريخ ▾</span>
-          <span style={{ fontSize: "0.95rem", fontWeight: 900, color: "#1f2937" }}>
+          <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 700 }}>{selectedDayName} (اليوم والتاريخ) ▾</span>
+          <span dir="ltr" style={{ fontSize: "0.95rem", fontWeight: 900, color: "#1f2937", unicodeBidi: "isolate", letterSpacing: "0.5px" }}>
             📍 {selectedDayDateFormatted}
           </span>
         </button>
@@ -1062,7 +1124,7 @@ function StudentTasks({
             اليوم الجمعة إجازة، لا توجد مهام حفظ أو مراجعة مقررة. تقبل الله طاعاتكم وصالح أعمالكم!
           </p>
         </div>
-      ) : assignments.length === 0 ? (
+      ) : (!isFuture && assignments.length === 0) ? (
         <div className="card" style={{ textAlign: "center", padding: "2.5rem" }}>
           <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>📭</div>
           <p style={{ color: "#6b7280", fontWeight: 700, fontSize: "1.05rem", margin: 0 }}>
@@ -2322,8 +2384,8 @@ function StudentTasks({
                 <div key={wNum} style={{ marginBottom: "1rem" }}>
                   <div style={{ fontSize: "0.85rem", fontWeight: 800, color: "#7c3aed", marginBottom: "0.4rem", display: "flex", justifyContent: "space-between" }}>
                     <span>الأسبوع {WEEK_NAMES[wNum - 1]}</span>
-                    <span style={{ fontSize: "0.75rem", color: "#9ca3af", fontWeight: 600 }}>
-                      {daysInThisWeek[0]?.dayNum}/{daysInThisWeek[0]?.monthNum} - {daysInThisWeek[6]?.dayNum}/{daysInThisWeek[6]?.monthNum}
+                    <span dir="ltr" style={{ fontSize: "0.75rem", color: "#9ca3af", fontWeight: 600 }}>
+                      {daysInThisWeek[0] ? `${String(daysInThisWeek[0].dayNum).padStart(2, "0")}-${String(daysInThisWeek[0].monthNum).padStart(2, "0")}` : ""} إلى {daysInThisWeek[6] ? `${String(daysInThisWeek[6].dayNum).padStart(2, "0")}-${String(daysInThisWeek[6].monthNum).padStart(2, "0")}` : ""}
                     </span>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "0.25rem" }}>
