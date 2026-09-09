@@ -38,6 +38,9 @@ export default function StudentTasks({
 
   // State
   const [selectedDate, setSelectedDate] = useState(todayStr)
+  const [assignmentsCache, setAssignmentsCache] = useState<Record<string, Assignment[]>>({
+    [todayStr]: initAssignments,
+  })
   const [assignments, setAssignments] = useState<Assignment[]>(initAssignments)
   const [weeklyPoints, setWeeklyPoints] = useState(initWeeklyPoints)
   const [loading, setLoading] = useState<string | null>(null)
@@ -118,14 +121,17 @@ export default function StudentTasks({
     }
   })
 
-  // When selectedDate changes, fetch assignments for that date if not already loaded
+  // When selectedDate changes, load from cache immediately or fetch from database
   useEffect(() => {
+    let isCurrent = true
     async function loadDateAssignments() {
-      if (selectedDate === todayStr && initAssignments.length > 0) {
-        setAssignments(initAssignments)
-        return
+      // If we have cached assignments for this date, show them immediately without flicker!
+      if (assignmentsCache[selectedDate]) {
+        setAssignments(assignmentsCache[selectedDate])
+      } else {
+        setFetchingDate(true)
       }
-      setFetchingDate(true)
+
       const { data } = await supabase
         .from("daily_assignments")
         .select("*, tasks(*)")
@@ -133,10 +139,16 @@ export default function StudentTasks({
         .eq("assigned_date", selectedDate)
         .order("completed", { ascending: true })
 
-      setAssignments(data ?? [])
-      setFetchingDate(false)
+      if (isCurrent && data) {
+        setAssignments(data)
+        setAssignmentsCache(prev => ({ ...prev, [selectedDate]: data }))
+        setFetchingDate(false)
+      }
     }
     loadDateAssignments()
+    return () => {
+      isCurrent = false
+    }
   }, [selectedDate])
 
   function navigateWeek(direction: number) {
@@ -158,9 +170,8 @@ export default function StudentTasks({
   const regularTasks = assignments.filter(a => (a.tasks?.points ?? 0) >= 0)
   const penaltyTasks = assignments.filter(a => (a.tasks?.points ?? 0) < 0)
 
+  // Toggle task completion (Complete / Uncomplete) with instant Optimistic UI and Rollback
   async function completeTask(a: Assignment) {
-    if (a.completed) return
-
     // Strict time check: after 12:00 AM midnight, the date changes, so past days cannot be edited!
     if (!isToday) {
       toast.error("🔒 انتهى وقت هذا اليوم عند الساعة 12:00 منتصف الليل (الذي فات مات)", {
@@ -170,23 +181,33 @@ export default function StudentTasks({
       return
     }
 
+    const nextCompleted = !a.completed
     const pts = a.tasks?.points ?? 0
+    const deltaPoints = nextCompleted ? pts : -pts
 
     // 1. Snapshot previous state for rollback in case of network/database failure
     const prevAssignments = [...assignments]
     const prevWeeklyPoints = weeklyPoints
 
     // 2. OPTIMISTIC UI UPDATE (0 ms instantaneous feedback!)
-    // Update assignments list immediately
-    setAssignments(prev => prev.map(x => (x.id === a.id ? { ...x, completed: true } : x)))
-    // Update weekly points immediately
-    setWeeklyPoints(prev => prev + pts)
+    const updated = assignments.map(x => (x.id === a.id ? { ...x, completed: nextCompleted } : x))
+    setAssignments(updated)
+    setAssignmentsCache(prev => ({ ...prev, [selectedDate]: updated }))
+    setWeeklyPoints(prev => Math.max(0, prev + deltaPoints))
 
-    // Show immediate success toast
-    if (pts < 0) {
-      toast(`تم تسجيل خصم ${pts} نقطة`, { icon: "⚠️", duration: 3500 })
+    // Show immediate toast feedback
+    if (nextCompleted) {
+      if (pts < 0) {
+        toast(`تم تسجيل خصم ${pts} نقطة`, { icon: "⚠️", duration: 3500 })
+      } else {
+        toast.success(`🎉 أحسنت! كسبت +${pts} نقاط!`, { duration: 3500 })
+      }
     } else {
-      toast.success(`🎉 أحسنت! كسبت +${pts} نقاط!`, { duration: 3500 })
+      if (pts < 0) {
+        toast(`تم التراجع عن الخصم (+${Math.abs(pts)} نقاط) ↩️`, { icon: "↩️", duration: 3500 })
+      } else {
+        toast(`تم التراجع عن إكمال المهمة (-${pts} نقاط) ↩️`, { icon: "↩️", duration: 3500 })
+      }
     }
 
     // 3. Send database updates in the background with Rollback on error
@@ -194,7 +215,10 @@ export default function StudentTasks({
       try {
         const { error: dbError } = await supabase
           .from("daily_assignments")
-          .update({ completed: true, completed_at: new Date().toISOString() })
+          .update({
+            completed: nextCompleted,
+            completed_at: nextCompleted ? new Date().toISOString() : null,
+          })
           .eq("id", a.id)
 
         if (dbError) throw new Error(dbError.message)
@@ -207,17 +231,19 @@ export default function StudentTasks({
             studentId,
             taskId: a.task_id,
             points: pts,
+            completed: nextCompleted,
           }),
         })
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
-          throw new Error(data.error || "تعذر حفظ الإنجاز")
+          throw new Error(data.error || "تعذر حفظ التعديل")
         }
       } catch (err: unknown) {
         // ROLLBACK TO PREVIOUS STATE
         console.error("Optimistic update failed, rolling back:", err)
         setAssignments(prevAssignments)
+        setAssignmentsCache(prev => ({ ...prev, [selectedDate]: prevAssignments }))
         setWeeklyPoints(prevWeeklyPoints)
         const errorMsg = err instanceof Error ? err.message : "حدث خطأ غير متوقع"
         toast.error(`❌ تعذر حفظ المهمة، تم التراجع: ${errorMsg}`, { duration: 4500 })
@@ -501,17 +527,17 @@ export default function StudentTasks({
               </div>
 
               {regularTasks.map(a => {
-                const canClick = isToday && !a.completed
+                const canClick = isToday
                 return (
                   <button
                     key={a.id}
                     onClick={() => completeTask(a)}
-                    disabled={!canClick || loading === a.id}
+                    disabled={!canClick}
                     className="task-btn"
                     style={{
                       width: "100%",
-                      background: a.completed ? "rgba(255,255,255,0.65)" : "white",
-                      border: a.completed ? "1px solid #86efac" : "none",
+                      background: a.completed ? "rgba(255,255,255,0.7)" : "white",
+                      border: a.completed ? "2px solid #86efac" : "none",
                       borderRadius: "1rem",
                       padding: "0.85rem 1rem",
                       cursor: canClick ? "pointer" : "default",
@@ -519,7 +545,7 @@ export default function StudentTasks({
                       alignItems: "center",
                       gap: "0.85rem",
                       boxShadow: a.completed ? "none" : "0 4px 15px rgba(0,0,0,0.08)",
-                      opacity: a.completed ? 0.75 : isPast ? 0.85 : 1,
+                      opacity: a.completed ? 0.85 : isPast ? 0.85 : 1,
                     }}
                   >
                     <div
@@ -533,9 +559,10 @@ export default function StudentTasks({
                         justifyContent: "center",
                         fontSize: "1.8rem",
                         flexShrink: 0,
+                        transition: "all 0.2s",
                       }}
                     >
-                      {loading === a.id ? "⏳" : a.completed ? "✅" : a.tasks?.emoji ?? "📖"}
+                      {a.completed ? "✅" : a.tasks?.emoji ?? "📖"}
                     </div>
                     <div style={{ flex: 1, textAlign: "right" }}>
                       <p
@@ -550,7 +577,13 @@ export default function StudentTasks({
                         {a.tasks?.name}
                       </p>
                       <p style={{ fontSize: "0.75rem", color: a.completed ? "#16a34a" : "#6b7280", margin: "0.15rem 0 0", fontWeight: 600 }}>
-                        {a.completed ? "تم الإنجاز بنجاح ✓" : isPast ? "لم يتم الإنجاز (انتهت المهلة)" : "اضغط للإكمال"}
+                        {a.completed
+                          ? isToday
+                            ? "تم الإنجاز بنجاح ✓ (اضغط للتراجع ↩️)"
+                            : "تم الإنجاز بنجاح ✓"
+                          : isPast
+                          ? "لم يتم الإنجاز (انتهت المهلة)"
+                          : "اضغط للإكمال"}
                       </p>
                     </div>
                     <div style={{ textAlign: "center", flexShrink: 0 }}>
@@ -572,12 +605,12 @@ export default function StudentTasks({
                 ⚠️ خصومات (إن وُجدت)
               </h2>
               {penaltyTasks.map(a => {
-                const canClick = isToday && !a.completed
+                const canClick = isToday
                 return (
                   <button
                     key={a.id}
                     onClick={() => completeTask(a)}
-                    disabled={!canClick || loading === a.id}
+                    disabled={!canClick}
                     className="task-btn"
                     style={{
                       width: "100%",
@@ -589,7 +622,7 @@ export default function StudentTasks({
                       display: "flex",
                       alignItems: "center",
                       gap: "0.85rem",
-                      opacity: a.completed ? 0.85 : 1,
+                      opacity: a.completed ? 0.9 : 1,
                     }}
                   >
                     <div
@@ -605,7 +638,7 @@ export default function StudentTasks({
                         flexShrink: 0,
                       }}
                     >
-                      {loading === a.id ? "⏳" : a.completed ? "❌" : a.tasks?.emoji ?? "⚠️"}
+                      {a.completed ? "❌" : a.tasks?.emoji ?? "⚠️"}
                     </div>
                     <div style={{ flex: 1, textAlign: "right" }}>
                       <p
@@ -620,7 +653,13 @@ export default function StudentTasks({
                         {a.tasks?.name}
                       </p>
                       <p style={{ fontSize: "0.75rem", color: a.completed ? "#991b1b" : "#6b7280", margin: "0.15rem 0 0" }}>
-                        {a.completed ? "تم تطبيق الخصم" : isPast ? "غير مسجل" : "يُحدد فقط عند الحضور بدون حفظ أو الغياب"}
+                        {a.completed
+                          ? isToday
+                            ? "تم تطبيق الخصم (اضغط للتراجع ↩️)"
+                            : "تم تطبيق الخصم"
+                          : isPast
+                          ? "غير مسجل"
+                          : "يُحدد فقط عند الحضور بدون حفظ أو الغياب"}
                       </p>
                     </div>
                     <div style={{ textAlign: "center", flexShrink: 0 }}>

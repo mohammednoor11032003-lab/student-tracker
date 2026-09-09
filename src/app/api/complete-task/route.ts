@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   )
 
   try {
-    const { assignmentId, studentId, taskId, points } = await req.json()
+    const { assignmentId, studentId, taskId, points, completed = true } = await req.json()
 
     // 1. Strict midnight deadline check:
     const todayStr = new Date().toISOString().split("T")[0]
@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       )
     }
+
+    const deltaPoints = completed ? points : -points
+    const deltaCompleted = completed ? 1 : -1
 
     const now = new Date()
     const weekStart = new Date(now)
@@ -45,15 +48,15 @@ export async function POST(req: NextRequest) {
 
     if (existingWeekly) {
       await supabase.from("weekly_summaries").update({
-        total_points: existingWeekly.total_points + points,
-        tasks_completed: existingWeekly.tasks_completed + 1,
+        total_points: Math.max(0, existingWeekly.total_points + deltaPoints),
+        tasks_completed: Math.max(0, existingWeekly.tasks_completed + deltaCompleted),
       }).eq("id", existingWeekly.id)
-    } else {
+    } else if (completed) {
       await supabase.from("weekly_summaries").insert({
         student_id: studentId,
         week_start: weekStartStr,
         week_end: weekEndStr,
-        total_points: points,
+        total_points: Math.max(0, points),
         tasks_completed: 1,
       })
     }
@@ -69,21 +72,21 @@ export async function POST(req: NextRequest) {
 
     if (existingMonthly) {
       await supabase.from("monthly_summaries").update({
-        total_points: existingMonthly.total_points + points,
-        tasks_completed: existingMonthly.tasks_completed + 1,
+        total_points: Math.max(0, existingMonthly.total_points + deltaPoints),
+        tasks_completed: Math.max(0, existingMonthly.tasks_completed + deltaCompleted),
       }).eq("id", existingMonthly.id)
-    } else {
+    } else if (completed) {
       await supabase.from("monthly_summaries").insert({
         student_id: studentId,
         month,
         year,
-        total_points: points,
+        total_points: Math.max(0, points),
         tasks_completed: 1,
       })
     }
 
-    // WhatsApp notification via Twilio
-    if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    // WhatsApp notification via Twilio (only when completed)
+    if (completed && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
       try {
         const [studentRes, taskRes, parentRes] = await Promise.all([
           supabase.from("profiles").select("full_name").eq("id", studentId).single(),
