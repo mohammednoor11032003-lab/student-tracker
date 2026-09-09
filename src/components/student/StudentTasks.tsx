@@ -159,7 +159,7 @@ export default function StudentTasks({
   const penaltyTasks = assignments.filter(a => (a.tasks?.points ?? 0) < 0)
 
   async function completeTask(a: Assignment) {
-    if (a.completed || loading) return
+    if (a.completed) return
 
     // Strict time check: after 12:00 AM midnight, the date changes, so past days cannot be edited!
     if (!isToday) {
@@ -170,46 +170,59 @@ export default function StudentTasks({
       return
     }
 
-    setLoading(a.id)
-    const { error } = await supabase
-      .from("daily_assignments")
-      .update({ completed: true, completed_at: new Date().toISOString() })
-      .eq("id", a.id)
-
-    if (error) {
-      toast.error("حدث خطأ أثناء الحفظ ❌")
-      setLoading(null)
-      return
-    }
-
-    const res = await fetch("/api/complete-task", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        assignmentId: a.id,
-        studentId,
-        taskId: a.task_id,
-        points: a.tasks?.points ?? 0,
-      }),
-    })
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      toast.error(data.error || "تعذر التسجيل")
-      setLoading(null)
-      return
-    }
-
-    setAssignments(prev => prev.map(x => (x.id === a.id ? { ...x, completed: true } : x)))
-    setWeeklyPoints(prev => prev + (a.tasks?.points ?? 0))
-
     const pts = a.tasks?.points ?? 0
+
+    // 1. Snapshot previous state for rollback in case of network/database failure
+    const prevAssignments = [...assignments]
+    const prevWeeklyPoints = weeklyPoints
+
+    // 2. OPTIMISTIC UI UPDATE (0 ms instantaneous feedback!)
+    // Update assignments list immediately
+    setAssignments(prev => prev.map(x => (x.id === a.id ? { ...x, completed: true } : x)))
+    // Update weekly points immediately
+    setWeeklyPoints(prev => prev + pts)
+
+    // Show immediate success toast
     if (pts < 0) {
       toast(`تم تسجيل خصم ${pts} نقطة`, { icon: "⚠️", duration: 3500 })
     } else {
       toast.success(`🎉 أحسنت! كسبت +${pts} نقاط!`, { duration: 3500 })
     }
-    setLoading(null)
+
+    // 3. Send database updates in the background with Rollback on error
+    ;(async () => {
+      try {
+        const { error: dbError } = await supabase
+          .from("daily_assignments")
+          .update({ completed: true, completed_at: new Date().toISOString() })
+          .eq("id", a.id)
+
+        if (dbError) throw new Error(dbError.message)
+
+        const res = await fetch("/api/complete-task", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assignmentId: a.id,
+            studentId,
+            taskId: a.task_id,
+            points: pts,
+          }),
+        })
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.error || "تعذر حفظ الإنجاز")
+        }
+      } catch (err: unknown) {
+        // ROLLBACK TO PREVIOUS STATE
+        console.error("Optimistic update failed, rolling back:", err)
+        setAssignments(prevAssignments)
+        setWeeklyPoints(prevWeeklyPoints)
+        const errorMsg = err instanceof Error ? err.message : "حدث خطأ غير متوقع"
+        toast.error(`❌ تعذر حفظ المهمة، تم التراجع: ${errorMsg}`, { duration: 4500 })
+      }
+    })()
   }
 
   const selectedDayName = ARABIC_DAYS[dateObj.getDay()]
