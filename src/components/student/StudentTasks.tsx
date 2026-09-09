@@ -96,6 +96,16 @@ export default function StudentTasks({
   const [isMysteryModalOpen, setIsMysteryModalOpen] = useState(false)
   const [isOpeningChest, setIsOpeningChest] = useState(false)
 
+  // Clean up stale localStorage altTaskState if student has neither active penalty nor completed alternative task in DB
+  useEffect(() => {
+    if (!altTaskState) return
+    const hasPenalty = assignments.some(a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed)
+    const hasAltInDb = assignments.some(a => a.tasks?.name === "المهمة البديلة" && a.completed)
+    if (!hasPenalty && !hasAltInDb) {
+      saveAltTaskState(null)
+    }
+  }, [assignments, altTaskState])
+
   // Save altTaskState to localStorage
   function saveAltTaskState(state: AlternativeTaskState | null) {
     setAltTaskState(state)
@@ -461,9 +471,15 @@ export default function StudentTasks({
 
     // Check if task is 'الحضور بدون حفظ الدرس'
     const isAttendancePenalty = a.tasks?.name?.includes("الحضور بدون حفظ")
-    if (nextCompleted && isAttendancePenalty) {
-      // Trigger mandatory pinned alternative task!
-      activateAlternativeTask()
+    if (isAttendancePenalty) {
+      if (nextCompleted) {
+        // Trigger mandatory pinned alternative task!
+        activateAlternativeTask()
+      } else {
+        // Unchecked attendance penalty -> remove alternative task and clean state
+        saveAltTaskState(null)
+        supabase.from("daily_assignments").delete().eq("student_id", studentId).eq("task_id", "680903aa-0b9a-42f3-a725-49eaf05a9148").then(() => {})
+      }
     }
 
     // 1. Snapshot previous state for rollback in case of network/database failure
@@ -471,7 +487,10 @@ export default function StudentTasks({
     const prevWeeklyPoints = weeklyPoints
 
     // 2. OPTIMISTIC UI UPDATE (0 ms instantaneous feedback!)
-    const updated = assignments.map(x => (x.id === a.id ? { ...x, completed: nextCompleted } : x))
+    let updated = assignments.map(x => (x.id === a.id ? { ...x, completed: nextCompleted } : x))
+    if (!nextCompleted && isAttendancePenalty) {
+      updated = updated.filter(x => x.tasks?.name !== "المهمة البديلة")
+    }
     setAssignments(updated)
     setAssignmentsCache(prev => ({ ...prev, [selectedDate]: updated }))
     setWeeklyPoints(prev => prev + deltaPoints)
@@ -855,7 +874,7 @@ export default function StudentTasks({
       ) : (
         <>
           {/* ================= MANDATORY PINNED ALTERNATIVE TASK ================= */}
-          {altTaskState && altTaskState.active && (
+          {altTaskState && altTaskState.active && (assignments.some(a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed) || assignments.some(a => a.tasks?.name === "المهمة البديلة" && a.completed)) && (
             <div
               className="fade-in-down"
               style={{
