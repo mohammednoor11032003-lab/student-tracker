@@ -62,6 +62,7 @@ export default function AssignTasks({ tasks, students, existingAssignments, toda
     "المراجعة",
     "قيام الليل",
     "الغياب",
+    "الحضور بدون حفظ الدرس",
     "الحضور بدون حفظ",
   ]
   const sortedTasks = [...tasks].sort((a, b) => {

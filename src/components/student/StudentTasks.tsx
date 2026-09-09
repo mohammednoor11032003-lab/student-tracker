@@ -20,6 +20,9 @@ import {
   getMonthFirstSaturday,
   formatDateStr,
   getWeekAndMonthInfo,
+  AlternativeSubTask,
+  AlternativeTaskState,
+  generateMysteryBoxOutcome,
 } from "@/lib/date-utils"
 
 export default function StudentTasks({
@@ -75,6 +78,134 @@ export default function StudentTasks({
       }
       return next
     })
+  }
+
+  // Alternative Task State (Carry-over across days until completed)
+  const [altTaskState, setAltTaskState] = useState<AlternativeTaskState | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`alt_task_${studentId}`)
+        return saved ? JSON.parse(saved) : null
+      } catch {
+        return null
+      }
+    }
+    return null
+  })
+
+  const [isMysteryModalOpen, setIsMysteryModalOpen] = useState(false)
+  const [isOpeningChest, setIsOpeningChest] = useState(false)
+
+  // Save altTaskState to localStorage
+  function saveAltTaskState(state: AlternativeTaskState | null) {
+    setAltTaskState(state)
+    if (typeof window !== "undefined") {
+      try {
+        if (state) {
+          localStorage.setItem(`alt_task_${studentId}`, JSON.stringify(state))
+        } else {
+          localStorage.removeItem(`alt_task_${studentId}`)
+        }
+      } catch (e) {
+        console.error("Failed to save altTaskState:", e)
+      }
+    }
+  }
+
+  // Trigger alternative task creation (called when 'الحضور بدون حفظ الدرس' is clicked)
+  function activateAlternativeTask() {
+    const newState: AlternativeTaskState = {
+      active: true,
+      opened: false,
+      tasks: [],
+      createdAt: new Date().toISOString(),
+      assignedDate: todayStr,
+    }
+    saveAltTaskState(newState)
+    toast("📦 تم توليد 'المهمة البديلة' وتثبيتها في أعلى مهامك لتعويض النقاط!", {
+      icon: "🎁",
+      duration: 5000,
+    })
+  }
+
+  // Handle Mystery Box Click / Opening
+  function handleOpenMysteryBox() {
+    if (isOpeningChest) return
+    setIsOpeningChest(true)
+    setTimeout(() => {
+      const outcome = generateMysteryBoxOutcome()
+      if (outcome.isExempt) {
+        // 5% Rare Exemption!
+        // Instantly restore the 10 points!
+        setWeeklyPoints(prev => prev + 10)
+        saveAltTaskState(null)
+        setIsOpeningChest(false)
+        setIsMysteryModalOpen(false)
+        toast.success("🎊 مبروووك! حصلت على إعفاء نادر من العقوبة (5%)! تم استرداد الـ 10 نقاط فوراً! 🌟", {
+          duration: 6000,
+        })
+        // Background sync points recovery
+        fetch("/api/complete-task", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentId,
+            points: 10,
+            completed: true,
+          }),
+        }).catch(err => console.error(err))
+      } else {
+        // 95%: 1 or 2 tasks
+        if (altTaskState) {
+          const updated: AlternativeTaskState = {
+            ...altTaskState,
+            opened: true,
+            tasks: outcome.tasks,
+          }
+          saveAltTaskState(updated)
+        }
+        setIsOpeningChest(false)
+      }
+    }, 900)
+  }
+
+  // Handle Counter click for sub-task
+  function handleIncrementSubTask(subTaskId: string) {
+    if (!altTaskState) return
+    const updatedTasks = altTaskState.tasks.map(t => {
+      if (t.id === subTaskId && t.current < t.target) {
+        return { ...t, current: t.current + 1 }
+      }
+      return t
+    })
+    const updated: AlternativeTaskState = { ...altTaskState, tasks: updatedTasks }
+    saveAltTaskState(updated)
+  }
+
+  // Handle Final Compensation Button (+10 points restore)
+  function handleClaimCompensation() {
+    if (!altTaskState) return
+    const allDone = altTaskState.tasks.every(t => t.current >= t.target)
+    if (!allDone) return
+
+    // 1. Optimistic UI update: restore 10 points and remove task immediately!
+    setWeeklyPoints(prev => prev + 10)
+    saveAltTaskState(null)
+    setIsMysteryModalOpen(false)
+    toast.success("🎉 أحسنت صنعاً! تم إنجاز المهمة البديلة واستعادة الـ 10 نقاط بنجاح! ⭐", {
+      duration: 5000,
+    })
+
+    // 2. Background sync
+    fetch("/api/complete-task", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId,
+        points: 10,
+        completed: true,
+      }),
+    }).catch(err => console.error("Failed to sync compensation points:", err))
   }
 
   const isToday = selectedDate === todayStr
@@ -205,7 +336,7 @@ export default function StudentTasks({
     "المراجعة",
     "قيام الليل",
   ]
-  const PENALTY_ORDER = ["الغياب", "الحضور بدون حفظ"]
+  const PENALTY_ORDER = ["الغياب", "الحضور بدون حفظ الدرس", "الحضور بدون حفظ"]
 
   const regularTasks = assignments
     .filter(a => (a.tasks?.points ?? 0) >= 0)
@@ -242,6 +373,13 @@ export default function StudentTasks({
     const wasDoubleRevision = !!doubleRevisionIds[a.id]
     if (nextCompleted && wasDoubleRevision) {
       updateDoubleRevision(a.id, false)
+    }
+
+    // Check if task is 'الحضور بدون حفظ الدرس'
+    const isAttendancePenalty = a.tasks?.name?.includes("الحضور بدون حفظ")
+    if (nextCompleted && isAttendancePenalty) {
+      // Trigger mandatory pinned alternative task!
+      activateAlternativeTask()
     }
 
     // 1. Snapshot previous state for rollback in case of network/database failure
@@ -632,6 +770,132 @@ export default function StudentTasks({
         </div>
       ) : (
         <>
+          {/* ================= MANDATORY PINNED ALTERNATIVE TASK ================= */}
+          {altTaskState && altTaskState.active && (
+            <div
+              className="fade-in-down"
+              style={{
+                marginBottom: "0.5rem",
+                position: "relative",
+              }}
+            >
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)",
+                  borderRadius: "1.25rem",
+                  padding: "1.1rem 1.25rem",
+                  color: "white",
+                  boxShadow: "0 10px 25px rgba(217,119,6,0.35)",
+                  border: "2px solid #fde68a",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+              >
+                {/* Pin badge */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "0.6rem",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    <span style={{ fontSize: "1.2rem" }}>📌</span>
+                    <span
+                      style={{
+                        background: "rgba(0,0,0,0.25)",
+                        padding: "0.15rem 0.6rem",
+                        borderRadius: "9999px",
+                        fontSize: "0.75rem",
+                        fontWeight: 800,
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      مهمة إجبارية مُثبتة (مرحّلة كدَين حتى الإنجاز)
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      background: "#ef4444",
+                      color: "white",
+                      fontSize: "0.75rem",
+                      fontWeight: 800,
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "0.5rem",
+                    }}
+                  >
+                    تعويض -10 نقاط
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "1rem",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+                    <div
+                      className="chest-wobble"
+                      style={{
+                        width: "3.5rem",
+                        height: "3.5rem",
+                        borderRadius: "1rem",
+                        background: "rgba(255,255,255,0.25)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "2.2rem",
+                        flexShrink: 0,
+                        border: "1px solid rgba(255,255,255,0.4)",
+                      }}
+                    >
+                      🎁
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900 }}>
+                        المهمة البديلة (صندوق الحظ)
+                      </h3>
+                      <p style={{ margin: "0.2rem 0 0", fontSize: "0.85rem", opacity: 0.95, fontWeight: 600 }}>
+                        {!altTaskState.opened
+                          ? "اضغط لفتح صندوق الحظ واكتشاف مهمتك لتعويض نقاطك!"
+                          : `${altTaskState.tasks.filter(t => t.current >= t.target).length} من ${altTaskState.tasks.length} مهام مكتملة`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsMysteryModalOpen(true)}
+                    style={{
+                      border: "none",
+                      background: "white",
+                      color: "#b45309",
+                      padding: "0.65rem 1.1rem",
+                      borderRadius: "0.85rem",
+                      fontWeight: 900,
+                      fontSize: "0.95rem",
+                      cursor: "pointer",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      flexShrink: 0,
+                      transition: "transform 0.15s",
+                    }}
+                    onMouseDown={e => (e.currentTarget.style.transform = "scale(0.96)")}
+                    onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+                  >
+                    <span>{!altTaskState.opened ? "افتح الصندوق 📦" : "متابعة المهمة 🎯"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Regular Daily Tasks */}
           {regularTasks.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
@@ -964,6 +1228,235 @@ export default function StudentTasks({
             >
               إلغاء
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 0.1 MYSTERY BOX & ALTERNATIVE TASK MODAL */}
+      {isMysteryModalOpen && altTaskState && (
+        <div
+          onClick={() => setIsMysteryModalOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 99999,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="card"
+            style={{
+              width: "100%",
+              maxWidth: "460px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: "1.75rem 1.5rem",
+              borderRadius: "1.5rem",
+              background: "white",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              animation: "popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "1.5rem" }}>🎁</span>
+                <h3 style={{ margin: 0, fontWeight: 900, color: "#1f2937", fontSize: "1.25rem" }}>
+                  صندوق الحظ - المهمة البديلة
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMysteryModalOpen(false)}
+                style={{ border: "none", background: "none", fontSize: "1.4rem", cursor: "pointer", color: "#9ca3af" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* STAGE 1: UNOPENED CHEST */}
+            {!altTaskState.opened && (
+              <div style={{ textAlign: "center", padding: "1.5rem 0.5rem" }}>
+                <p style={{ color: "#4b5563", fontSize: "0.95rem", lineHeight: 1.6, margin: "0 0 1.5rem" }}>
+                  بسبب تسجيل <strong>الحضور بدون حفظ الدرس</strong> (-10 نقاط)، يمكنك فتح صندوق الحظ لإجراء مهمة بديلة واستعادة نقاطك كاملة!
+                </p>
+
+                {/* Animated Interactive Chest */}
+                <div
+                  onClick={handleOpenMysteryBox}
+                  style={{
+                    cursor: isOpeningChest ? "wait" : "pointer",
+                    padding: "1.5rem",
+                    background: "linear-gradient(135deg, #fef3c7, #fde68a)",
+                    borderRadius: "1.5rem",
+                    border: "2px dashed #f59e0b",
+                    display: "inline-block",
+                    marginBottom: "1.5rem",
+                    transition: "transform 0.2s",
+                  }}
+                  className={isOpeningChest ? "chest-opening" : "chest-wobble"}
+                >
+                  <div style={{ fontSize: "5rem" }}>
+                    {isOpeningChest ? "✨" : "🎁"}
+                  </div>
+                  <div style={{ fontWeight: 900, color: "#b45309", fontSize: "1.1rem", marginTop: "0.5rem" }}>
+                    {isOpeningChest ? "جاري فتح الصندوق..." : "اضغط لفتح الصندوق!"}
+                  </div>
+                </div>
+
+                <div style={{ fontSize: "0.8rem", color: "#6b7280" }}>
+                  🎲 95% مهمة أو مهمتين بديلة | 🌟 5% فرصة نادرة للإعفاء الفوري
+                </div>
+              </div>
+            )}
+
+            {/* STAGE 2: OPENED CHEST & INTERACTIVE CLICKER TASKS */}
+            {altTaskState.opened && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ background: "#fef3c7", border: "1px solid #fde68a", padding: "0.75rem 1rem", borderRadius: "0.85rem", color: "#92400e", fontSize: "0.85rem", fontWeight: 700, lineHeight: 1.5 }}>
+                  🎯 أكمل الأهداف المطلوبة بالضغط على العداد التفاعلي لكل تكرار تنجزه:
+                </div>
+
+                {/* Sub-tasks clicker list */}
+                {altTaskState.tasks.map(subTask => {
+                  const isFinished = subTask.current >= subTask.target
+                  const progressPct = Math.min(100, Math.round((subTask.current / subTask.target) * 100))
+
+                  return (
+                    <div
+                      key={subTask.id}
+                      style={{
+                        padding: "1rem",
+                        borderRadius: "1rem",
+                        border: isFinished ? "2px solid #22c55e" : "2px solid #e5e7eb",
+                        background: isFinished ? "#f0fdf4" : "#ffffff",
+                        boxShadow: isFinished ? "0 4px 15px rgba(34,197,94,0.15)" : "0 2px 8px rgba(0,0,0,0.05)",
+                        transition: "all 0.25s ease",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                        <span style={{ fontSize: "2rem" }}>{isFinished ? "✅" : subTask.emoji}</span>
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: isFinished ? "#16a34a" : "#1f2937" }}>
+                            {subTask.title}
+                          </h4>
+                          {subTask.details && (
+                            <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", color: "#6b7280", lineHeight: 1.4 }}>
+                              {subTask.details}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Clicker Counter Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleIncrementSubTask(subTask.id)}
+                        disabled={isFinished}
+                        style={{
+                          width: "100%",
+                          padding: "0.85rem",
+                          borderRadius: "0.85rem",
+                          border: "none",
+                          background: isFinished
+                            ? "linear-gradient(135deg, #10b981, #059669)"
+                            : "linear-gradient(135deg, #7c3aed, #a855f7)",
+                          color: "white",
+                          fontWeight: 900,
+                          fontSize: "1.15rem",
+                          cursor: isFinished ? "default" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          boxShadow: isFinished ? "none" : "0 4px 12px rgba(124,58,237,0.3)",
+                          position: "relative",
+                          overflow: "hidden",
+                          transition: "all 0.15s",
+                        }}
+                        onMouseDown={e => {
+                          if (!isFinished) e.currentTarget.style.transform = "scale(0.97)"
+                        }}
+                        onMouseUp={e => {
+                          if (!isFinished) e.currentTarget.style.transform = "scale(1)"
+                        }}
+                      >
+                        {/* Progress fill layer */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: `${progressPct}%`,
+                            background: "rgba(255,255,255,0.2)",
+                            transition: "width 0.2s ease",
+                            pointerEvents: "none",
+                          }}
+                        />
+
+                        <span style={{ position: "relative", zIndex: 1, fontSize: "0.95rem" }}>
+                          {isFinished ? "تم إنجاز الهدف كاملاً ✓" : "اضغط لتسجيل التكرار +1 👆"}
+                        </span>
+                        <span
+                          style={{
+                            position: "relative",
+                            zIndex: 1,
+                            background: "rgba(0,0,0,0.2)",
+                            padding: "0.2rem 0.6rem",
+                            borderRadius: "9999px",
+                            fontSize: "1.1rem",
+                            letterSpacing: "1px",
+                          }}
+                        >
+                          {subTask.current} / {subTask.target}
+                        </span>
+                      </button>
+                    </div>
+                  )
+                })}
+
+                {/* Final Compensation Claim Button */}
+                {(() => {
+                  const allDone = altTaskState.tasks.every(t => t.current >= t.target)
+                  return (
+                    <button
+                      type="button"
+                      onClick={handleClaimCompensation}
+                      disabled={!allDone}
+                      style={{
+                        marginTop: "0.5rem",
+                        width: "100%",
+                        padding: "1rem",
+                        borderRadius: "1rem",
+                        border: "none",
+                        background: allDone
+                          ? "linear-gradient(135deg, #10b981, #059669)"
+                          : "#e5e7eb",
+                        color: allDone ? "white" : "#9ca3af",
+                        fontWeight: 900,
+                        fontSize: "1.1rem",
+                        cursor: allDone ? "pointer" : "not-allowed",
+                        boxShadow: allDone ? "0 6px 20px rgba(16,185,129,0.4)" : "none",
+                        transition: "all 0.2s",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "0.5rem",
+                      }}
+                    >
+                      <span>{allDone ? "🎉" : "🔒"}</span>
+                      <span>استعادة النقاط (10 نقاط)</span>
+                    </button>
+                  )
+                })()}
+              </div>
+            )}
           </div>
         </div>
       )}
