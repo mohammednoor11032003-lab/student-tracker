@@ -70,8 +70,12 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
             <div style={{ fontSize: "0.75rem", color: "#c7d2fe", marginTop: "0.15rem" }}>📖 الجزء الحالي</div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: "1rem", padding: "0.75rem", textAlign: "center" }}>
-            <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#4ade80" }}>الحزب {plan.current_review_hizb}</div>
-            <div style={{ fontSize: "0.75rem", color: "#c7d2fe", marginTop: "0.15rem" }}>🔄 حزب المراجعة</div>
+            <div style={{ fontSize: "1.1rem", fontWeight: 900, color: "#4ade80", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={planDetails.hizbName}>
+              {planDetails.hizbName}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#c7d2fe", marginTop: "0.15rem" }}>
+              🔄 المراجعة ({planDetails.hizbIndex + 1} من {planDetails.totalCycleHizbs})
+            </div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: "1rem", padding: "0.75rem", textAlign: "center" }}>
             <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#facc15" }}>%{percentComplete}</div>
@@ -211,6 +215,9 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
               <p style={{ margin: "0.2rem 0 0", color: "#6b7280", fontSize: "0.95rem", fontWeight: 700 }}>
                 {planDetails.tasks.revision}
               </p>
+              <span style={{ display: "inline-block", fontSize: "0.75rem", color: "#db2777", marginTop: "0.2rem", fontWeight: 700 }}>
+                الحزب {planDetails.hizbIndex + 1} من أصل {planDetails.totalCycleHizbs} في دورة المراجعة الخاصة بك
+              </span>
             </div>
           </div>
 
