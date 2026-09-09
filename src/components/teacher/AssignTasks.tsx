@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Task, Profile } from "@/lib/types"
@@ -54,14 +54,30 @@ export default function AssignTasks({ tasks, students, existingAssignments, toda
     background: selected ? "#f3e8ff" : "white", transition: "all 0.15s", textAlign: "right" as const
   })
 
+  const TASK_ORDER = [
+    "السماع",
+    "الدرس",
+    "جنب الدرس",
+    "التفسير",
+    "المراجعة",
+    "قيام الليل",
+    "الغياب",
+    "الحضور بدون حفظ",
+  ]
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const idxA = TASK_ORDER.indexOf(a.name)
+    const idxB = TASK_ORDER.indexOf(b.name)
+    return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99)
+  })
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
         <div className="card">
           <h2 style={{ fontWeight: 700, marginBottom: "0.75rem" }}>📋 اختر المهام</h2>
-          {tasks.length === 0 ? <p style={{ color: "#9ca3af" }}>أضف مهاماً أولاً</p> : (
+          {sortedTasks.length === 0 ? <p style={{ color: "#9ca3af" }}>أضف مهاماً أولاً</p> : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", maxHeight: "300px", overflowY: "auto" }}>
-              {tasks.map(task => (
+              {sortedTasks.map(task => (
                 <button key={task.id} onClick={() => setSelTasks(toggle(selTasks, task.id))}
                   style={cardStyle(selTasks.includes(task.id))}>
                   <span style={{ fontSize: "1.75rem" }}>{task.emoji}</span>

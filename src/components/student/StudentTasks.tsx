@@ -167,8 +167,31 @@ export default function StudentTasks({
     .filter(a => a.completed)
     .reduce((sum, a) => sum + (a.tasks?.points ?? 0), 0)
 
-  const regularTasks = assignments.filter(a => (a.tasks?.points ?? 0) >= 0)
-  const penaltyTasks = assignments.filter(a => (a.tasks?.points ?? 0) < 0)
+  const TASK_ORDER = [
+    "السماع",
+    "الدرس",
+    "جنب الدرس",
+    "التفسير",
+    "المراجعة",
+    "قيام الليل",
+  ]
+  const PENALTY_ORDER = ["الغياب", "الحضور بدون حفظ"]
+
+  const regularTasks = assignments
+    .filter(a => (a.tasks?.points ?? 0) >= 0)
+    .sort((a, b) => {
+      const idxA = TASK_ORDER.indexOf(a.tasks?.name ?? "")
+      const idxB = TASK_ORDER.indexOf(b.tasks?.name ?? "")
+      return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99)
+    })
+
+  const penaltyTasks = assignments
+    .filter(a => (a.tasks?.points ?? 0) < 0)
+    .sort((a, b) => {
+      const idxA = PENALTY_ORDER.indexOf(a.tasks?.name ?? "")
+      const idxB = PENALTY_ORDER.indexOf(b.tasks?.name ?? "")
+      return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99)
+    })
 
   // Toggle task completion (Complete / Uncomplete) with instant Optimistic UI and Rollback
   async function completeTask(a: Assignment) {
