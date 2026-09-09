@@ -1,8 +1,12 @@
-﻿import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 import AssignTasks from "@/components/teacher/AssignTasks"
 export default async function AssignPage() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) {
+    redirect("/login")
+  }
   const today = new Date().toISOString().split("T")[0]
   const [tasksRes, studentsRes, assignmentsRes] = await Promise.all([
     supabase.from("tasks").select("*").eq("created_by", session!.user.id),

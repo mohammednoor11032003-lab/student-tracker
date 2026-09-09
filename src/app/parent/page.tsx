@@ -1,8 +1,12 @@
-﻿import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { createClient } from "@/lib/supabase/server"
 import Leaderboard from "@/components/Leaderboard"
 export default async function ParentDashboard() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) {
+    redirect("/login")
+  }
   const { data: parentProfile } = await supabase.from("profiles").select("*").eq("id", session!.user.id).single()
   const studentId = parentProfile?.student_id
   const today = new Date().toISOString().split("T")[0]

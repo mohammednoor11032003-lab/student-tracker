@@ -1,9 +1,13 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 
 export default async function TeacherDashboard() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) {
+    redirect("/login")
+  }
   const today = new Date().toISOString().split("T")[0]
 
   const [studentsRes, tasksRes, completionsRes] = await Promise.all([

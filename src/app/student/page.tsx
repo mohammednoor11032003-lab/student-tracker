@@ -1,9 +1,13 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import StudentTasks from "@/components/student/StudentTasks"
 
 export default async function StudentDashboard() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.user) {
+    redirect("/login")
+  }
   const today = new Date().toISOString().split("T")[0]
   const now = new Date()
   const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay())
