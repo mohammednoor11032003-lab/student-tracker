@@ -2,14 +2,29 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 
 export async function POST(req: NextRequest) {
-  // Create client inside function so env vars are available at runtime
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
   try {
-    const { studentId, taskId, points } = await req.json()
+    const { assignmentId, studentId, taskId, points } = await req.json()
+
+    // 1. Strict midnight deadline check:
+    const todayStr = new Date().toISOString().split("T")[0]
+    const { data: assignment } = await supabase
+      .from("daily_assignments")
+      .select("assigned_date, completed")
+      .eq("id", assignmentId)
+      .single()
+
+    if (assignment && assignment.assigned_date !== todayStr) {
+      return NextResponse.json(
+        { error: "انتهت مهلة هذا اليوم عند الساعة 12:00 منتصف الليل ولا يمكن تعديله" },
+        { status: 403 }
+      )
+    }
+
     const now = new Date()
     const weekStart = new Date(now)
     weekStart.setDate(now.getDate() - now.getDay())
@@ -35,8 +50,11 @@ export async function POST(req: NextRequest) {
       }).eq("id", existingWeekly.id)
     } else {
       await supabase.from("weekly_summaries").insert({
-        student_id: studentId, week_start: weekStartStr, week_end: weekEndStr,
-        total_points: points, tasks_completed: 1,
+        student_id: studentId,
+        week_start: weekStartStr,
+        week_end: weekEndStr,
+        total_points: points,
+        tasks_completed: 1,
       })
     }
 
@@ -44,7 +62,9 @@ export async function POST(req: NextRequest) {
     const { data: existingMonthly } = await supabase
       .from("monthly_summaries")
       .select("id, total_points, tasks_completed")
-      .eq("student_id", studentId).eq("month", month).eq("year", year)
+      .eq("student_id", studentId)
+      .eq("month", month)
+      .eq("year", year)
       .single()
 
     if (existingMonthly) {
@@ -54,7 +74,11 @@ export async function POST(req: NextRequest) {
       }).eq("id", existingMonthly.id)
     } else {
       await supabase.from("monthly_summaries").insert({
-        student_id: studentId, month, year, total_points: points, tasks_completed: 1,
+        student_id: studentId,
+        month,
+        year,
+        total_points: points,
+        tasks_completed: 1,
       })
     }
 
@@ -68,8 +92,11 @@ export async function POST(req: NextRequest) {
         ])
         if (parentRes.data?.phone) {
           const { data: updatedWeekly } = await supabase
-            .from("weekly_summaries").select("total_points")
-            .eq("student_id", studentId).eq("week_start", weekStartStr).single()
+            .from("weekly_summaries")
+            .select("total_points")
+            .eq("student_id", studentId)
+            .eq("week_start", weekStartStr)
+            .single()
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           const twilio = require("twilio")
           const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
