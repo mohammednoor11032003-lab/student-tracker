@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import StudentTasks from "@/components/student/StudentTasks"
+import { getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
 
 export default async function StudentDashboard() {
   const supabase = await createClient()
@@ -9,9 +10,9 @@ export default async function StudentDashboard() {
     redirect("/login")
   }
   const today = new Date().toISOString().split("T")[0]
-  const now = new Date()
-  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay())
-  const weekStartStr = weekStart.toISOString().split("T")[0]
+  const weekInfo = getWeekAndMonthInfo(today)
+  const weekStartStr = formatDateStr(weekInfo.weekStart)
+  const weekEndStr = formatDateStr(weekInfo.weekEnd)
 
   // 1. Fetch current assignments for today
   let { data: assignments } = await supabase
@@ -44,17 +45,23 @@ export default async function StudentDashboard() {
     }
   }
 
-  const [profileRes, weeklyRes] = await Promise.all([
+  const [profileRes, weeklyRes, weekAssignmentsRes] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", session!.user.id).single(),
     supabase.from("weekly_summaries").select("total_points").eq("student_id", session!.user.id).eq("week_start", weekStartStr).single(),
+    supabase.from("daily_assignments").select("completed, tasks(points)").eq("student_id", session!.user.id).gte("assigned_date", weekStartStr).lte("assigned_date", weekEndStr).eq("completed", true),
   ])
+
+  // Compute live weekly points from actual completed tasks of this week as primary truth
+  const liveWeeklyPoints = weekAssignmentsRes.data && weekAssignmentsRes.data.length > 0
+    ? weekAssignmentsRes.data.reduce((sum, a) => sum + ((a.tasks as unknown as { points?: number })?.points ?? 0), 0)
+    : (weeklyRes.data?.total_points ?? 0)
 
   return (
     <StudentTasks
       assignments={assignments ?? []}
       studentId={session!.user.id}
       studentName={profileRes.data?.full_name ?? ""}
-      weeklyPoints={weeklyRes.data?.total_points ?? 0}
+      weeklyPoints={liveWeeklyPoints}
     />
   )
 }

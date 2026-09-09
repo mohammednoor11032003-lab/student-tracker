@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
 
 export async function POST(req: NextRequest) {
   const supabase = createClient(
@@ -13,12 +14,34 @@ export async function POST(req: NextRequest) {
     const todayStr = new Date().toISOString().split("T")[0]
     const effectiveDate = assignedDate || todayStr
 
-    // 1. Strict midnight deadline check:
-    if (assignmentId) {
+    // 1. If this is a dynamic task like 'المهمة البديلة' without an assignmentId, upsert it into daily_assignments
+    let effectiveAssignmentId = assignmentId
+    if (!effectiveAssignmentId && studentId && taskId) {
+      const { data: upsertedDA } = await supabase
+        .from("daily_assignments")
+        .upsert(
+          {
+            student_id: studentId,
+            task_id: taskId,
+            assigned_date: effectiveDate,
+            completed: completed,
+            completed_at: completed ? new Date().toISOString() : null,
+          },
+          { onConflict: "student_id,task_id,assigned_date" }
+        )
+        .select("id")
+        .single()
+      if (upsertedDA) {
+        effectiveAssignmentId = upsertedDA.id
+      }
+    }
+
+    // 2. Strict midnight deadline check:
+    if (effectiveAssignmentId) {
       const { data: assignment } = await supabase
         .from("daily_assignments")
         .select("assigned_date, completed")
-        .eq("id", assignmentId)
+        .eq("id", effectiveAssignmentId)
         .single()
 
       if (assignment && assignment.assigned_date !== todayStr) {
@@ -32,17 +55,13 @@ export async function POST(req: NextRequest) {
     const deltaPoints = completed ? points : -points
     const deltaCompleted = completed ? 1 : -1
 
-    const now = new Date()
-    const weekStart = new Date(now)
-    weekStart.setDate(now.getDate() - now.getDay())
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekStart.getDate() + 6)
-    const weekStartStr = weekStart.toISOString().split("T")[0]
-    const weekEndStr = weekEnd.toISOString().split("T")[0]
-    const month = now.getMonth() + 1
-    const year = now.getFullYear()
+    const weekInfo = getWeekAndMonthInfo(effectiveDate)
+    const weekStartStr = formatDateStr(weekInfo.weekStart)
+    const weekEndStr = formatDateStr(weekInfo.weekEnd)
+    const month = weekInfo.month
+    const year = weekInfo.year
 
-    // Weekly summary upsert
+    // Weekly summary upsert (allow points to be negative if penalties exceed score, do not clamp total_points to 0!)
     const { data: existingWeekly } = await supabase
       .from("weekly_summaries")
       .select("id, total_points, tasks_completed")
@@ -52,20 +71,20 @@ export async function POST(req: NextRequest) {
 
     if (existingWeekly) {
       await supabase.from("weekly_summaries").update({
-        total_points: Math.max(0, existingWeekly.total_points + deltaPoints),
+        total_points: existingWeekly.total_points + deltaPoints,
         tasks_completed: Math.max(0, existingWeekly.tasks_completed + deltaCompleted),
       }).eq("id", existingWeekly.id)
-    } else if (completed) {
+    } else {
       await supabase.from("weekly_summaries").insert({
         student_id: studentId,
         week_start: weekStartStr,
         week_end: weekEndStr,
-        total_points: Math.max(0, points),
-        tasks_completed: 1,
+        total_points: deltaPoints,
+        tasks_completed: Math.max(0, deltaCompleted),
       })
     }
 
-    // Monthly summary upsert
+    // Monthly summary upsert (do not clamp total_points to 0!)
     const { data: existingMonthly } = await supabase
       .from("monthly_summaries")
       .select("id, total_points, tasks_completed")
@@ -76,16 +95,16 @@ export async function POST(req: NextRequest) {
 
     if (existingMonthly) {
       await supabase.from("monthly_summaries").update({
-        total_points: Math.max(0, existingMonthly.total_points + deltaPoints),
+        total_points: existingMonthly.total_points + deltaPoints,
         tasks_completed: Math.max(0, existingMonthly.tasks_completed + deltaCompleted),
       }).eq("id", existingMonthly.id)
-    } else if (completed) {
+    } else {
       await supabase.from("monthly_summaries").insert({
         student_id: studentId,
         month,
         year,
-        total_points: Math.max(0, points),
-        tasks_completed: 1,
+        total_points: deltaPoints,
+        tasks_completed: Math.max(0, deltaCompleted),
       })
     }
 

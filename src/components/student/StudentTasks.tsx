@@ -182,37 +182,17 @@ export default function StudentTasks({
         })
 
         // 2. Database Sync
-        try {
-          const { data: insertedDA } = await supabase
-            .from("daily_assignments")
-            .upsert(
-              {
-                student_id: studentId,
-                task_id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
-                assigned_date: todayStr,
-                completed: true,
-                completed_at: new Date().toISOString(),
-              },
-              { onConflict: "student_id,task_id,assigned_date" }
-            )
-            .select()
-            .single()
-
-          fetch("/api/complete-task", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              assignmentId: insertedDA?.id,
-              studentId,
-              taskId: "680903aa-0b9a-42f3-a725-49eaf05a9148",
-              points: 10,
-              completed: true,
-              assignedDate: todayStr,
-            }),
-          }).catch(err => console.error(err))
-        } catch (err) {
-          console.error("DB error on exemption:", err)
-        }
+        fetch("/api/complete-task", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentId,
+            taskId: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+            points: 10,
+            completed: true,
+            assignedDate: todayStr,
+          }),
+        }).catch(err => console.error("DB error on exemption:", err))
       } else {
         // 95%: 1 or 2 tasks
         if (altTaskState) {
@@ -296,26 +276,10 @@ export default function StudentTasks({
 
     // 3. Save to Supabase daily_assignments table & update weekly_summaries
     try {
-      const { data: insertedDA } = await supabase
-        .from("daily_assignments")
-        .upsert(
-          {
-            student_id: studentId,
-            task_id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
-            assigned_date: targetDate,
-            completed: true,
-            completed_at: new Date().toISOString(),
-          },
-          { onConflict: "student_id,task_id,assigned_date" }
-        )
-        .select()
-        .single()
-
       await fetch("/api/complete-task", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          assignmentId: insertedDA?.id,
           studentId,
           taskId: "680903aa-0b9a-42f3-a725-49eaf05a9148",
           points: 10,
@@ -510,7 +474,7 @@ export default function StudentTasks({
     const updated = assignments.map(x => (x.id === a.id ? { ...x, completed: nextCompleted } : x))
     setAssignments(updated)
     setAssignmentsCache(prev => ({ ...prev, [selectedDate]: updated }))
-    setWeeklyPoints(prev => Math.max(0, prev + deltaPoints))
+    setWeeklyPoints(prev => prev + deltaPoints)
 
     // Show immediate toast feedback
     if (nextCompleted) {
@@ -831,7 +795,7 @@ export default function StudentTasks({
 
         {/* نقاط الأسبوع */}
         <div className="stat-card" style={{ background: "linear-gradient(135deg, #8b5cf6, #6d28d9)", borderRadius: "1rem", padding: "0.85rem 0.5rem", textAlign: "center", color: "white", boxShadow: "0 8px 20px rgba(139,92,246,0.25)" }}>
-          <div style={{ fontSize: "1.6rem", fontWeight: 900 }}>{weeklyPoints}</div>
+          <div style={{ fontSize: "1.6rem", fontWeight: 900 }}>{weeklyPoints > 0 ? `+${weeklyPoints}` : weeklyPoints}</div>
           <div style={{ fontSize: "0.75rem", opacity: 0.9, marginTop: "0.1rem" }}>🏆 نقاط الأسبوع</div>
         </div>
 
