@@ -1,19 +1,48 @@
 "use client"
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { BookOpen, ClipboardList, Trophy, LogOut } from "lucide-react"
 import toast from "react-hot-toast"
 
 export default function StudentNav({ studentName }: { studentName: string }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const supabase = createClient()
+
   async function logout() {
     await supabase.auth.signOut()
     toast.success("تم تسجيل الخروج")
     router.push("/login")
   }
-  const active = (href: string) => pathname === href
+
+  const currentTab = searchParams.get("tab") || (pathname === "/student/plan" ? "plan" : pathname === "/student/leaderboard" ? "leaderboard" : "plan")
+
+  const navItems = [
+    {
+      key: "plan",
+      href: "/student?tab=plan",
+      label: "خطة الحفظ",
+      icon: BookOpen,
+      isActive: currentTab === "plan" && pathname.startsWith("/student"),
+    },
+    {
+      key: "tasks",
+      href: "/student?tab=tasks",
+      label: "مهامي",
+      icon: ClipboardList,
+      isActive: currentTab === "tasks" && pathname.startsWith("/student"),
+    },
+    {
+      key: "leaderboard",
+      href: "/student?tab=leaderboard",
+      label: "الترتيب",
+      icon: Trophy,
+      isActive: currentTab === "leaderboard" && pathname.startsWith("/student"),
+    },
+  ]
+
   return (
     <nav style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(255,255,255,0.2)" }}>
       <div style={{ maxWidth: "700px", margin: "0 auto", padding: "0 1rem" }}>
@@ -22,19 +51,54 @@ export default function StudentNav({ studentName }: { studentName: string }) {
             <span style={{ fontSize: "1.5rem" }}>🎓</span>
             <span style={{ color: "white", fontWeight: 700, fontSize: "0.95rem" }}>{studentName}</span>
           </div>
-          <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
-            {[
-              { href: "/student", label: "مهامي" },
-              { href: "/student/plan", label: "📖 خطة الحفظ" },
-              { href: "/student/leaderboard", label: "🏆 الترتيب" }
-            ].map(l => (
-              <Link key={l.href} href={l.href} style={{
-                padding: "0.4rem 0.75rem", borderRadius: "0.75rem", fontSize: "0.85rem", fontWeight: 700,
-                textDecoration: "none", background: active(l.href) ? "white" : "transparent",
-                color: active(l.href) ? "#7c3aed" : "white"
-              }}>{l.label}</Link>
-            ))}
-            <button onClick={logout} style={{ padding: "0.4rem 0.75rem", borderRadius: "0.75rem", fontSize: "0.85rem", fontWeight: 700, background: "transparent", color: "white", border: "none", cursor: "pointer" }}>خروج</button>
+
+          <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+            {navItems.map(item => {
+              const Icon = item.icon
+              return (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    padding: "0.4rem 0.75rem",
+                    borderRadius: "0.75rem",
+                    fontSize: "0.85rem",
+                    fontWeight: 800,
+                    textDecoration: "none",
+                    background: item.isActive ? "white" : "transparent",
+                    color: item.isActive ? "#7c3aed" : "white",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <Icon size={15} strokeWidth={item.isActive ? 2.5 : 2} />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+
+            <button
+              onClick={logout}
+              title="تسجيل الخروج"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                padding: "0.4rem 0.65rem",
+                borderRadius: "0.75rem",
+                fontSize: "0.85rem",
+                fontWeight: 700,
+                background: "transparent",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <LogOut size={15} />
+              <span>خروج</span>
+            </button>
           </div>
         </div>
       </div>

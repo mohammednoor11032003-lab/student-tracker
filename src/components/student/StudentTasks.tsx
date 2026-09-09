@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Task } from "@/lib/types"
 import toast from "react-hot-toast"
@@ -21,13 +21,14 @@ import {
   getMonthFirstSaturday,
   formatDateStr,
   getWeekAndMonthInfo,
+  formatDisplayDate,
   AlternativeSubTask,
   AlternativeTaskState,
   generateMysteryBoxOutcome,
 } from "@/lib/date-utils"
-import { StudentPlan, DEFAULT_PLAN, getDailyPlanDetails, calculateNextPlanState } from "@/lib/plan-utils"
+import { StudentPlan, DEFAULT_PLAN, getDailyPlanDetails, calculateProjectedPlan, calculateNextPlanState } from "@/lib/plan-utils"
 
-export default function StudentTasks({
+function StudentTasks({
   assignments: initAssignments,
   studentId,
   studentName,
@@ -54,6 +55,10 @@ export default function StudentTasks({
   const [loading, setLoading] = useState<string | null>(null)
   const [fetchingDate, setFetchingDate] = useState(false)
   const [activeModal, setActiveModal] = useState<"month" | "week" | "day" | null>(null)
+  const [modalYear, setModalYear] = useState<number>(() => {
+    const y = parseInt(todayStr.split("-")[0], 10)
+    return isNaN(y) ? 2026 : y
+  })
 
   // Revision Test Modal state
   const [pendingRevisionAssignment, setPendingRevisionAssignment] = useState<Assignment | null>(null)
@@ -309,6 +314,7 @@ export default function StudentTasks({
 
   const isToday = selectedDate === todayStr
   const isPast = selectedDate < todayStr
+  const isFuture = selectedDate > todayStr
 
   // Selected date info
   const dateObj = new Date(selectedDate + "T00:00:00")
@@ -339,6 +345,10 @@ export default function StudentTasks({
     start.setDate(start.getDate() + (w - 1) * 7)
     const end = new Date(start)
     end.setDate(end.getDate() + 6)
+    const sDD = String(start.getDate()).padStart(2, "0")
+    const sMM = String(start.getMonth() + 1).padStart(2, "0")
+    const eDD = String(end.getDate()).padStart(2, "0")
+    const eMM = String(end.getMonth() + 1).padStart(2, "0")
     return {
       weekNum: w,
       weekName: `الأسبوع ${WEEK_NAMES[w - 1]}`,
@@ -346,7 +356,7 @@ export default function StudentTasks({
       endDate: end,
       startDateStr: formatDateStr(start),
       endDateStr: formatDateStr(end),
-      label: `من السبت ${start.getDate()}/${start.getMonth() + 1} إلى الجمعة ${end.getDate()}/${end.getMonth() + 1}`,
+      label: `من السبت ${sDD}-${sMM} إلى الجمعة ${eDD}-${eMM}`,
       isCurrent: w === activeWeekNum,
     }
   })
@@ -385,6 +395,13 @@ export default function StudentTasks({
   useEffect(() => {
     let isCurrent = true
     async function loadDateAssignments() {
+      // If future date, assignments don't exist in DB - simulation handles display
+      if (selectedDate > todayStr) {
+        setAssignments([])
+        setFetchingDate(false)
+        return
+      }
+
       // If we have cached assignments for this date, show them immediately without flicker!
       if (assignmentsCache[selectedDate]) {
         setAssignments(assignmentsCache[selectedDate])
@@ -409,7 +426,7 @@ export default function StudentTasks({
     return () => {
       isCurrent = false
     }
-  }, [selectedDate])
+  }, [selectedDate, todayStr, studentId, assignmentsCache, supabase])
 
   function navigateWeek(direction: number) {
     const d = new Date(selectedDate + "T00:00:00")
@@ -420,15 +437,55 @@ export default function StudentTasks({
   // Points and Progress calculation for currently selected date
   const positiveTasks = assignments.filter(a => (a.tasks?.points ?? 0) >= 0)
   const completedPositive = positiveTasks.filter(a => a.completed)
-  const progress = positiveTasks.length ? Math.round((completedPositive.length / positiveTasks.length) * 100) : 0
+  const progress = isFuture
+    ? 0
+    : positiveTasks.length
+    ? Math.round((completedPositive.length / positiveTasks.length) * 100)
+    : 0
 
   // Points earned specifically on this day
   const todayPoints = assignments
     .filter(a => a.completed)
     .reduce((sum, a) => sum + (a.tasks?.points ?? 0), 0)
 
-  // Plan Details for current selected date
-  const planDetails = getDailyPlanDetails(studentPlan, selectedDate)
+  // Plan Details (simulated for future dates, active for today/past)
+  const projectedInfo = useMemo(() => {
+    if (isFuture) {
+      return calculateProjectedPlan(studentPlan, selectedDate, todayStr)
+    }
+    return {
+      projectedPlan: studentPlan,
+      planDetails: getDailyPlanDetails(studentPlan, selectedDate),
+      diffDays: 0,
+    }
+  }, [studentPlan, selectedDate, todayStr, isFuture])
+
+  const activePlan = projectedInfo.projectedPlan
+  const planDetails = projectedInfo.planDetails
+
+  // Future simulated tasks list
+  const futureSimulatedTasks = useMemo(() => {
+    if (!isFuture) return []
+    if (activePlan.is_in_consolidation) {
+      return [
+        {
+          id: "future_consolidation",
+          name: "أسبوع التثبيت",
+          emoji: "🛡️",
+          points: 10,
+          detail: planDetails.tasks.lesson,
+        },
+      ]
+    }
+    return [
+      { id: "future_listening", name: "السماع", emoji: "🎧", points: 5, detail: planDetails.tasks.listening },
+      { id: "future_lesson", name: "الدرس", emoji: "📖", points: 10, detail: planDetails.tasks.lesson },
+      { id: "future_adjacent", name: "جنب الدرس", emoji: "🔁", points: 5, detail: planDetails.tasks.adjacentLesson },
+      { id: "future_tafsir", name: "التفسير", emoji: "💡", points: 5, detail: planDetails.tasks.tafsir },
+      { id: "future_revision", name: "المراجعة", emoji: "🔄", points: 10, detail: planDetails.tasks.revision },
+      { id: "future_night", name: "قيام الليل", emoji: "🌙", points: 5, detail: planDetails.tasks.nightPrayer },
+    ]
+  }, [isFuture, activePlan.is_in_consolidation, planDetails])
 
   const TASK_ORDER = [
     "السماع",
@@ -444,7 +501,7 @@ export default function StudentTasks({
     .filter(a => (a.tasks?.points ?? 0) >= 0)
     .filter(a => {
       // If student is in consolidation week, hide the 5 lesson tasks!
-      if (studentPlan?.is_in_consolidation) {
+      if (activePlan?.is_in_consolidation) {
         const name = a.tasks?.name || ""
         const isSuspendedDuringConsolidation =
           name === "الدرس" ||
@@ -723,10 +780,11 @@ export default function StudentTasks({
   }
 
   const selectedDayName = ARABIC_DAYS[dateObj.getDay()]
-  const selectedDayDateFormatted = `${selectedDayName} ${dateObj.getDate()}-${dateObj.getMonth() + 1}-${dateObj.getFullYear()}`
+  const selectedDayDateFormatted = `${selectedDayName} ${String(dateObj.getDate()).padStart(2, "0")}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${dateObj.getFullYear()}`
 
-  function selectMonth(monthNum: number) {
-    const firstSat = getMonthFirstSaturday(activeYear, monthNum)
+  function selectMonth(monthNum: number, yearNum?: number) {
+    const yr = yearNum || modalYear || activeYear
+    const firstSat = getMonthFirstSaturday(yr, monthNum)
     setSelectedDate(formatDateStr(firstSat))
     setActiveModal(null)
   }
@@ -898,6 +956,15 @@ export default function StudentTasks({
           <span style={{ fontSize: "1.5rem" }}>🔒</span>
           <div style={{ fontSize: "0.9rem", lineHeight: 1.5 }}>
             <strong>يوم سابق (للعرض فقط):</strong> انتهت مهلة هذا اليوم عند الساعة 12:00 منتصف الليل. يمكنك مراجعة نقاطك وإنجازاتك المسجلة سابقاً.
+          </div>
+        </div>
+      )}
+
+      {isFuture && (
+        <div style={{ background: "linear-gradient(135deg, #1e3a8a 0%, #0284c7 100%)", border: "2px solid #38bdf8", color: "white", padding: "0.85rem 1rem", borderRadius: "1rem", display: "flex", alignItems: "center", gap: "0.75rem", boxShadow: "0 8px 25px rgba(2,132,199,0.25)" }}>
+          <span style={{ fontSize: "1.5rem" }}>🔮</span>
+          <div style={{ fontSize: "0.9rem", lineHeight: 1.5 }}>
+            <strong>يوم مستقبلي (للعرض فقط):</strong> هذه المهام متوقعة بناءً على خطة الحفظ (للقراءة فقط - لا يمكن إنجازها إلا في يومها الفعلي).
           </div>
         </div>
       )}
@@ -1344,160 +1411,230 @@ export default function StudentTasks({
             </div>
           )}
 
-          {/* Regular Daily Tasks */}
-          {regularTasks.length > 0 && (
+          {/* Regular Daily Tasks OR Future Simulated Tasks */}
+          {isFuture ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h2 style={{ color: "white", fontWeight: 800, margin: 0, fontSize: "1.15rem" }}>
-                  📋 المهام اليومية ({selectedDayName})
+                  🔮 المهام اليومية المتوقعة ({selectedDayName})
                 </h2>
-                {!isToday && (
-                  <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.85)", background: "rgba(0,0,0,0.2)", padding: "0.2rem 0.5rem", borderRadius: "0.5rem" }}>
-                    🔒 مغلق
-                  </span>
-                )}
+                <span style={{ fontSize: "0.8rem", color: "#e0f2fe", background: "rgba(2,132,199,0.4)", padding: "0.2rem 0.6rem", borderRadius: "0.5rem", fontWeight: 700 }}>
+                  🔒 يوم مستقبلي (للعرض فقط)
+                </span>
               </div>
 
-              {regularTasks.map(a => {
-                const canClick = isToday
-                const isDouble = !a.completed && !!doubleRevisionIds[a.id]
-                const taskDisplayName = isDouble ? "مراجعة مضاعفة (مرتين)" : a.tasks?.name
-                const taskEmoji = isDouble ? "🔁" : a.tasks?.emoji ?? "📖"
-
-                const planTaskDetail = (() => {
-                  const t = a.tasks?.name || ""
-                  if (t === "الدرس") return planDetails.tasks.lesson
-                  if (t === "السماع") return planDetails.tasks.listening
-                  if (t === "التفسير") return planDetails.tasks.tafsir
-                  if (t === "قيام الليل") return planDetails.tasks.nightPrayer
-                  if (t === "جنب الدرس") return planDetails.tasks.adjacentLesson
-                  if (t === "المراجعة") return planDetails.tasks.revision
-                  return null
-                })()
-
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() => handleTaskClick(a)}
-                    disabled={!canClick}
-                    className="task-btn"
+              {futureSimulatedTasks.map(t => (
+                <div
+                  key={t.id}
+                  style={{
+                    width: "100%",
+                    background: "white",
+                    border: "1.5px solid #bae6fd",
+                    borderRadius: "1rem",
+                    padding: "0.85rem 1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.85rem",
+                    boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
+                  }}
+                >
+                  <div
                     style={{
-                      width: "100%",
-                      background: a.completed
-                        ? "rgba(255,255,255,0.7)"
-                        : isDouble
-                        ? "#fffbeb"
-                        : "white",
-                      border: a.completed
-                        ? "2px solid #86efac"
-                        : isDouble
-                        ? "2px solid #f59e0b"
-                        : "none",
-                      borderRadius: "1rem",
-                      padding: "0.85rem 1rem",
-                      cursor: canClick ? "pointer" : "default",
+                      width: "3rem",
+                      height: "3rem",
+                      borderRadius: "0.75rem",
+                      background: "#f0f9ff",
                       display: "flex",
                       alignItems: "center",
-                      gap: "0.85rem",
-                      boxShadow: a.completed ? "none" : isDouble ? "0 4px 15px rgba(245,158,11,0.2)" : "0 4px 15px rgba(0,0,0,0.08)",
-                      opacity: a.completed ? 0.85 : isPast ? 0.85 : 1,
+                      justifyContent: "center",
+                      fontSize: "1.8rem",
+                      flexShrink: 0,
                     }}
                   >
-                    <div
+                    {t.emoji}
+                  </div>
+                  <div style={{ flex: 1, textAlign: "right" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <p style={{ fontWeight: 800, fontSize: "1.05rem", margin: 0, color: "#1f2937" }}>
+                        {t.name}
+                      </p>
+                      <span style={{ fontSize: "0.65rem", background: "#e0f2fe", color: "#0369a1", padding: "0.1rem 0.4rem", borderRadius: "9999px", fontWeight: 700 }}>
+                        مستقبلية
+                      </span>
+                    </div>
+                    {t.detail && (
+                      <span style={{ fontSize: "0.82rem", color: "#0284c7", fontWeight: 800, margin: "0.15rem 0 0.1rem", display: "block" }}>
+                        📖 {t.detail}
+                      </span>
+                    )}
+                    <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.15rem 0 0", fontWeight: 600 }}>
+                      🔒 مهمة مستقبلية متوقعة (للقراءة فقط - لا يمكن إنجازها إلا في يومها)
+                    </p>
+                  </div>
+                  <div style={{ textAlign: "center", flexShrink: 0 }}>
+                    <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#0284c7" }}>
+                      +{t.points}
+                    </div>
+                    <div style={{ fontSize: "0.65rem", color: "#64748b" }}>⭐ نقاط</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            regularTasks.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h2 style={{ color: "white", fontWeight: 800, margin: 0, fontSize: "1.15rem" }}>
+                    📋 المهام اليومية ({selectedDayName})
+                  </h2>
+                  {!isToday && (
+                    <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.85)", background: "rgba(0,0,0,0.2)", padding: "0.2rem 0.5rem", borderRadius: "0.5rem" }}>
+                      🔒 مغلق
+                    </span>
+                  )}
+                </div>
+
+                {regularTasks.map(a => {
+                  const canClick = isToday
+                  const isDouble = !a.completed && !!doubleRevisionIds[a.id]
+                  const taskDisplayName = isDouble ? "مراجعة مضاعفة (مرتين)" : a.tasks?.name
+                  const taskEmoji = isDouble ? "🔁" : a.tasks?.emoji ?? "📖"
+
+                  const planTaskDetail = (() => {
+                    const t = a.tasks?.name || ""
+                    if (t === "الدرس") return planDetails.tasks.lesson
+                    if (t === "السماع") return planDetails.tasks.listening
+                    if (t === "التفسير") return planDetails.tasks.tafsir
+                    if (t === "قيام الليل") return planDetails.tasks.nightPrayer
+                    if (t === "جنب الدرس") return planDetails.tasks.adjacentLesson
+                    if (t === "المراجعة") return planDetails.tasks.revision
+                    return null
+                  })()
+
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => handleTaskClick(a)}
+                      disabled={!canClick}
+                      className="task-btn"
                       style={{
-                        width: "3rem",
-                        height: "3rem",
-                        borderRadius: "0.75rem",
-                        background: a.completed ? "#dcfce7" : isDouble ? "#fef3c7" : "#f3e8ff",
+                        width: "100%",
+                        background: a.completed
+                          ? "rgba(255,255,255,0.7)"
+                          : isDouble
+                          ? "#fffbeb"
+                          : "white",
+                        border: a.completed
+                          ? "2px solid #86efac"
+                          : isDouble
+                          ? "2px solid #f59e0b"
+                          : "none",
+                        borderRadius: "1rem",
+                        padding: "0.85rem 1rem",
+                        cursor: canClick ? "pointer" : "default",
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "1.8rem",
-                        flexShrink: 0,
-                        transition: "all 0.2s",
+                        gap: "0.85rem",
+                        boxShadow: a.completed ? "none" : isDouble ? "0 4px 15px rgba(245,158,11,0.2)" : "0 4px 15px rgba(0,0,0,0.08)",
+                        opacity: a.completed ? 0.85 : isPast ? 0.85 : 1,
                       }}
                     >
-                      {a.completed ? "✅" : taskEmoji}
-                    </div>
-                    <div style={{ flex: 1, textAlign: "right" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <p
-                          style={{
-                            fontWeight: 800,
-                            fontSize: "1.05rem",
-                            margin: 0,
-                            color: a.completed ? "#6b7280" : isDouble ? "#b45309" : "#1f2937",
-                            textDecoration: a.completed ? "line-through" : "none",
-                          }}
-                        >
-                          {taskDisplayName}
-                        </p>
-                        {isDouble && !a.completed && (
-                          <span
-                            style={{
-                              background: "#fef3c7",
-                              color: "#b45309",
-                              border: "1px solid #fcd34d",
-                              padding: "0.15rem 0.5rem",
-                              borderRadius: "9999px",
-                              fontSize: "0.7rem",
-                              fontWeight: 800,
-                            }}
-                          >
-                            مضاعفة 2x
-                          </span>
-                        )}
-                      </div>
-                      {planTaskDetail && (
-                        <span
-                          style={{
-                            fontSize: "0.82rem",
-                            color: a.completed ? "#15803d" : "#7c3aed",
-                            fontWeight: 800,
-                            margin: "0.15rem 0 0.1rem",
-                            display: "block",
-                          }}
-                        >
-                          📖 {planTaskDetail}
-                        </span>
-                      )}
-                      <p
+                      <div
                         style={{
-                          fontSize: "0.75rem",
-                          color: a.completed
-                            ? "#16a34a"
-                            : isDouble
-                            ? "#d97706"
-                            : "#6b7280",
-                          margin: "0.15rem 0 0",
-                          fontWeight: 600,
+                          width: "3rem",
+                          height: "3rem",
+                          borderRadius: "0.75rem",
+                          background: a.completed ? "#dcfce7" : isDouble ? "#fef3c7" : "#f3e8ff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "1.8rem",
+                          flexShrink: 0,
+                          transition: "all 0.2s",
                         }}
                       >
-                        {a.completed
-                          ? isToday
-                            ? "تم الإنجاز بنجاح ✓ (اضغط للتراجع ↩️)"
-                            : "تم الإنجاز بنجاح ✓"
-                          : isDouble
-                          ? "شرط مضاعف: راجع مرتين ثم اضغط للإكمال"
-                          : isPast
-                          ? "لم يتم الإنجاز (انتهت المهلة)"
-                          : "اضغط للإكمال"}
-                      </p>
-                    </div>
-                    <div style={{ textAlign: "center", flexShrink: 0 }}>
-                      <div style={{ fontSize: "1.3rem", fontWeight: 900, color: a.completed ? "#16a34a" : isDouble ? "#d97706" : "#7c3aed" }}>
-                        +{a.tasks?.points}
+                        {a.completed ? "✅" : taskEmoji}
                       </div>
-                      <div style={{ fontSize: "0.65rem", color: "#d97706" }}>⭐ نقاط</div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
+                      <div style={{ flex: 1, textAlign: "right" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <p
+                            style={{
+                              fontWeight: 800,
+                              fontSize: "1.05rem",
+                              margin: 0,
+                              color: a.completed ? "#16a34a" : isDouble ? "#b45309" : "#1f2937",
+                              textDecoration: a.completed ? "line-through" : "none",
+                            }}
+                          >
+                            {taskDisplayName}
+                          </p>
+                          {isDouble && !a.completed && (
+                            <span
+                              style={{
+                                background: "#fef3c7",
+                                color: "#b45309",
+                                border: "1px solid #fcd34d",
+                                padding: "0.15rem 0.5rem",
+                                borderRadius: "9999px",
+                                fontSize: "0.7rem",
+                                fontWeight: 800,
+                              }}
+                            >
+                              مضاعفة 2x
+                            </span>
+                          )}
+                        </div>
+                        {planTaskDetail && (
+                          <span
+                            style={{
+                              fontSize: "0.82rem",
+                              color: a.completed ? "#15803d" : "#7c3aed",
+                              fontWeight: 800,
+                              margin: "0.15rem 0 0.1rem",
+                              display: "block",
+                            }}
+                          >
+                            📖 {planTaskDetail}
+                          </span>
+                        )}
+                        <p
+                          style={{
+                            fontSize: "0.75rem",
+                            color: a.completed
+                              ? "#16a34a"
+                              : isDouble
+                              ? "#d97706"
+                              : "#6b7280",
+                            margin: "0.15rem 0 0",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {a.completed
+                            ? isToday
+                              ? "تم الإنجاز بنجاح ✓ (اضغط للتراجع ↩️)"
+                              : "تم الإنجاز بنجاح ✓"
+                            : isDouble
+                            ? "شرط مضاعف: راجع مرتين ثم اضغط للإكمال"
+                            : isPast
+                            ? "لم يتم الإنجاز (انتهت المهلة)"
+                            : "اضغط للإكمال"}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: "center", flexShrink: 0 }}>
+                        <div style={{ fontSize: "1.3rem", fontWeight: 900, color: a.completed ? "#16a34a" : isDouble ? "#d97706" : "#7c3aed" }}>
+                          +{a.tasks?.points}
+                        </div>
+                        <div style={{ fontSize: "0.65rem", color: "#d97706" }}>⭐ نقاط</div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )
           )}
 
-          {/* Penalty Options */}
-          {penaltyTasks.length > 0 && (
+          {/* Penalty Options (Only for today/past, never for future) */}
+          {!isFuture && penaltyTasks.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", marginTop: "0.5rem" }}>
               <h2 style={{ color: "white", fontWeight: 800, margin: 0, fontSize: "1.1rem" }}>
                 ⚠️ خصومات (إن وُجدت)
@@ -1557,7 +1694,9 @@ export default function StudentTasks({
                             : "تم تطبيق الخصم"
                           : isPast
                           ? "غير مسجل"
-                          : "يُحدد فقط عند الحضور بدون حفظ أو الغياب"}
+                          : a.tasks?.name?.includes("غياب")
+                          ? "اضغط عند الغياب"
+                          : "اضغط عند الحضور بدون حفظ الدرس"}
                       </p>
                     </div>
                     <div style={{ textAlign: "center", flexShrink: 0 }}>
@@ -1990,9 +2129,31 @@ export default function StudentTasks({
             style={{ width: "100%", maxWidth: "380px", maxHeight: "80vh", overflowY: "auto", padding: "1.5rem" }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-              <h3 style={{ margin: 0, fontWeight: 900, color: "#1f2937", fontSize: "1.2rem" }}>
-                🗓️ اختر الشهر ({activeYear})
-              </h3>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <h3 style={{ margin: 0, fontWeight: 900, color: "#1f2937", fontSize: "1.2rem" }}>
+                  🗓️ اختر الشهر
+                </h3>
+                {/* Year Navigator (Up to 2030) */}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", background: "#f3f4f6", padding: "0.2rem 0.5rem", borderRadius: "0.6rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setModalYear(y => Math.max(2025, y - 1))}
+                    disabled={modalYear <= 2025}
+                    style={{ border: "none", background: "none", cursor: modalYear <= 2025 ? "not-allowed" : "pointer", fontWeight: 900, color: modalYear <= 2025 ? "#cbd5e1" : "#7c3aed", fontSize: "1rem" }}
+                  >
+                    ‹
+                  </button>
+                  <span style={{ fontWeight: 800, fontSize: "0.9rem", color: "#1f2937" }}>{modalYear}</span>
+                  <button
+                    type="button"
+                    onClick={() => setModalYear(y => Math.min(2030, y + 1))}
+                    disabled={modalYear >= 2030}
+                    style={{ border: "none", background: "none", cursor: modalYear >= 2030 ? "not-allowed" : "pointer", fontWeight: 900, color: modalYear >= 2030 ? "#cbd5e1" : "#7c3aed", fontSize: "1rem" }}
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
@@ -2007,13 +2168,15 @@ export default function StudentTasks({
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {MONTH_NAMES.map((name, idx) => {
                 const mNum = idx + 1
-                const firstSat = getMonthFirstSaturday(activeYear, mNum)
-                const isSelectedMonth = mNum === activeMonth
+                const firstSat = getMonthFirstSaturday(modalYear, mNum)
+                const isSelectedMonth = mNum === activeMonth && modalYear === activeYear
+                const sDD = String(firstSat.getDate()).padStart(2, "0")
+                const sMM = String(firstSat.getMonth() + 1).padStart(2, "0")
                 return (
                   <button
                     key={mNum}
                     type="button"
-                    onClick={() => selectMonth(mNum)}
+                    onClick={() => selectMonth(mNum, modalYear)}
                     style={{
                       padding: "0.75rem 1rem",
                       borderRadius: "0.75rem",
@@ -2031,7 +2194,7 @@ export default function StudentTasks({
                   >
                     <span>{name}</span>
                     <span style={{ fontSize: "0.75rem", color: isSelectedMonth ? "#7c3aed" : "#9ca3af", fontWeight: 600 }}>
-                      يبدأ السبت {firstSat.getDate()}/{firstSat.getMonth() + 1}
+                      يبدأ السبت {sDD}-{sMM}
                     </span>
                   </button>
                 )
@@ -2210,3 +2373,5 @@ export default function StudentTasks({
     </div>
   )
 }
+
+export default React.memo(StudentTasks)

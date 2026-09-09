@@ -1,7 +1,8 @@
 "use client"
-import { useState, useMemo } from "react"
+import React, { useState, useMemo } from "react"
 import Link from "next/link"
 import { StudentPlan, getDailyPlanDetails, calculateProjectedPlan, calculateTotalMemorizedPages } from "@/lib/plan-utils"
+import { formatDisplayDate } from "@/lib/date-utils"
 
 interface StudentPlanViewProps {
   plan: StudentPlan
@@ -9,7 +10,7 @@ interface StudentPlanViewProps {
   todayStr: string
 }
 
-export default function StudentPlanView({ plan, studentName, todayStr }: StudentPlanViewProps) {
+function StudentPlanView({ plan, studentName, todayStr }: StudentPlanViewProps) {
   const [selectedDate, setSelectedDate] = useState<string>(todayStr)
 
   const isProjected = selectedDate > todayStr
@@ -42,7 +43,7 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
     const mm = String(dt.getMonth() + 1).padStart(2, "0")
     const dd = String(dt.getDate()).padStart(2, "0")
     const nextDate = `${yyyy}-${mm}-${dd}`
-    if (nextDate < todayStr) return
+    if (nextDate < todayStr || nextDate > "2030-12-31") return
     setSelectedDate(nextDate)
   }
 
@@ -53,7 +54,12 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
     const yyyy = base.getFullYear()
     const mm = String(base.getMonth() + 1).padStart(2, "0")
     const dd = String(base.getDate()).padStart(2, "0")
-    setSelectedDate(`${yyyy}-${mm}-${dd}`)
+    const nextDate = `${yyyy}-${mm}-${dd}`
+    if (nextDate > "2030-12-31") {
+      setSelectedDate("2030-12-31")
+    } else {
+      setSelectedDate(nextDate)
+    }
   }
 
   return (
@@ -124,7 +130,7 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
             <input
               type="date"
               min={todayStr}
-              max="2027-12-31"
+              max="2030-12-31"
               value={selectedDate}
               onChange={e => setSelectedDate(e.target.value || todayStr)}
               style={{
@@ -144,17 +150,18 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
             <button
               type="button"
               onClick={() => stepDate(1)}
+              disabled={selectedDate >= "2030-12-31"}
               title="اليوم التالي"
               style={{
                 width: "2.35rem",
                 height: "2.35rem",
                 borderRadius: "0.65rem",
                 border: "1.5px solid #0284c7",
-                background: "#f0f9ff",
-                color: "#0284c7",
+                background: selectedDate >= "2030-12-31" ? "#f1f5f9" : "#f0f9ff",
+                color: selectedDate >= "2030-12-31" ? "#94a3b8" : "#0284c7",
                 fontWeight: 900,
                 fontSize: "1.2rem",
-                cursor: "pointer",
+                cursor: selectedDate >= "2030-12-31" ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -275,7 +282,7 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
                 خطة مستقبلية متوقعة (بناءً على التزامك اليومي)
               </div>
               <div style={{ fontSize: "0.85rem", color: "#e0f2fe", marginTop: "0.15rem" }}>
-                تاريخ العرض: <strong>{selectedDate}</strong> (بعد {diffDays} يوماً) • المهام المعروضة أدناه للمعاينة والاستشراف فقط (Read-only)
+                تاريخ العرض: <strong>{formatDisplayDate(selectedDate)}</strong> (بعد {diffDays} يوماً) • المهام المعروضة أدناه للمعاينة والاستشراف فقط (Read-only)
               </div>
             </div>
           </div>
@@ -673,4 +680,6 @@ export default function StudentPlanView({ plan, studentName, todayStr }: Student
     </div>
   )
 }
+
+export default React.memo(StudentPlanView)
 

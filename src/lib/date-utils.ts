@@ -2,19 +2,35 @@ export const ARABIC_DAYS = ["الأحد", "الإثنين", "الثلاثاء", 
 export const WEEK_NAMES = ["الأول", "الثاني", "الثالث", "الرابع"]
 
 export const MONTH_NAMES = [
-  "شهر 1 (يناير / كانون 2)",
-  "شهر 2 (فبراير / شباط)",
-  "شهر 3 (مارس / آذار)",
-  "شهر 4 (أبريل / نيسان)",
-  "شهر 5 (مايو / أيار)",
-  "شهر 6 (يونيو / حزيران)",
-  "شهر 7 (يوليو / تموز)",
-  "شهر 8 (أغسطس / آب)",
-  "شهر 9 (سبتمبر / أيلول)",
-  "شهر 10 (أكتوبر / تشرين 1)",
-  "شهر 11 (نوفمبر / تشرين 2)",
-  "شهر 12 (ديسمبر / كانون 1)",
+  "شهر 1",
+  "شهر 2",
+  "شهر 3",
+  "شهر 4",
+  "شهر 5",
+  "شهر 6",
+  "شهر 7",
+  "شهر 8",
+  "شهر 9",
+  "شهر 10",
+  "شهر 11",
+  "شهر 12",
 ]
+
+export function formatDisplayDate(dateStr: string, includeYear = true): string {
+  if (!dateStr) return ""
+  const parts = dateStr.split("-")
+  if (parts.length < 3) return dateStr
+  const [y, m, d] = parts
+  const dd = String(d).padStart(2, "0")
+  const mm = String(m).padStart(2, "0")
+  return includeYear ? `${dd}-${mm}-${y}` : `${dd}-${mm}`
+}
+
+export function formatDisplayDateObj(d: Date, includeYear = false): string {
+  const dd = String(d.getDate()).padStart(2, "0")
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  return includeYear ? `${dd}-${mm}-${d.getFullYear()}` : `${dd}-${mm}`
+}
 
 export function getMonthFirstSaturday(year: number, month: number): Date {
   const d1 = new Date(year, month - 1, 1)
