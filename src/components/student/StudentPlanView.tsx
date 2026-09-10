@@ -46,6 +46,16 @@ function StudentPlanView({
     return calculateTotalMemorizedPages(activePlan)
   }, [activePlan])
 
+  const activeManualForDate = useMemo(() => {
+    return (manualConsolidations || []).find(
+      c => c.is_active && selectedDate >= c.start_date && selectedDate <= c.end_date
+    ) || null
+  }, [manualConsolidations, selectedDate])
+
+  const isEffectiveFriday = activeManualForDate
+    ? (!activeManualForDate.include_fridays && planDetails.isFriday)
+    : planDetails.isFriday
+
   function stepDate(delta: number) {
     const [y, m, d] = selectedDate.split("-").map(Number)
     const dt = new Date(y, m - 1, d)
@@ -453,7 +463,7 @@ function StudentPlanView({
       </div>
 
       {/* Friday Rest Banner */}
-      {planDetails.isFriday ? (
+      {isEffectiveFriday ? (
         <div
           className="card"
           style={{

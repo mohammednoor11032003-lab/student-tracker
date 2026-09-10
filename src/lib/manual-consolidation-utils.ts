@@ -124,3 +124,112 @@ export function getWorkingDayIndex(
 
   return { workingDayIndex: index, isOffDay: false }
 }
+
+export interface ManualConsolidationDailyDetails {
+  workingDayIndex: number
+  isFridayOffDay: boolean
+  totalPages: number
+  totalWorkingDays: number
+  availableReviewDays: number
+  dailyCount: number
+  isHarvestDay: boolean
+  todayStart: number
+  todayEnd: number
+  taskTitle: string
+  detailsDescription: string
+}
+
+/**
+ * Calculates daily chunking and harvest day details for a specific date within an active manual consolidation.
+ * - If date is Friday and include_fridays is false -> returns isFridayOffDay: true
+ * - If has_harvest_day is true -> reserves final day for Harvest Task (covers start_page to end_page),
+ *   and chunks remaining pages strictly across availableReviewDays (totalWorkingDays - 1).
+ */
+export function getManualConsolidationDailyTaskDetails(
+  consolidation: ManualConsolidation,
+  selectedDateStr: string
+): ManualConsolidationDailyDetails | null {
+  if (!consolidation || !selectedDateStr) return null
+  if (selectedDateStr < consolidation.start_date || selectedDateStr > consolidation.end_date) {
+    return null
+  }
+
+  const includeFridays = Boolean(consolidation.include_fridays)
+  const { workingDayIndex, isOffDay } = getWorkingDayIndex(
+    consolidation.start_date,
+    selectedDateStr,
+    includeFridays
+  )
+
+  const totalPages = Math.max(0, consolidation.end_page - consolidation.start_page + 1)
+  const totalWorkingDays = countWorkingDays(consolidation.start_date, consolidation.end_date, includeFridays)
+  const hasHarvest = Boolean(consolidation.has_harvest_day)
+  const harvestDays = hasHarvest ? Math.max(1, consolidation.harvest_days_count || 1) : 0
+  const availableReviewDays = Math.max(1, totalWorkingDays - harvestDays)
+
+  if (isOffDay) {
+    return {
+      workingDayIndex: -1,
+      isFridayOffDay: true,
+      totalPages,
+      totalWorkingDays,
+      availableReviewDays,
+      dailyCount: consolidation.daily_pages_count || 4,
+      isHarvestDay: false,
+      todayStart: 0,
+      todayEnd: 0,
+      taskTitle: "يوم الجمعة إجازة رسمية 🕌 (لا توجد مهام تثبيت)",
+      detailsDescription:
+        "يوم الجمعة إجازة رسمية مستثناة من خطة التثبيت. لا توجد مهام تسميع أو تكرار لهذا اليوم، استمتع بيوم الراحة أو راجع ما سبق حفظه.",
+    }
+  }
+
+  // Harvest Day Check:
+  // When has_harvest_day is enabled, the final day (end_date) or any day beyond availableReviewDays is the Harvest Day
+  const isHarvestDay =
+    hasHarvest && (selectedDateStr === consolidation.end_date || workingDayIndex >= availableReviewDays)
+
+  if (isHarvestDay) {
+    return {
+      workingDayIndex,
+      isFridayOffDay: false,
+      totalPages,
+      totalWorkingDays,
+      availableReviewDays,
+      dailyCount: totalPages,
+      isHarvestDay: true,
+      todayStart: consolidation.start_page,
+      todayEnd: consolidation.end_page,
+      taskTitle: `يوم حصاد التثبيت الشامل: تسميع من ص ${consolidation.start_page} إلى ص ${consolidation.end_page}`,
+      detailsDescription:
+        "🌾 هذا هو يوم الحصاد الأكبر! المطلوب تسميع كل ما سبق دفعة واحدة لترسيخ الحفظ ونيل وسام الحصاد الذهبي! انقر على العداد بعد كل قراءة.",
+    }
+  }
+
+  // Regular review day chunking:
+  // Evenly distribute pages across availableReviewDays (totalWorkingDays - harvestDays)
+  const effectiveDaily = Math.max(1, Math.ceil(totalPages / availableReviewDays))
+  const chunkIndex = Math.min(workingDayIndex, availableReviewDays - 1)
+  const todayStart = consolidation.start_page + chunkIndex * effectiveDaily
+  let todayEnd = todayStart + effectiveDaily - 1
+
+  if (chunkIndex === availableReviewDays - 1 || todayEnd > consolidation.end_page) {
+    todayEnd = consolidation.end_page
+  }
+  const safeStart = Math.min(todayStart, consolidation.end_page)
+  const safeEnd = Math.min(todayEnd, consolidation.end_page)
+
+  return {
+    workingDayIndex,
+    isFridayOffDay: false,
+    totalPages,
+    totalWorkingDays,
+    availableReviewDays,
+    dailyCount: effectiveDaily,
+    isHarvestDay: false,
+    todayStart: safeStart,
+    todayEnd: safeEnd,
+    taskTitle: `مهمة التثبيت: تسميع من ص ${safeStart} إلى ص ${safeEnd}`,
+    detailsDescription: `اليوم ${workingDayIndex + 1} من أصل ${availableReviewDays} أيام تثبيت (المقدار: ${Math.max(1, safeEnd - safeStart + 1)} صفحات). خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار.`,
+  }
+}

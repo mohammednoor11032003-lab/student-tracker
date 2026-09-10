@@ -19,6 +19,7 @@ import {
   WEEK_NAMES,
   MONTH_NAMES,
   getMonthFirstSaturday,
+  getMonthWeeksList,
   formatDateStr,
   getTodayDateStr,
   getWeekAndMonthInfo,
@@ -38,7 +39,11 @@ import { StudentPlan, DEFAULT_PLAN, getDailyPlanDetails, calculateProjectedPlan,
 import BountyBoard from "./BountyBoard"
 import { BountyTask, getWeeklyBounties } from "@/lib/bounty-utils"
 
-import { ManualConsolidation, getWorkingDayIndex } from "@/lib/manual-consolidation-utils"
+import {
+  ManualConsolidation,
+  getWorkingDayIndex,
+  getManualConsolidationDailyTaskDetails,
+} from "@/lib/manual-consolidation-utils"
 
 function StudentTasks({
   assignments: initAssignments,
@@ -640,28 +645,11 @@ function StudentTasks({
     }
   })
 
-  // All 4 weeks of the active month
-  const firstSatOfMonth = getMonthFirstSaturday(activeYear, activeMonth)
-  const monthWeeks = [1, 2, 3, 4].map(w => {
-    const start = new Date(firstSatOfMonth)
-    start.setDate(start.getDate() + (w - 1) * 7)
-    const end = new Date(start)
-    end.setDate(end.getDate() + 6)
-    const sDD = String(start.getDate()).padStart(2, "0")
-    const sMM = String(start.getMonth() + 1).padStart(2, "0")
-    const eDD = String(end.getDate()).padStart(2, "0")
-    const eMM = String(end.getMonth() + 1).padStart(2, "0")
-    return {
-      weekNum: w,
-      weekName: `الأسبوع ${WEEK_NAMES[w - 1]}`,
-      startDate: start,
-      endDate: end,
-      startDateStr: formatDateStr(start),
-      endDateStr: formatDateStr(end),
-      label: `من السبت ${sDD}-${sMM} إلى الجمعة ${eDD}-${eMM}`,
-      isCurrent: w === activeWeekNum,
-    }
-  })
+  // Dynamic weeks of the active month (4 or 5 weeks)
+  const monthWeeks = getMonthWeeksList(activeYear, activeMonth).map(w => ({
+    ...w,
+    isCurrent: w.weekNum === activeWeekNum,
+  }))
 
   // All 28 days of the active month
   const allMonthDays: {
@@ -859,51 +847,12 @@ function StudentTasks({
   // Smart daily page split & Harvest Day calculation (with Fridays handling)
   const manualDetails = useMemo(() => {
     if (!activeManualForDate) return null
-    const includeFridays = Boolean(activeManualForDate.include_fridays)
-    const { workingDayIndex, isOffDay } = getWorkingDayIndex(
-      activeManualForDate.start_date,
-      selectedDate,
-      includeFridays
-    )
-
-    const totalPages = Math.max(0, activeManualForDate.end_page - activeManualForDate.start_page + 1)
-    const dailyCount = activeManualForDate.daily_pages_count || 4
-    const reviewDays = Math.ceil(totalPages / dailyCount)
-
-    if (isOffDay) {
-      return {
-        workingDayIndex: -1,
-        isFridayOffDay: true,
-        totalPages,
-        reviewDays,
-        dailyCount,
-        isHarvestDay: false,
-        todayStart: 0,
-        todayEnd: 0,
-        taskTitle: "يوم الجمعة إجازة رسمية 🕌 (لا توجد مهام تثبيت)",
-      }
-    }
-
-    const isHarvestDay = Boolean(activeManualForDate.has_harvest_day && workingDayIndex >= reviewDays)
-    const todayStart = activeManualForDate.start_page + (workingDayIndex * dailyCount)
-    const todayEnd = Math.min(activeManualForDate.end_page, todayStart + dailyCount - 1)
-
-    const taskTitle = isHarvestDay
-      ? `يوم حصاد التثبيت: تسميع من ص ${activeManualForDate.start_page} إلى ص ${activeManualForDate.end_page}`
-      : `مهمة التثبيت: تسميع من ص ${todayStart} إلى ص ${todayEnd}`
-
-    return {
-      workingDayIndex,
-      isFridayOffDay: false,
-      totalPages,
-      reviewDays,
-      dailyCount,
-      isHarvestDay,
-      todayStart,
-      todayEnd,
-      taskTitle,
-    }
+    return getManualConsolidationDailyTaskDetails(activeManualForDate, selectedDate)
   }, [activeManualForDate, selectedDate])
+
+  const isEffectiveFriday = activeManualForDate
+    ? (!activeManualForDate.include_fridays && planDetails.isFriday)
+    : planDetails.isFriday
 
   // Future simulated tasks list
   const futureSimulatedTasks = useMemo(() => {
@@ -1164,7 +1113,7 @@ function StudentTasks({
 
   // Toggle task completion (Complete / Uncomplete) with instant Optimistic UI and Rollback
   async function completeTask(a: Assignment) {
-    if (planDetails.isFriday) {
+    if (isEffectiveFriday) {
       toast("🕌 اليوم الجمعة إجازة قرآنية، لا توجد مهام مقررة اليوم!", { icon: "🕌", duration: 3500 })
       return
     }
@@ -1310,7 +1259,7 @@ function StudentTasks({
 
   // Intercept click on task to check if it's 'المراجعة'
   function handleTaskClick(a: Assignment) {
-    if (planDetails.isFriday) {
+    if (isEffectiveFriday) {
       toast("🕌 اليوم الجمعة إجازة قرآنية، لا توجد مهام مقررة اليوم!", { icon: "🕌", duration: 3500 })
       return
     }
@@ -1697,7 +1646,7 @@ function StudentTasks({
           <div style={{ fontSize: "2rem" }}>⏳</div>
           <p style={{ color: "#6b7280", margin: "0.5rem 0 0" }}>جاري تحميل مهام هذا اليوم...</p>
         </div>
-      ) : planDetails.isFriday ? (
+      ) : (!activeManualForDate && planDetails.isFriday) ? (
         <div
           className="card"
           style={{
@@ -2516,11 +2465,7 @@ function StudentTasks({
                   {manualDetails.taskTitle}
                 </div>
                 <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "#e2e8f0", lineHeight: 1.5 }}>
-                  {manualDetails.isFridayOffDay
-                    ? "يوم الجمعة إجازة رسمية مستثناة من خطة التثبيت. لا توجد مهام تسميع أو تكرار لهذا اليوم، استمتع بيوم الراحة أو راجع ما سبق حفظه."
-                    : manualDetails.isHarvestDay
-                    ? "🌾 هذا هو يوم الحصاد الأكبر! المطلوب تسميع كل ما سبق دفعة واحدة لترسيخ الحفظ ونيل وسام الحصاد الذهبي! انقر على العداد بعد كل قراءة."
-                    : `اليوم ${manualDetails.workingDayIndex + 1} من أصل ${manualDetails.reviewDays} أيام تثبيت (المقدار: ${manualDetails.todayEnd - manualDetails.todayStart + 1} صفحات). خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار.`}
+                  {manualDetails.detailsDescription}
                 </p>
               </div>
 
@@ -3845,7 +3790,7 @@ function StudentTasks({
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
               <h3 style={{ margin: 0, fontWeight: 900, color: "#1f2937", fontSize: "1.2rem" }}>
-                📍 أيام شهر {activeMonth} (الأسابيع الـ 4)
+                📍 أيام شهر {activeMonth} ({monthWeeks.length} أسابيع)
               </h3>
               <button
                 type="button"
@@ -3859,12 +3804,13 @@ function StudentTasks({
               اضغط على أي يوم للانتقال إليه مباشرة:
             </p>
 
-            {[1, 2, 3, 4].map(wNum => {
+            {monthWeeks.map(w => {
+              const wNum = w.weekNum
               const daysInThisWeek = allMonthDays.filter(d => d.weekNum === wNum)
               return (
                 <div key={wNum} style={{ marginBottom: "1rem" }}>
                   <div style={{ fontSize: "0.85rem", fontWeight: 800, color: "#7c3aed", marginBottom: "0.4rem", display: "flex", justifyContent: "space-between" }}>
-                    <span>الأسبوع {WEEK_NAMES[wNum - 1]}</span>
+                    <span>الأسبوع {WEEK_NAMES[wNum - 1] || wNum}</span>
                     <span dir="ltr" style={{ fontSize: "0.75rem", color: "#9ca3af", fontWeight: 600 }}>
                       {daysInThisWeek[0] ? `${String(daysInThisWeek[0].dayNum).padStart(2, "0")}-${String(daysInThisWeek[0].monthNum).padStart(2, "0")}` : ""} إلى {daysInThisWeek[6] ? `${String(daysInThisWeek[6].dayNum).padStart(2, "0")}-${String(daysInThisWeek[6].monthNum).padStart(2, "0")}` : ""}
                     </span>

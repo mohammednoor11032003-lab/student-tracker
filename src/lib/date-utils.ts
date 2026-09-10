@@ -1,5 +1,5 @@
 export const ARABIC_DAYS = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
-export const WEEK_NAMES = ["الأول", "الثاني", "الثالث", "الرابع"]
+export const WEEK_NAMES = ["الأول", "الثاني", "الثالث", "الرابع", "الخامس"]
 
 export const MONTH_NAMES = [
   "شهر 1",
@@ -32,24 +32,80 @@ export function formatDisplayDateObj(d: Date, includeYear = false): string {
   return includeYear ? `${dd}-${mm}-${d.getFullYear()}` : `${dd}-${mm}`
 }
 
-export function getMonthFirstSaturday(year: number, month: number): Date {
-  const d1 = new Date(year, month - 1, 1)
-  const dayOfWeek = d1.getDay()
-  let offset = 0
-  if (dayOfWeek === 6) offset = 0
-  else if (dayOfWeek <= 2) offset = -(dayOfWeek + 1)
-  else offset = (6 - dayOfWeek)
-  
-  const sat = new Date(year, month - 1, 1)
-  sat.setDate(sat.getDate() + offset)
-  return sat
-}
-
 export function formatDateStr(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")
   return `${y}-${m}-${day}`
+}
+
+/**
+ * Returns the Saturday that begins the week containing date `d`.
+ * Weeks run Saturday -> Friday (7 days).
+ */
+export function getWeekStartSaturday(d: Date): Date {
+  const sat = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const daysSinceSat = (sat.getDay() + 1) % 7
+  sat.setDate(sat.getDate() - daysSinceSat)
+  sat.setHours(0, 0, 0, 0)
+  return sat
+}
+
+/**
+ * Calculates the first Saturday of a given month according to the Tuesday Majority Rule:
+ * A week (Sat-Fri) belongs to the month containing its 4th day (Tuesday).
+ */
+export function getFirstWeekSaturdayOfMonth(year: number, month: number): Date {
+  const d1 = new Date(year, month - 1, 1)
+  const sat = getWeekStartSaturday(d1)
+  const tue = new Date(sat)
+  tue.setDate(tue.getDate() + 3)
+
+  if (tue.getMonth() + 1 === month && tue.getFullYear() === year) {
+    return sat
+  }
+  sat.setDate(sat.getDate() + 7)
+  return sat
+}
+
+export const getMonthFirstSaturday = getFirstWeekSaturdayOfMonth
+
+/**
+ * Returns an array of all weeks (4 or 5 weeks) for a given month.
+ */
+export function getMonthWeeksList(year: number, month: number) {
+  const firstSat = getFirstWeekSaturdayOfMonth(year, month)
+  const weeks = []
+  let w = 1
+  const curSat = new Date(firstSat)
+
+  while (true) {
+    const tue = new Date(curSat)
+    tue.setDate(tue.getDate() + 3)
+    if (tue.getMonth() + 1 !== month || tue.getFullYear() !== year) {
+      break
+    }
+    const end = new Date(curSat)
+    end.setDate(end.getDate() + 6)
+    const sDD = String(curSat.getDate()).padStart(2, "0")
+    const sMM = String(curSat.getMonth() + 1).padStart(2, "0")
+    const eDD = String(end.getDate()).padStart(2, "0")
+    const eMM = String(end.getMonth() + 1).padStart(2, "0")
+
+    weeks.push({
+      weekNum: w,
+      weekName: `الأسبوع ${WEEK_NAMES[w - 1] || w}`,
+      startDate: new Date(curSat),
+      endDate: end,
+      startDateStr: formatDateStr(curSat),
+      endDateStr: formatDateStr(end),
+      label: `من السبت ${sDD}-${sMM} إلى الجمعة ${eDD}-${eMM}`,
+    })
+
+    w++
+    curSat.setDate(curSat.getDate() + 7)
+  }
+  return weeks
 }
 
 /**
@@ -78,37 +134,33 @@ export function getDateStrFromTimestamp(timestamp: string | Date): string {
   return getTodayDateStr(d)
 }
 
-
+/**
+ * Attributes dateStr to its proper month, year, and weekNum (1..5) using Tuesday Majority Rule.
+ */
 export function getWeekAndMonthInfo(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number)
   const target = new Date(y, m - 1, d)
+  const sat = getWeekStartSaturday(target)
+  const tue = new Date(sat)
+  tue.setDate(tue.getDate() + 3)
 
-  for (const candM of [m - 1, m, m + 1]) {
-    let checkY = y
-    let checkM = candM
-    if (checkM < 1) { checkM = 12; checkY-- }
-    if (checkM > 12) { checkM = 1; checkY++ }
+  const attributedYear = tue.getFullYear()
+  const attributedMonth = tue.getMonth() + 1
 
-    const sat1 = getMonthFirstSaturday(checkY, checkM)
-    for (let w = 1; w <= 4; w++) {
-      const wStart = new Date(sat1)
-      wStart.setDate(wStart.getDate() + (w - 1) * 7)
-      const wEnd = new Date(wStart)
-      wEnd.setDate(wEnd.getDate() + 6)
+  const firstSat = getFirstWeekSaturdayOfMonth(attributedYear, attributedMonth)
+  const diffDays = Math.round((sat.getTime() - firstSat.getTime()) / (1000 * 60 * 60 * 24))
+  const weekNum = Math.floor(diffDays / 7) + 1
 
-      if (target >= wStart && target <= wEnd) {
-        return {
-          year: checkY,
-          month: checkM,
-          weekNum: w,
-          weekStart: wStart,
-          weekEnd: wEnd,
-        }
-      }
-    }
+  const end = new Date(sat)
+  end.setDate(end.getDate() + 6)
+
+  return {
+    year: attributedYear,
+    month: attributedMonth,
+    weekNum,
+    weekStart: sat,
+    weekEnd: end,
   }
-
-  return { year: y, month: m, weekNum: 4, weekStart: target, weekEnd: target }
 }
 
 // ================= GAMIFIED PENALTY & MYSTERY BOX SYSTEM =================
