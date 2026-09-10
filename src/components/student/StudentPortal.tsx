@@ -29,7 +29,7 @@ interface LeaderboardEntry {
   profiles: { full_name: string } | null
 }
 
-import { ManualConsolidation } from "@/lib/manual-consolidation"
+import { ManualConsolidation } from "@/lib/manual-consolidation-utils"
 
 interface StudentPortalProps {
   studentId: string
@@ -71,6 +71,26 @@ export default function StudentPortal({
   const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "hero" | "arena" | "leaderboard">(initialTab)
   const [gems, setGems] = useState<number>(initialGems)
   const [dailyGemsOpen, setDailyGemsOpen] = useState(false)
+  const [allConsolidations, setAllConsolidations] = useState<ManualConsolidation[]>(
+    initialManualConsolidation ? [initialManualConsolidation] : []
+  )
+
+  // Fetch all consolidations for this student to support plan & calendar navigation
+  useEffect(() => {
+    if (!studentId) return
+    let isMounted = true
+    fetch(`/api/manual-consolidation?studentId=${studentId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.success && data.consolidations) {
+          setAllConsolidations(data.consolidations)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      isMounted = false
+    }
+  }, [studentId])
 
   // Sync gems when prop updates
   useEffect(() => {
@@ -305,6 +325,7 @@ export default function StudentPortal({
           todayStr={todayStr}
           isStarOfWeek={isStarOfWeek}
           isStarOfMonth={isStarOfMonth}
+          manualConsolidations={allConsolidations}
         />
       </div>
 

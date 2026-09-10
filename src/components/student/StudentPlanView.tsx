@@ -3,6 +3,7 @@ import React, { useState, useMemo } from "react"
 import Link from "next/link"
 import { StudentPlan, getDailyPlanDetails, calculateProjectedPlan, calculateTotalMemorizedPages } from "@/lib/plan-utils"
 import { formatDisplayDate } from "@/lib/date-utils"
+import type { ManualConsolidation } from "@/lib/manual-consolidation-utils"
 
 interface StudentPlanViewProps {
   plan: StudentPlan
@@ -10,6 +11,7 @@ interface StudentPlanViewProps {
   todayStr: string
   isStarOfWeek?: boolean
   isStarOfMonth?: boolean
+  manualConsolidations?: ManualConsolidation[]
 }
 
 function StudentPlanView({
@@ -18,6 +20,7 @@ function StudentPlanView({
   todayStr,
   isStarOfWeek = false,
   isStarOfMonth = false,
+  manualConsolidations = [],
 }: StudentPlanViewProps) {
   const [selectedDate, setSelectedDate] = useState<string>(todayStr)
 
@@ -25,7 +28,7 @@ function StudentPlanView({
 
   const { activePlan, planDetails, diffDays } = useMemo(() => {
     if (isProjected) {
-      const res = calculateProjectedPlan(plan, selectedDate, todayStr)
+      const res = calculateProjectedPlan(plan, selectedDate, todayStr, manualConsolidations)
       return {
         activePlan: res.projectedPlan,
         planDetails: res.planDetails,
@@ -37,7 +40,7 @@ function StudentPlanView({
       planDetails: getDailyPlanDetails(plan, selectedDate),
       diffDays: 0,
     }
-  }, [plan, selectedDate, todayStr, isProjected])
+  }, [plan, selectedDate, todayStr, isProjected, manualConsolidations])
 
   const { totalPages: memorizedPagesCount, percentComplete } = useMemo(() => {
     return calculateTotalMemorizedPages(activePlan)

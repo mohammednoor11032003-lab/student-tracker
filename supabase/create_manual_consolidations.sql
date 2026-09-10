@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- SQL Migration: Smart Manual Consolidation System (نظام التثبيت اليدوي الذكي)
 -- ============================================================
 
@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS manual_consolidations (
   end_date DATE NOT NULL,
   has_harvest_day BOOLEAN NOT NULL DEFAULT false,
   harvest_days_count INTEGER NOT NULL DEFAULT 1,
+  include_fridays BOOLEAN NOT NULL DEFAULT false,
   resume_page_pointer TEXT NOT NULL DEFAULT 'ص 1 النصف العلوي',
   pages_description TEXT,
   repetitions_count INTEGER NOT NULL DEFAULT 5,
@@ -26,6 +27,7 @@ ALTER TABLE manual_consolidations ADD COLUMN IF NOT EXISTS end_page INTEGER NOT 
 ALTER TABLE manual_consolidations ADD COLUMN IF NOT EXISTS daily_pages_count INTEGER NOT NULL DEFAULT 4;
 ALTER TABLE manual_consolidations ADD COLUMN IF NOT EXISTS has_harvest_day BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE manual_consolidations ADD COLUMN IF NOT EXISTS harvest_days_count INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE manual_consolidations ADD COLUMN IF NOT EXISTS include_fridays BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE manual_consolidations ADD COLUMN IF NOT EXISTS resume_page_pointer TEXT NOT NULL DEFAULT 'ص 1 النصف العلوي';
 ALTER TABLE manual_consolidations ADD COLUMN IF NOT EXISTS pages_description TEXT;
 ALTER TABLE manual_consolidations ADD COLUMN IF NOT EXISTS repetitions_count INTEGER NOT NULL DEFAULT 5;

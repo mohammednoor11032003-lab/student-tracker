@@ -1,8 +1,8 @@
-﻿"use client"
+"use client"
 import React, { useState, useEffect } from "react"
 import { Shield, X, Calendar, BookOpen, AlertCircle, CheckCircle2, Trash2, Sparkles, Clock, ArrowRight } from "lucide-react"
 import toast from "react-hot-toast"
-import { ManualConsolidation } from "@/lib/manual-consolidation"
+import { ManualConsolidation, countWorkingDays, calculateEndDateForWorkingDays } from "@/lib/manual-consolidation-utils"
 
 interface ManualConsolidationModalProps {
   isOpen: boolean
@@ -35,6 +35,7 @@ export default function ManualConsolidationModal({
   const [dailyPagesCount, setDailyPagesCount] = useState<number>(4)
   const [startDate, setStartDate] = useState<string>(todayStr)
   const [endDate, setEndDate] = useState<string>("")
+  const [includeFridays, setIncludeFridays] = useState<boolean>(false)
   const [hasHarvestDay, setHasHarvestDay] = useState<boolean>(false)
   const [harvestDaysCount, setHarvestDaysCount] = useState<number>(1)
   const [resumePagePointer, setResumePagePointer] = useState<string>(suggestedResumePointer || "ص 1 النصف العلوي")
@@ -46,26 +47,15 @@ export default function ManualConsolidationModal({
   const harvestDays = hasHarvestDay ? Number(harvestDaysCount) : 0
   const totalRequiredDays = reviewDays + harvestDays
 
-  // Calculate available days between startDate and endDate
-  const availableDays = (() => {
-    if (!startDate || !endDate) return 0
-    const s = new Date(startDate + "T00:00:00")
-    const e = new Date(endDate + "T00:00:00")
-    if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return 0
-    return Math.round((e.getTime() - s.getTime()) / 86400000) + 1
-  })()
+  // Calculate actual available working days between startDate and endDate (Fridays handled)
+  const availableDays = countWorkingDays(startDate, endDate, includeFridays)
 
   const isDurationInsufficient = Boolean(
     startDate && endDate && totalRequiredDays > 0 && availableDays < totalRequiredDays
   )
 
-  // Calculate recommended end date based on startDate + totalRequiredDays - 1
-  const recommendedEndDate = (() => {
-    if (!startDate || totalRequiredDays <= 0) return ""
-    const d = new Date(startDate + "T00:00:00")
-    d.setDate(d.getDate() + totalRequiredDays - 1)
-    return d.toISOString().split("T")[0]
-  })()
+  // Calculate recommended end date based on startDate + totalRequiredDays working days
+  const recommendedEndDate = calculateEndDateForWorkingDays(startDate, totalRequiredDays, includeFridays)
 
   // Calculate next day after end date for normal plan resumption date
   const resumptionDate = (() => {
@@ -102,6 +92,7 @@ export default function ManualConsolidationModal({
       setDailyPagesCount(initialEditItem.daily_pages_count)
       setStartDate(initialEditItem.start_date)
       setEndDate(initialEditItem.end_date)
+      setIncludeFridays(Boolean(initialEditItem.include_fridays))
       setHasHarvestDay(initialEditItem.has_harvest_day)
       setHarvestDaysCount(initialEditItem.harvest_days_count || 1)
       setResumePagePointer(initialEditItem.resume_page_pointer || suggestedResumePointer || "ص 1 النصف العلوي")
@@ -112,15 +103,15 @@ export default function ManualConsolidationModal({
       setEndPage(20)
       setDailyPagesCount(4)
       setStartDate(todayStr)
+      setIncludeFridays(false)
       setHasHarvestDay(false)
       setHarvestDaysCount(1)
       setResumePagePointer(suggestedResumePointer || "ص 1 النصف العلوي")
       setRepetitionsCount(5)
       
-      // Auto set end date: 20 pages / 4 = 5 days -> today + 4 days
-      const d = new Date(todayStr + "T00:00:00")
-      d.setDate(d.getDate() + 4)
-      setEndDate(d.toISOString().split("T")[0])
+      // Auto set end date: 20 pages / 4 = 5 working days (skipping Fridays by default)
+      const initialEnd = calculateEndDateForWorkingDays(todayStr, 5, false)
+      setEndDate(initialEnd)
     }
 
     return () => {
@@ -131,7 +122,7 @@ export default function ManualConsolidationModal({
   function handleAutoFixEndDate() {
     if (recommendedEndDate) {
       setEndDate(recommendedEndDate)
-      toast.success(`تم ضبط تاريخ الانتهاء تلقائياً إلى ${recommendedEndDate} (${totalRequiredDays} أيام) ✓`)
+      toast.success(`تم ضبط تاريخ الانتهاء تلقائياً إلى ${recommendedEndDate} (${totalRequiredDays} أيام عمل فعلية) ✓`)
     }
   }
 
@@ -141,13 +132,13 @@ export default function ManualConsolidationModal({
     setEndPage(20)
     setDailyPagesCount(4)
     setStartDate(todayStr)
+    setIncludeFridays(false)
     setHasHarvestDay(false)
     setHarvestDaysCount(1)
     setResumePagePointer(suggestedResumePointer || "ص 1 النصف العلوي")
     setRepetitionsCount(5)
-    const d = new Date(todayStr + "T00:00:00")
-    d.setDate(d.getDate() + 4)
-    setEndDate(d.toISOString().split("T")[0])
+    const initialEnd = calculateEndDateForWorkingDays(todayStr, 5, false)
+    setEndDate(initialEnd)
   }
 
   function handleSelectToEdit(item: ManualConsolidation) {
@@ -157,6 +148,7 @@ export default function ManualConsolidationModal({
     setDailyPagesCount(item.daily_pages_count)
     setStartDate(item.start_date)
     setEndDate(item.end_date)
+    setIncludeFridays(Boolean(item.include_fridays))
     setHasHarvestDay(item.has_harvest_day)
     setHarvestDaysCount(item.harvest_days_count || 1)
     setResumePagePointer(item.resume_page_pointer)
@@ -233,6 +225,7 @@ export default function ManualConsolidationModal({
           daily_pages_count: dailyPagesCount,
           start_date: startDate,
           end_date: endDate,
+          include_fridays: includeFridays,
           has_harvest_day: hasHarvestDay,
           harvest_days_count: hasHarvestDay ? harvestDaysCount : 0,
           resume_page_pointer: resumePagePointer.trim(),
@@ -601,6 +594,49 @@ export default function ManualConsolidationModal({
             )}
           </div>
 
+          {/* Section 2.5: Friday Handling Option (استثناء أيام الجمعة) */}
+          <div
+            style={{
+              background: includeFridays ? "#f0fdf4" : "#f8fafc",
+              border: includeFridays ? "1.5px solid #22c55e" : "1px solid #e2e8f0",
+              borderRadius: "1rem",
+              padding: "1rem",
+              transition: "all 0.2s",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.6rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={includeFridays}
+                  onChange={e => setIncludeFridays(e.target.checked)}
+                  style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#16a34a" }}
+                />
+                <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "#1e293b" }}>
+                  تضمين يوم الجمعة في خطة التثبيت (إذا تُرك فارغاً سيكون الجمعة يوم إجازة)
+                </span>
+              </label>
+
+              <span
+                style={{
+                  fontSize: "0.8rem",
+                  background: includeFridays ? "#dcfce7" : "#e2e8f0",
+                  color: includeFridays ? "#15803d" : "#475569",
+                  padding: "0.2rem 0.6rem",
+                  borderRadius: "9999px",
+                  fontWeight: 800,
+                }}
+              >
+                {includeFridays ? "الجمعة مشمول ⚡" : "الجمعة إجازة 🕌"}
+              </span>
+            </div>
+            <p style={{ margin: "0.4rem 0 0 1.8rem", fontSize: "0.82rem", color: "#64748b" }}>
+              {includeFridays
+                ? "سيتم احتساب يوم الجمعة كيوم عمل وتوليد مهام تثبيت فيه."
+                : "يوم الجمعة إجازة رسمية: لن يتم توليد أي مهام فيه، وتُحسب فقط أيام العمل الفعلية عند التحقق من كفاية المدة."}
+            </p>
+          </div>
+
           {/* Section 3: Time Period Dates */}
           <div
             style={{
@@ -675,9 +711,9 @@ export default function ManualConsolidationModal({
                 <span>المدة الزمنية المحددة لا تكفي لإنجاز هذه الصفحات بهذا المقدار اليومي!</span>
               </div>
               <div style={{ fontSize: "0.88rem", lineHeight: "1.4" }}>
-                • الأيام المطلوبة لإنجاز المهمة: <strong>{totalRequiredDays} أيام</strong> ({reviewDays} أيام مراجعة {hasHarvestDay ? `+ ${harvestDays} أيام حصاد` : ""}).
+                • الأيام المطلوبة لإنجاز المهمة: <strong>{totalRequiredDays} أيام عمل فعلية</strong> ({reviewDays} أيام مراجعة {hasHarvestDay ? `+ ${harvestDays} أيام حصاد` : ""}).
                 <br />
-                • الأيام المتاحة بين التاريخين: <strong>{availableDays} أيام فقط</strong>.
+                • الأيام المتاحة بين التاريخين: <strong>{availableDays} أيام عمل فعلية</strong> {!includeFridays ? "(مستثنياً أيام الجمعة كإجازة)" : "(شاملاً أيام الجمعة)"}.
               </div>
               
               {recommendedEndDate && (

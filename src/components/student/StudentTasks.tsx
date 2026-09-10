@@ -38,7 +38,7 @@ import { StudentPlan, DEFAULT_PLAN, getDailyPlanDetails, calculateProjectedPlan,
 import BountyBoard from "./BountyBoard"
 import { BountyTask, getWeeklyBounties } from "@/lib/bounty-utils"
 
-import { ManualConsolidation } from "@/lib/manual-consolidation"
+import { ManualConsolidation, getWorkingDayIndex } from "@/lib/manual-consolidation-utils"
 
 function StudentTasks({
   assignments: initAssignments,
@@ -837,14 +837,14 @@ function StudentTasks({
   // Plan Details (simulated for future dates, active for today/past)
   const projectedInfo = useMemo(() => {
     if (isFuture) {
-      return calculateProjectedPlan(studentPlan, selectedDate, todayStr)
+      return calculateProjectedPlan(studentPlan, selectedDate, todayStr, allManualConsolidations)
     }
     return {
       projectedPlan: studentPlan,
       planDetails: getDailyPlanDetails(studentPlan, selectedDate),
       diffDays: 0,
     }
-  }, [studentPlan, selectedDate, todayStr, isFuture])
+  }, [studentPlan, selectedDate, todayStr, isFuture, allManualConsolidations])
 
   const activePlan = projectedInfo.projectedPlan
   const planDetails = projectedInfo.planDetails
@@ -856,18 +856,36 @@ function StudentTasks({
     ) || null
   }, [allManualConsolidations, selectedDate])
 
-  // Smart daily page split & Harvest Day calculation
+  // Smart daily page split & Harvest Day calculation (with Fridays handling)
   const manualDetails = useMemo(() => {
     if (!activeManualForDate) return null
-    const sDate = new Date(activeManualForDate.start_date + "T00:00:00")
-    const currDate = new Date(selectedDate + "T00:00:00")
-    const dayIndex = Math.max(0, Math.floor((currDate.getTime() - sDate.getTime()) / 86400000))
+    const includeFridays = Boolean(activeManualForDate.include_fridays)
+    const { workingDayIndex, isOffDay } = getWorkingDayIndex(
+      activeManualForDate.start_date,
+      selectedDate,
+      includeFridays
+    )
+
     const totalPages = Math.max(0, activeManualForDate.end_page - activeManualForDate.start_page + 1)
     const dailyCount = activeManualForDate.daily_pages_count || 4
     const reviewDays = Math.ceil(totalPages / dailyCount)
-    const isHarvestDay = Boolean(activeManualForDate.has_harvest_day && dayIndex >= reviewDays)
 
-    const todayStart = activeManualForDate.start_page + (dayIndex * dailyCount)
+    if (isOffDay) {
+      return {
+        workingDayIndex: -1,
+        isFridayOffDay: true,
+        totalPages,
+        reviewDays,
+        dailyCount,
+        isHarvestDay: false,
+        todayStart: 0,
+        todayEnd: 0,
+        taskTitle: "يوم الجمعة إجازة رسمية 🕌 (لا توجد مهام تثبيت)",
+      }
+    }
+
+    const isHarvestDay = Boolean(activeManualForDate.has_harvest_day && workingDayIndex >= reviewDays)
+    const todayStart = activeManualForDate.start_page + (workingDayIndex * dailyCount)
     const todayEnd = Math.min(activeManualForDate.end_page, todayStart + dailyCount - 1)
 
     const taskTitle = isHarvestDay
@@ -875,7 +893,8 @@ function StudentTasks({
       : `مهمة التثبيت: تسميع من ص ${todayStart} إلى ص ${todayEnd}`
 
     return {
-      dayIndex,
+      workingDayIndex,
+      isFridayOffDay: false,
       totalPages,
       reviewDays,
       dailyCount,
@@ -2497,14 +2516,39 @@ function StudentTasks({
                   {manualDetails.taskTitle}
                 </div>
                 <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "#e2e8f0", lineHeight: 1.5 }}>
-                  {manualDetails.isHarvestDay
+                  {manualDetails.isFridayOffDay
+                    ? "يوم الجمعة إجازة رسمية مستثناة من خطة التثبيت. لا توجد مهام تسميع أو تكرار لهذا اليوم، استمتع بيوم الراحة أو راجع ما سبق حفظه."
+                    : manualDetails.isHarvestDay
                     ? "🌾 هذا هو يوم الحصاد الأكبر! المطلوب تسميع كل ما سبق دفعة واحدة لترسيخ الحفظ ونيل وسام الحصاد الذهبي! انقر على العداد بعد كل قراءة."
-                    : `اليوم ${manualDetails.dayIndex + 1} من أصل ${manualDetails.reviewDays} أيام تثبيت (المقدار: ${manualDetails.todayEnd - manualDetails.todayStart + 1} صفحات). خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار.`}
+                    : `اليوم ${manualDetails.workingDayIndex + 1} من أصل ${manualDetails.reviewDays} أيام تثبيت (المقدار: ${manualDetails.todayEnd - manualDetails.todayStart + 1} صفحات). خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار.`}
                 </p>
               </div>
 
-              {/* Clicker Counter Button */}
-              {(() => {
+              {/* Clicker Counter Button or Friday Off Display */}
+              {manualDetails.isFridayOffDay ? (
+                <div
+                  style={{
+                    background: "rgba(16, 185, 129, 0.15)",
+                    border: "1.5px solid #10b981",
+                    borderRadius: "1rem",
+                    padding: "1.25rem",
+                    textAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    zIndex: 1,
+                  }}
+                >
+                  <span style={{ fontSize: "2.5rem" }}>🕌</span>
+                  <h4 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900, color: "#a7f3d0" }}>
+                    يوم الجمعة إجازة رسمية 🕌
+                  </h4>
+                  <p style={{ margin: 0, fontSize: "0.9rem", color: "#d1fae5", lineHeight: 1.6, maxWidth: "450px" }}>
+                    تقبل الله طاعتكم وصالح أعمالكم! يوم الجمعة إجازة مستثناة من خطة التثبيت. استمتع بيوم الراحة أو راجع ما تحب دون مهام إلزامية.
+                  </p>
+                </div>
+              ) : (() => {
                 const target = activeManualForDate.repetitions_count || 5
                 const isTargetReached = manualRepetitionsCount >= target
                 const pct = Math.min(100, Math.round((manualRepetitionsCount / target) * 100))

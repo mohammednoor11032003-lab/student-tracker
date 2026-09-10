@@ -2,30 +2,15 @@ import { createClient } from "@supabase/supabase-js"
 import fs from "fs"
 import path from "path"
 
-export interface ManualConsolidation {
-  id: string
-  student_id: string
-  start_page: number
-  end_page: number
-  daily_pages_count: number
-  start_date: string
-  end_date: string
-  has_harvest_day: boolean
-  harvest_days_count: number
-  resume_page_pointer: string
-  pages_description: string
-  repetitions_count: number
-  is_active: boolean
-  created_at?: string
-  updated_at?: string
-}
-
-export function parseResumePointer(pointer: string): { page: number; part: "top" | "bottom" } {
-  const match = pointer.match(/\d+/)
-  const page = match ? Math.max(1, Math.min(604, parseInt(match[0], 10))) : 1
-  const part: "top" | "bottom" = pointer.includes("السفلي") ? "bottom" : "top"
-  return { page, part }
-}
+export * from "./manual-consolidation-utils"
+import {
+  ManualConsolidation,
+  parseResumePointer,
+  countWorkingDays,
+  calculateEndDateForWorkingDays,
+  getWorkingDayIndex,
+  isFridayDate,
+} from "./manual-consolidation-utils"
 
 function getAdminClient() {
   return createClient(
@@ -126,7 +111,7 @@ export async function getStudentManualConsolidations(
     .sort((a, b) => b.start_date.localeCompare(a.start_date))
 }
 
-function normalizeConsolidation(raw: any): ManualConsolidation {
+export function normalizeConsolidation(raw: any): ManualConsolidation {
   const start_page = Number(raw.start_page) || 1
   const end_page = Number(raw.end_page) || 20
   const daily_pages_count = Number(raw.daily_pages_count) || 4
@@ -140,6 +125,7 @@ function normalizeConsolidation(raw: any): ManualConsolidation {
     daily_pages_count,
     start_date: raw.start_date,
     end_date: raw.end_date,
+    include_fridays: Boolean(raw.include_fridays),
     has_harvest_day: Boolean(raw.has_harvest_day),
     harvest_days_count: Math.min(3, Math.max(1, harvest_days_count)),
     resume_page_pointer: raw.resume_page_pointer || "ص 1 النصف العلوي",
@@ -174,6 +160,7 @@ export async function saveManualConsolidation(
     daily_pages_count,
     start_date: record.start_date,
     end_date: record.end_date,
+    include_fridays: Boolean(record.include_fridays),
     has_harvest_day: Boolean(record.has_harvest_day),
     harvest_days_count,
     resume_page_pointer: record.resume_page_pointer || "ص 1 النصف العلوي",
@@ -245,4 +232,42 @@ export async function deleteManualConsolidation(id: string): Promise<boolean> {
   const filtered = localList.filter(c => c.id !== id)
   writeLocalConsolidations(filtered)
   return true
+}
+
+/**
+ * Enforces the resume_page_pointer for a student when a consolidation has completed (end_date < todayStr).
+ * Guarantees that the student's base plan on end_date + 1 starts EXACTLY at resume_page_pointer.
+ */
+export async function enforceStudentResumePointer(studentId: string, todayStr: string): Promise<boolean> {
+  try {
+    const consolidations = await getStudentManualConsolidations(studentId)
+    // Find the most recent consolidation that ended today or earlier
+    const ended = consolidations.find(c => c.is_active && c.end_date < todayStr)
+    if (ended && ended.resume_page_pointer) {
+      const { page, part } = parseResumePointer(ended.resume_page_pointer)
+      const { getStudentPlan, updateStudentPlan } = await import("@/lib/student-plan")
+      const current = await getStudentPlan(studentId)
+
+      // If today is end_date + 1, or student plan is desynced, force pointer
+      const [ey, em, ed] = ended.end_date.split("-").map(Number)
+      const endPlusOne = new Date(ey, em - 1, ed)
+      endPlusOne.setDate(endPlusOne.getDate() + 1)
+      const yyyy = endPlusOne.getFullYear()
+      const mm = String(endPlusOne.getMonth() + 1).padStart(2, "0")
+      const dd = String(endPlusOne.getDate()).padStart(2, "0")
+      const endPlusOneStr = `${yyyy}-${mm}-${dd}`
+
+      if (todayStr === endPlusOneStr || current.current_page !== page || current.page_part !== part) {
+        console.log(`[ManualConsolidation] Enforcing resume pointer for student ${studentId}: ص ${page} ${part} (resumption from consolidation ended ${ended.end_date})`)
+        await updateStudentPlan(studentId, {
+          current_page: page,
+          page_part: part,
+        })
+        return true
+      }
+    }
+  } catch (err) {
+    console.error("Error in enforceStudentResumePointer:", err)
+  }
+  return false
 }

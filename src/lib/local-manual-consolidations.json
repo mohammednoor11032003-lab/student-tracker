@@ -3,7 +3,7 @@
     "id": "mc_1789073066395_dmqcw",
     "student_id": "f7c52257-d501-45ec-bacc-0f0c75a295e4",
     "start_date": "2026-09-12",
-    "end_date": "2026-09-18",
+    "end_date": "2026-09-19",
     "pages_description": "من ص 1 إلى ص 21",
     "repetitions_count": 10,
     "is_active": true,
@@ -12,6 +12,7 @@
     "start_page": 1,
     "end_page": 21,
     "daily_pages_count": 3,
+    "include_fridays": false,
     "has_harvest_day": false,
     "harvest_days_count": 1,
     "resume_page_pointer": "ص35 النصف العلوي"

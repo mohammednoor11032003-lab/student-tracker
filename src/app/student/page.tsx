@@ -31,6 +31,10 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   const month = weekInfo.month
   const year = weekInfo.year
 
+  // Enforce frozen resume pointer if manual consolidation ended
+  const { enforceStudentResumePointer } = await import("@/lib/manual-consolidation")
+  await enforceStudentResumePointer(user.id, today)
+
   // Check active manual consolidation for today
   const activeManualConsolidation = await getActiveManualConsolidation(user.id, today)
 

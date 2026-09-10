@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
       daily_pages_count,
       start_date,
       end_date,
+      include_fridays,
       has_harvest_day,
       harvest_days_count,
       resume_page_pointer,
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
     const dailyCount = Number(daily_pages_count) || 4
     const isHarvest = Boolean(has_harvest_day)
     const harvestDays = Math.min(3, Math.max(1, Number(harvest_days_count) || 1))
+    const includeFridays = Boolean(include_fridays)
 
     if (sPage < 1 || ePage < sPage) {
       return NextResponse.json(
@@ -93,21 +95,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Strict Validation: check if available days >= required days
+    // Strict Validation: check if available working days >= required days (Fridays handling)
+    const { countWorkingDays } = await import("@/lib/manual-consolidation")
     const totalPages = ePage - sPage + 1
     const reviewDays = Math.ceil(totalPages / dailyCount)
     const totalRequiredDays = reviewDays + (isHarvest ? harvestDays : 0)
+    const availableWorkingDays = countWorkingDays(start_date, end_date, includeFridays)
 
-    const startD = new Date(start_date + "T00:00:00")
-    const endD = new Date(end_date + "T00:00:00")
-    const availableDays = Math.round((endD.getTime() - startD.getTime()) / 86400000) + 1
-
-    if (availableDays < totalRequiredDays) {
+    if (availableWorkingDays < totalRequiredDays) {
       return NextResponse.json(
         {
-          error: `المدة الزمنية المحددة لا تكفي لإنجاز هذه الصفحات بهذا المقدار اليومي! (المطلوب: ${totalRequiredDays} أيام، المتاح: ${availableDays} أيام)`,
+          error: `المدة الزمنية المحددة لا تكفي لإنجاز هذه الصفحات بهذا المقدار اليومي! (المطلوب: ${totalRequiredDays} أيام عمل فعلية، المتاح: ${availableWorkingDays} أيام عمل${!includeFridays ? " مع استثناء أيام الجمعة كإجازة" : ""})`,
           requiredDays: totalRequiredDays,
-          availableDays,
+          availableDays: availableWorkingDays,
         },
         { status: 400 }
       )
@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
       daily_pages_count: dailyCount,
       start_date,
       end_date,
+      include_fridays: includeFridays,
       has_harvest_day: isHarvest,
       harvest_days_count: harvestDays,
       resume_page_pointer: resume_page_pointer?.trim() || "ص 1 النصف العلوي",

@@ -1,4 +1,6 @@
 import { getTodayDateStr } from "@/lib/date-utils"
+import type { ManualConsolidation } from "@/lib/manual-consolidation-utils"
+import { parseResumePointer } from "@/lib/manual-consolidation-utils"
 
 export interface HizbInfo {
   hizb: number // 1 to 60
@@ -444,7 +446,8 @@ export function calculateNextPlanState(current: StudentPlan, taskName: string, c
 export function calculateProjectedPlan(
   studentPlan: StudentPlan,
   targetDateStr: string,
-  fromDateStr?: string
+  fromDateStr?: string,
+  manualConsolidations?: ManualConsolidation[]
 ): {
   projectedPlan: StudentPlan
   planDetails: DailyPlanDetails
@@ -463,9 +466,21 @@ export function calculateProjectedPlan(
   const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
 
   if (diffDays <= 0) {
+    const activeManual = manualConsolidations?.find(
+      c => c.is_active && targetDateStr >= c.start_date && targetDateStr <= c.end_date
+    )
+    let effectivePlan = safePlan
+    if (activeManual && activeManual.resume_page_pointer) {
+      const { page, part } = parseResumePointer(activeManual.resume_page_pointer)
+      effectivePlan = {
+        ...safePlan,
+        current_page: page,
+        page_part: part,
+      }
+    }
     return {
-      projectedPlan: safePlan,
-      planDetails: getDailyPlanDetails(safePlan, targetDateStr),
+      projectedPlan: effectivePlan,
+      planDetails: getDailyPlanDetails(effectivePlan, targetDateStr),
       diffDays: Math.max(0, diffDays),
     }
   }
@@ -486,14 +501,56 @@ export function calculateProjectedPlan(
   for (let step = 1; step <= diffDays; step++) {
     const curDate = new Date(baseDate)
     curDate.setDate(baseDate.getDate() + step)
+    const yyyy = curDate.getFullYear()
+    const mm = String(curDate.getMonth() + 1).padStart(2, "0")
+    const dd = String(curDate.getDate()).padStart(2, "0")
+    const curDateStr = `${yyyy}-${mm}-${dd}`
+
     const isFriday = curDate.getDay() === 5
+
+    // 1. Check if curDate falls inside an active manual consolidation
+    const activeManual = manualConsolidations?.find(
+      c => c.is_active && curDateStr >= c.start_date && curDateStr <= c.end_date
+    )
+
+    if (activeManual) {
+      // 🛡️ CRITICAL FIX: FREEZE POINTER!
+      // During active manual consolidation, regular memorization is 100% frozen!
+      // Lock sim to resume_page_pointer so that when consolidation ends, it starts exactly here.
+      if (activeManual.resume_page_pointer) {
+        const { page, part } = parseResumePointer(activeManual.resume_page_pointer)
+        sim.current_page = page
+        sim.page_part = part
+      }
+      continue
+    }
+
+    // 2. Check if curDate is the first day after a manual consolidation ended (end_date + 1)
+    const justEndedManual = manualConsolidations?.find(c => {
+      if (!c.is_active || !c.resume_page_pointer) return false
+      const [ey, em, ed] = c.end_date.split("-").map(Number)
+      const endPlusOne = new Date(ey, em - 1, ed)
+      endPlusOne.setDate(endPlusOne.getDate() + 1)
+      const ey1 = endPlusOne.getFullYear()
+      const em1 = String(endPlusOne.getMonth() + 1).padStart(2, "0")
+      const ed1 = String(endPlusOne.getDate()).padStart(2, "0")
+      return curDateStr === `${ey1}-${em1}-${ed1}`
+    })
+
+    if (justEndedManual && justEndedManual.resume_page_pointer) {
+      // On end_date + 1, lock EXACTLY to resume_page_pointer as the starting day's tasks!
+      const { page, part } = parseResumePointer(justEndedManual.resume_page_pointer)
+      sim.current_page = page
+      sim.page_part = part
+      continue
+    }
 
     // If Friday: off day, no progression occurs
     if (isFriday) {
       continue
     }
 
-    // Progression on non-Friday
+    // Progression on regular non-Friday working days (outside consolidation)
     if (sim.is_in_consolidation) {
       const sDay = Number(sim.consolidation_day) || 0
       if (sDay < 7) {
@@ -538,4 +595,5 @@ export function calculateProjectedPlan(
     diffDays,
   }
 }
+
 

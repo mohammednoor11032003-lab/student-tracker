@@ -1,9 +1,9 @@
-﻿"use client"
+"use client"
 import { useState, useEffect, useCallback } from "react"
 import toast from "react-hot-toast"
 import { StudentPlan, getDailyPlanDetails, DEFAULT_PLAN, getReviewCycle } from "@/lib/plan-utils"
 import ManualConsolidationModal from "@/components/teacher/ManualConsolidationModal"
-import { ManualConsolidation } from "@/lib/manual-consolidation"
+import { ManualConsolidation } from "@/lib/manual-consolidation-utils"
 import { Shield, Sparkles, Calendar, BookOpen, Trash2, Edit, Plus, CheckCircle2, Clock } from "lucide-react"
 
 interface StudentWithPlan {
@@ -453,6 +453,10 @@ export default function TeacherPlansManager({
 
                           <div style={{ fontSize: "0.82rem", color: c.has_harvest_day ? "#b45309" : "#64748b", fontWeight: 700 }}>
                             🌾 حالة يوم الحصاد: {c.has_harvest_day ? `مفعّل (${c.harvest_days_count || 1} أيام حصاد في نهاية الفترة)` : "غير مفعّل"}
+                          </div>
+
+                          <div style={{ fontSize: "0.82rem", color: c.include_fridays ? "#15803d" : "#64748b", fontWeight: 700 }}>
+                            🕌 أيام الجمعة: {c.include_fridays ? "مشمولة في خطة التثبيت ⚡" : "إجازة رسمية (مستثناة من المهام) 🕌"}
                           </div>
 
                           {/* Prominent Resumption Callout (Requirement 3) */}
