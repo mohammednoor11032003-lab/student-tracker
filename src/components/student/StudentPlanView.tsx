@@ -78,7 +78,7 @@ function StudentPlanView({
           خطة الحفظ اليومية 📖
         </h1>
         <p style={{ color: "rgba(255,255,255,0.9)", margin: "0.25rem 0 0.75rem", fontSize: "0.95rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", flexWrap: "wrap" }}>
-          <span>متابعة واستشراف ورد الحفظ والمراجعة للطالب: <strong>{studentName}</strong></span>
+          <span>متابعة ورد الحفظ والمراجعة للطالب: <strong>{studentName}</strong></span>
           {isStarOfWeek && (
             <span
               style={{
@@ -129,7 +129,7 @@ function StudentPlanView({
             <span style={{ fontSize: "1.5rem" }}>📅</span>
             <div>
               <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#1f2937" }}>
-                تقويم استشراف الخطة المستقبلية
+                تقويم الخطة
               </h3>
               <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>
                 اختر تاريخاً مستقبلياً لمعاينة المهام وموقع الحفظ بافتراض التزامك التام اليومي
@@ -320,7 +320,7 @@ function StudentPlanView({
                 خطة مستقبلية متوقعة (بناءً على التزامك اليومي)
               </div>
               <div style={{ fontSize: "0.85rem", color: "#e0f2fe", marginTop: "0.15rem" }}>
-                تاريخ العرض: <strong>{formatDisplayDate(selectedDate)}</strong> (بعد {diffDays} يوماً) • المهام المعروضة أدناه للمعاينة والاستشراف فقط (Read-only)
+                تاريخ العرض: <strong>{formatDisplayDate(selectedDate)}</strong> (بعد {diffDays} يوماً) • المهام المعروضة أدناه (للمعاينة فقط)
               </div>
             </div>
           </div>
@@ -447,11 +447,6 @@ function StudentPlanView({
             />
           </div>
         </div>
-
-        {/* Duration badge */}
-        <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem", fontSize: "0.8rem", color: "#a5b4fc", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "0.75rem" }}>
-          <span>⏳ الخطة القرآنية مستمرة حتى نهاية شهر 12 لعام 2027 م</span>
-        </div>
       </div>
 
       {/* Friday Rest Banner */}
@@ -560,9 +555,6 @@ function StudentPlanView({
             <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 900 }}>
               {isProjected ? `📋 مهام الورد المتوقعة لتاريخ ${selectedDate}` : "📋 ورد اليوم المترابط (6 مهام)"}
             </h3>
-            <span style={{ fontSize: "0.85rem", opacity: 0.85 }}>
-              {isProjected ? "مُولدة عبر محرك المحاكاة" : "مُولدة تلقائياً بحسب الخطة"}
-            </span>
           </div>
 
           {/* 1. الدرس */}
