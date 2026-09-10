@@ -19,7 +19,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   }
 
   const { tab } = await searchParams
-  const initialTab = tab === "tasks" || tab === "leaderboard" || tab === "hero" ? tab : "plan"
+  const initialTab = tab === "tasks" || tab === "leaderboard" || tab === "hero" || tab === "arena" ? tab : "plan"
 
   const today = getTodayDateStr()
   const weekInfo = getWeekAndMonthInfo(today)

@@ -1,10 +1,11 @@
 "use client"
 import React, { useState, useEffect } from "react"
-import { BookOpen, ClipboardList, Trophy, Shield } from "lucide-react"
+import { BookOpen, ClipboardList, Trophy, Shield, Swords } from "lucide-react"
 import StudentPlanView from "@/components/student/StudentPlanView"
 import StudentTasks from "@/components/student/StudentTasks"
 import Leaderboard from "@/components/Leaderboard"
 import HeroView from "@/components/student/hero/HeroView"
+import ArenaView from "@/components/student/arena/ArenaView"
 import DailyGemsModal from "@/components/student/hero/DailyGemsModal"
 import { StudentPlan, DEFAULT_PLAN } from "@/lib/plan-utils"
 import { Task } from "@/lib/types"
@@ -36,7 +37,7 @@ interface StudentPortalProps {
   weeklyPoints: number
   leaderboardWeekly: LeaderboardEntry[]
   leaderboardMonthly: LeaderboardEntry[]
-  initialTab?: "plan" | "tasks" | "hero" | "leaderboard"
+  initialTab?: "plan" | "tasks" | "hero" | "arena" | "leaderboard"
   isStarOfWeek?: boolean
   isStarOfMonth?: boolean
   bounties?: BountyTask[]
@@ -62,7 +63,7 @@ export default function StudentPortal({
   initialGems = 0,
   initialInventory = [],
 }: StudentPortalProps) {
-  const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "hero" | "leaderboard">(initialTab)
+  const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "hero" | "arena" | "leaderboard">(initialTab)
   const [gems, setGems] = useState<number>(initialGems)
   const [dailyGemsOpen, setDailyGemsOpen] = useState(false)
 
@@ -125,13 +126,13 @@ export default function StudentPortal({
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search)
       const tabParam = params.get("tab")
-      if (tabParam === "tasks" || tabParam === "plan" || tabParam === "leaderboard" || tabParam === "hero") {
+      if (tabParam === "tasks" || tabParam === "plan" || tabParam === "leaderboard" || tabParam === "hero" || tabParam === "arena") {
         setActiveTab(tabParam)
       }
     }
   }, [])
 
-  function switchTab(tab: "plan" | "tasks" | "hero" | "leaderboard") {
+  function switchTab(tab: "plan" | "tasks" | "hero" | "arena" | "leaderboard") {
     setActiveTab(tab)
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href)
@@ -146,7 +147,7 @@ export default function StudentPortal({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr 1fr",
+          gridTemplateColumns: "repeat(5, 1fr)",
           gap: "0.5rem",
           background: "rgba(255,255,255,0.15)",
           backdropFilter: "blur(12px)",
@@ -234,7 +235,33 @@ export default function StudentPortal({
           <span>بطلي 🛡️</span>
         </button>
 
-        {/* 4. الترتيب */}
+        {/* 4. ميدان التنافس (The Arena) */}
+        <button
+          type="button"
+          onClick={() => switchTab("arena")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.35rem",
+            padding: "0.75rem 0.25rem",
+            borderRadius: "0.95rem",
+            border: "none",
+            cursor: "pointer",
+            fontWeight: 800,
+            fontSize: "0.9rem",
+            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            background: activeTab === "arena" ? "white" : "transparent",
+            color: activeTab === "arena" ? "#ef4444" : "white",
+            boxShadow: activeTab === "arena" ? "0 4px 15px rgba(0,0,0,0.12)" : "none",
+            transform: activeTab === "arena" ? "scale(1.02)" : "scale(1)",
+          }}
+        >
+          <Swords size={17} strokeWidth={activeTab === "arena" ? 2.5 : 2} />
+          <span>الميدان ⚔️</span>
+        </button>
+
+        {/* 5. الترتيب */}
         <button
           type="button"
           onClick={() => switchTab("leaderboard")}
@@ -293,6 +320,15 @@ export default function StudentPortal({
           studentName={studentName}
           initialGems={gems}
           initialInventory={initialInventory}
+        />
+      </div>
+
+      <div style={{ display: activeTab === "arena" ? "block" : "none" }}>
+        <ArenaView
+          studentId={studentId}
+          studentName={studentName}
+          initialGems={gems}
+          isQuranCompletedToday={Boolean(assignments && assignments.length > 0 && assignments.every(a => a.completed))}
         />
       </div>
 
