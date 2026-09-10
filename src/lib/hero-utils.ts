@@ -10,6 +10,8 @@ export interface ShopItem {
   icon_name: string
   description: string
   visual_id: string
+  base_attack?: number
+  base_defense?: number
   color_primary?: string
   color_secondary?: string
 }
@@ -19,8 +21,39 @@ export interface StudentInventoryItem {
   student_id: string
   item_id: string
   is_equipped: boolean
+  item_level?: number
   purchased_at?: string
   item?: ShopItem
+}
+
+/**
+ * Calculates current attack for an inventory item based on its level.
+ * Level 1 = 100%, Level 2 = 120%, Level 3 = 140%, etc. (+20% per level)
+ */
+export function getItemAttack(item?: ShopItem | null, level = 1): number {
+  if (!item || !item.base_attack) return 0
+  const lvl = Math.max(1, level)
+  return Math.round(item.base_attack * (1 + (lvl - 1) * 0.2))
+}
+
+/**
+ * Calculates current defense for an inventory item based on its level.
+ * Level 1 = 100%, Level 2 = 120%, Level 3 = 140%, etc. (+20% per level)
+ */
+export function getItemDefense(item?: ShopItem | null, level = 1): number {
+  if (!item || !item.base_defense) return 0
+  const lvl = Math.max(1, level)
+  return Math.round(item.base_defense * (1 + (lvl - 1) * 0.2))
+}
+
+/**
+ * Calculates upgrade cost in gems for the next level.
+ * Formula: max(15, round(price_in_gems * 0.20)) * currentLevel
+ */
+export function getItemUpgradeCost(item?: ShopItem | null, currentLevel = 1): number {
+  if (!item) return 20
+  const baseCost = Math.max(15, Math.round(item.price_in_gems * 0.2))
+  return baseCost * Math.max(1, currentLevel)
 }
 
 export interface HeroState {
@@ -85,6 +118,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🧢",
     description: "طاقية قماشية بيضاء ناصعة وبسيطة ترمز لبداية مسيرة طالب القرآن المباركة.",
     visual_id: "starter_cap",
+    base_attack: 0,
+    base_defense: 5,
     color_primary: "#f8fafc",
     color_secondary: "#cbd5e1",
   },
@@ -96,6 +131,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🧣",
     description: "كوفية عملية محكمة تقي من حر الهواجر وتعين الساعي في حفظ كتاب الله.",
     visual_id: "courier_keffiyeh",
+    base_attack: 1,
+    base_defense: 10,
     color_primary: "#d97706",
     color_secondary: "#fef3c7",
   },
@@ -107,6 +144,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🧕",
     description: "عمامة خضراء مباركة استلهمت من مرابطي الثغور الذين رابطوا بالقرآن والسنان.",
     visual_id: "murabit_turban",
+    base_attack: 3,
+    base_defense: 18,
     color_primary: "#059669",
     color_secondary: "#34d399",
   },
@@ -118,6 +157,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🪖",
     description: "خوذة حديدية مصقولة تمنح الفارس هيبة وثباتاً في ميادين التلاوة والتنافس.",
     visual_id: "knight_helmet",
+    base_attack: 5,
+    base_defense: 28,
     color_primary: "#64748b",
     color_secondary: "#94a3b8",
   },
@@ -129,6 +170,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "👳",
     description: "عمامة أهل الحجاز البيضاء الفاخرة المطرزة بالقصب الذهبي لطلبة العلم الشريف.",
     visual_id: "hijaz_turban",
+    base_attack: 6,
+    base_defense: 38,
     color_primary: "#ffffff",
     color_secondary: "#f59e0b",
   },
@@ -140,6 +183,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "👑",
     description: "خوذة تاريخية مذهبة منقوشة بالآيات ارتدتها كتائب التحرير والصلاح.",
     visual_id: "ayyubid_helmet",
+    base_attack: 10,
+    base_defense: 52,
     color_primary: "#b45309",
     color_secondary: "#fef08a",
   },
@@ -151,6 +196,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "✨👑",
     description: "التاج الأعظم المزين بالياقوت والأنوار، مصداقاً لوعد من حفظ القرآن وأتقنه.",
     visual_id: "crown_of_dignity",
+    base_attack: 15,
+    base_defense: 70,
     color_primary: "#fbbf24",
     color_secondary: "#ef4444",
   },
@@ -164,6 +211,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🥋",
     description: "ثوب أبيض بسيط ومريح يعبر عن نقاء الهمة وإخلاص البدايات في حلقة التحفيظ.",
     visual_id: "starter_thobe",
+    base_attack: 0,
+    base_defense: 8,
     color_primary: "#f8fafc",
     color_secondary: "#e2e8f0",
   },
@@ -175,6 +224,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🧥",
     description: "عباءة رملية متينة تقي من الرياح وتمنح صاحبها خفة ورشاقة في مدارسة الآيات.",
     visual_id: "courier_cloak",
+    base_attack: 2,
+    base_defense: 15,
     color_primary: "#b45309",
     color_secondary: "#78350f",
   },
@@ -186,6 +237,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🦺",
     description: "سترة مبطنة بالجلد والكتان المقوى لحراس القلاع الساهرين على أمان الأمة.",
     visual_id: "guard_vest",
+    base_attack: 4,
+    base_defense: 25,
     color_primary: "#475569",
     color_secondary: "#94a3b8",
   },
@@ -197,6 +250,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🛡️",
     description: "درع صدري فولاذي يجمع بين صلابة الحماية وسهولة الحركة لحفظة القرآن الفرسان.",
     visual_id: "light_knight_armor",
+    base_attack: 6,
+    base_defense: 38,
     color_primary: "#64748b",
     color_secondary: "#38bdf8",
   },
@@ -208,6 +263,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "👘",
     description: "كسوة أندلسية فاخرة بنسيج كحلي مذهب مستوحى من قصور قرطبة وجوامع العلم.",
     visual_id: "andalus_cloak",
+    base_attack: 8,
+    base_defense: 50,
     color_primary: "#1e3a8a",
     color_secondary: "#fbbf24",
   },
@@ -219,6 +276,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "⚔️",
     description: "درع حديدي متشابك الحلقات شديد البأس حاز بطولات الدفاع عن الديار الإسلامية.",
     visual_id: "mamluk_steel_armor",
+    base_attack: 12,
+    base_defense: 68,
     color_primary: "#334155",
     color_secondary: "#e2e8f0",
   },
@@ -230,6 +289,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🌟",
     description: "حُلة ملكية سماوية مطرزة بخيوط النور والذهب الخالص تليق بصفوة الحفاظ والمتفوقين.",
     visual_id: "robe_of_honor",
+    base_attack: 20,
+    base_defense: 90,
     color_primary: "#0284c7",
     color_secondary: "#f59e0b",
   },
@@ -243,6 +304,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🦯",
     description: "عصا من خشب السنديان المتين يتوكأ عليها الساعي في رحلته الإيمانية المباركة.",
     visual_id: "traveler_staff",
+    base_attack: 8,
+    base_defense: 2,
     color_primary: "#92400e",
     color_secondary: "#d97706",
   },
@@ -254,6 +317,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🗡️",
     description: "خنجر فولاذي أنيق في غمد منقوش يقطع شكوك التردد بحزم وثبات.",
     visual_id: "dagger_of_certainty",
+    base_attack: 16,
+    base_defense: 3,
     color_primary: "#64748b",
     color_secondary: "#b45309",
   },
@@ -265,6 +330,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🏹",
     description: "قوس عربي أصيل مرن ودقيق يصيب أهداف الإتقان بثقة وسداد.",
     visual_id: "bow_of_insight",
+    base_attack: 28,
+    base_defense: 5,
     color_primary: "#b45309",
     color_secondary: "#f59e0b",
   },
@@ -276,6 +343,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "⚔️",
     description: "سيف عربي مستقيم مصقول من الفولاذ الدمشقي يشحذ همة البطل للتفوق.",
     visual_id: "sword_of_resolve",
+    base_attack: 42,
+    base_defense: 8,
     color_primary: "#cbd5e1",
     color_secondary: "#d97706",
   },
@@ -287,6 +356,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🔱",
     description: "رمح طويل بسنان حاد وراية خضراء ترفرف في سماء العزة والرسوخ.",
     visual_id: "spear_of_steadfastness",
+    base_attack: 58,
+    base_defense: 12,
     color_primary: "#78350f",
     color_secondary: "#10b981",
   },
@@ -298,6 +369,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "⚡",
     description: "نصل مهيب يحمل عبق معارك الفتح الخالدة وشجاعة فرسان الصحابة الأبرار.",
     visual_id: "blade_of_yarmouk",
+    base_attack: 78,
+    base_defense: 15,
     color_primary: "#475569",
     color_secondary: "#f59e0b",
   },
@@ -309,6 +382,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "✨⚔️",
     description: "سيف أسطوري ملحمي يشع بنور أزرق سماوي متوهج يرمز للفتح والنصر المؤزر.",
     visual_id: "sword_of_conquest",
+    base_attack: 105,
+    base_defense: 25,
     color_primary: "#38bdf8",
     color_secondary: "#fbbf24",
   },
@@ -322,6 +397,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🩴",
     description: "نعل جلدي بسيط ومريح يخطو به الطالب أولى خطواته المباركة في رياض القرآن.",
     visual_id: "starter_sandals",
+    base_attack: 0,
+    base_defense: 3,
     color_primary: "#78350f",
     color_secondary: "#d97706",
   },
@@ -333,6 +410,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "👞",
     description: "خف خفيف ومريح يعين على كثرة المسير إلى الحلقات والمساجد دون إرهاق.",
     visual_id: "courier_slippers",
+    base_attack: 1,
+    base_defense: 7,
     color_primary: "#92400e",
     color_secondary: "#b45309",
   },
@@ -344,6 +423,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🥾",
     description: "حذاء متين من الجلد الخام صمم لثبات الأقدام في وعورة الدروب ومسالك الجبال.",
     visual_id: "murabit_boots",
+    base_attack: 2,
+    base_defense: 12,
     color_primary: "#065f46",
     color_secondary: "#10b981",
   },
@@ -355,6 +436,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "👢",
     description: "خف محكم يمنع تسرب الرمال ويمنح الفارس سرعة فائقة في قطع المسافات الطويلة.",
     visual_id: "desert_boots",
+    base_attack: 3,
+    base_defense: 18,
     color_primary: "#d97706",
     color_secondary: "#78350f",
   },
@@ -366,6 +449,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🦾",
     description: "حذاء جلدي مصفح بحلقات حديدية يمتد إلى منتصف الساق لحماية الفارس في المعركة.",
     visual_id: "knight_boots",
+    base_attack: 5,
+    base_defense: 26,
     color_primary: "#475569",
     color_secondary: "#94a3b8",
   },
@@ -377,6 +462,8 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "🛡️",
     description: "حذاء فولاذي كامل يمنح ثباتاً خارقاً على صهوة الجياد في أصعب النزالات.",
     visual_id: "armored_cavalry_boots",
+    base_attack: 8,
+    base_defense: 36,
     color_primary: "#1e293b",
     color_secondary: "#38bdf8",
   },
@@ -388,8 +475,10 @@ export const INITIAL_SHOP_CATALOG: ShopItem[] = [
     icon_name: "✨🥾",
     description: "خف أزرق سماوي مذهب يرتديه أصحاب الهمم العالية والخطوات الواثقة نحو العلا.",
     visual_id: "shoes_of_confidence",
+    base_attack: 12,
+    base_defense: 50,
     color_primary: "#0284c7",
-    color_secondary: "#f59e0b",
+    color_secondary: "#fbbf24",
   },
 ]
 
@@ -447,6 +536,7 @@ export async function getStudentHeroState(studentId: string): Promise<HeroState>
           student_id: row.student_id,
           item_id: row.item_id,
           is_equipped: Boolean(row.is_equipped),
+          item_level: Math.max(1, Number(row.item_level) || 1),
           purchased_at: row.purchased_at,
           item: itemObj,
         }
@@ -459,6 +549,7 @@ export async function getStudentHeroState(studentId: string): Promise<HeroState>
           student_id: studentId,
           item_id: m.item_id,
           is_equipped: Boolean(m.is_equipped),
+          item_level: Math.max(1, Number(m.item_level) || 1),
           purchased_at: m.purchased_at,
           item: itemObj,
         }
@@ -508,6 +599,7 @@ export async function updateStudentHeroState(
           id: inv.id,
           item_id: inv.item_id,
           is_equipped: inv.is_equipped,
+          item_level: inv.item_level || 1,
           purchased_at: inv.purchased_at || new Date().toISOString(),
         })),
       },
@@ -529,6 +621,7 @@ export async function updateStudentHeroState(
             student_id: studentId,
             item_id: item.item_id,
             is_equipped: item.is_equipped,
+            item_level: item.item_level || 1,
           },
           { onConflict: "student_id,item_id" }
         )

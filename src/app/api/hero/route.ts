@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getStudentHeroState, updateStudentHeroState, INITIAL_SHOP_CATALOG, ShopItem } from "@/lib/hero-utils"
+import { getStudentHeroState, updateStudentHeroState, INITIAL_SHOP_CATALOG, ShopItem, getItemUpgradeCost } from "@/lib/hero-utils"
 import { getShopCatalog } from "@/lib/hero-server-utils"
 
 export async function GET() {
@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
         student_id: studentId,
         item_id: itemId,
         is_equipped: false,
+        item_level: 1,
         purchased_at: new Date().toISOString(),
         item: targetItem,
       }
@@ -135,6 +136,49 @@ export async function POST(req: NextRequest) {
         success: true,
         inventory: updatedState.inventory,
         equipped: updatedState.equipped,
+      })
+    }
+
+    // 6. ACTION: UPGRADE ITEM LEVEL
+    if (action === "upgrade") {
+      const invItem = state.inventory.find(i => i.item_id === itemId)
+      if (!invItem) {
+        return NextResponse.json({ error: "العنصر غير موجود في مخزونك" }, { status: 404 })
+      }
+
+      const currentLevel = invItem.item_level || 1
+      const upgradeCost = getItemUpgradeCost(invItem.item, currentLevel)
+
+      if (state.gems_balance < upgradeCost) {
+        return NextResponse.json({
+          error: `رصيد الجواهر غير كافٍ للترقية! تحتاج إلى ${upgradeCost - state.gems_balance} جوهرة إضافية 💎`,
+        }, { status: 400 })
+      }
+
+      const nextGems = state.gems_balance - upgradeCost
+      const nextLevel = currentLevel + 1
+
+      const nextInventory = state.inventory.map(inv => {
+        if (inv.item_id === itemId) {
+          return { ...inv, item_level: nextLevel }
+        }
+        return inv
+      })
+
+      await updateStudentHeroState(studentId, {
+        gems_balance: nextGems,
+        inventory: nextInventory,
+      })
+      const updatedState = await getStudentHeroState(studentId)
+
+      return NextResponse.json({
+        success: true,
+        gems_balance: nextGems,
+        inventory: updatedState.inventory,
+        equipped: updatedState.equipped,
+        nextLevel,
+        upgradeCost,
+        item: invItem.item,
       })
     }
 

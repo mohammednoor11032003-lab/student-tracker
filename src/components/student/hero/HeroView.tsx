@@ -7,6 +7,9 @@ import {
   GearCategory,
   CATEGORY_LABELS,
   INITIAL_SHOP_CATALOG,
+  getItemAttack,
+  getItemDefense,
+  getItemUpgradeCost,
 } from "@/lib/hero-utils"
 import { Shield, Sparkles, ShoppingBag, Backpack, Check, Plus, Minus, X, RefreshCw, Zap } from "lucide-react"
 import toast from "react-hot-toast"
@@ -204,6 +207,71 @@ export default function HeroView({
     }
   }
 
+  // Handle Upgrade Item Level
+  async function handleUpgradeItem(inv: StudentInventoryItem) {
+    const itemObj = inv.item || shopCatalog.find(i => i.id === inv.item_id) || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
+    if (!itemObj) return
+
+    const currentLevel = inv.item_level || 1
+    const cost = getItemUpgradeCost(itemObj, currentLevel)
+
+    if (gems < cost) {
+      toast.error(`رصيد الجواهر غير كافٍ للترقية! تحتاج إلى ${cost - gems} جوهرة إضافية 💎`)
+      return
+    }
+
+    setLoadingAction(`upgrade_${itemObj.id}`)
+    try {
+      const res = await fetch("/api/hero", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "upgrade",
+          studentId,
+          itemId: itemObj.id,
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "فشل في ترقية العتاد")
+      }
+
+      setGems(data.gems_balance)
+      setInventory(data.inventory)
+      window.dispatchEvent(
+        new CustomEvent("hero_gems_updated", {
+          detail: { gems_balance: data.gems_balance },
+        })
+      )
+      toast.success(
+        `🎉 تمت ترقية "${itemObj.name}" إلى المستوى ${data.nextLevel} ⭐! زادت قوة الهجوم والحماية! ⚔️🛡️`,
+        { duration: 4000 }
+      )
+    } catch (err: any) {
+      toast.error(err.message || "حدث خطأ أثناء الترقية")
+    } finally {
+      setLoadingAction(null)
+    }
+  }
+
+  // Compute Total Combat Stats from equipped gear
+  const totalAttack = inventory.reduce((sum, inv) => {
+    if (inv.is_equipped) {
+      const itemObj = inv.item || shopCatalog.find(i => i.id === inv.item_id) || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
+      return sum + getItemAttack(itemObj, inv.item_level || 1)
+    }
+    return sum
+  }, 0)
+
+  const totalDefense = inventory.reduce((sum, inv) => {
+    if (inv.is_equipped) {
+      const itemObj = inv.item || shopCatalog.find(i => i.id === inv.item_id) || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
+      return sum + getItemDefense(itemObj, inv.item_level || 1)
+    }
+    return sum
+  }, 0)
+
   // Filtered Shop Items
   const filteredShopItems = shopCatalog.filter(
     item => categoryFilter === "all" || item.category === categoryFilter
@@ -317,6 +385,50 @@ export default function HeroView({
             >
               العتاد المجهّز: {equippedCount} / 4
             </span>
+          </div>
+
+          {/* ================= COMBAT POWER HUD (إجمالي القوة القتالية) ================= */}
+          <div
+            style={{
+              width: "100%",
+              background: "linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(30, 41, 59, 0.8) 50%, rgba(59, 130, 246, 0.12) 100%)",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              borderRadius: "1rem",
+              padding: "0.65rem 0.85rem",
+              marginBottom: "0.85rem",
+              display: "flex",
+              justifyContent: "space-around",
+              alignItems: "center",
+              boxShadow: "0 4px 15px rgba(0, 0, 0, 0.3)",
+            }}
+          >
+            {/* Attack */}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "0.7rem", color: "#fca5a5", fontWeight: 700 }}>الهجوم ⚔️</div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "#ef4444", lineHeight: 1.1 }}>
+                {totalAttack}
+              </div>
+            </div>
+
+            <div style={{ width: "1px", height: "26px", background: "rgba(255, 255, 255, 0.12)" }} />
+
+            {/* Defense */}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "0.7rem", color: "#93c5fd", fontWeight: 700 }}>الحماية 🛡️</div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "#38bdf8", lineHeight: 1.1 }}>
+                {totalDefense}
+              </div>
+            </div>
+
+            <div style={{ width: "1px", height: "26px", background: "rgba(255, 255, 255, 0.12)" }} />
+
+            {/* Total Combat Power */}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "0.7rem", color: "#fde047", fontWeight: 700 }}>القدرة القتالية ⚡</div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "#fbbf24", lineHeight: 1.1 }}>
+                {totalAttack + totalDefense}
+              </div>
+            </div>
           </div>
 
           {/* Hero Avatar (Full-Body Flat Vector with Equipment Layers) */}
@@ -648,6 +760,48 @@ export default function HeroView({
                                 {CATEGORY_LABELS[item.category].name}
                               </span>
                             </div>
+
+                            {/* Base Stats Badges (Attack ⚔️ & Defense 🛡️) */}
+                            <div style={{ display: "flex", gap: "0.35rem", marginTop: "0.3rem", flexWrap: "wrap" }}>
+                              {(item.base_attack ?? 0) > 0 && (
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    background: "rgba(239, 68, 68, 0.2)",
+                                    color: "#fca5a5",
+                                    padding: "0.1rem 0.45rem",
+                                    borderRadius: "0.4rem",
+                                    fontWeight: 800,
+                                    border: "1px solid rgba(239, 68, 68, 0.35)",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.2rem",
+                                  }}
+                                >
+                                  <span>⚔️</span>
+                                  <span>+{item.base_attack} هجوم</span>
+                                </span>
+                              )}
+                              {(item.base_defense ?? 0) > 0 && (
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    background: "rgba(59, 130, 246, 0.2)",
+                                    color: "#93c5fd",
+                                    padding: "0.1rem 0.45rem",
+                                    borderRadius: "0.4rem",
+                                    fontWeight: 800,
+                                    border: "1px solid rgba(59, 130, 246, 0.35)",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.2rem",
+                                  }}
+                                >
+                                  <span>🛡️</span>
+                                  <span>+{item.base_defense} حماية</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -792,6 +946,67 @@ export default function HeroView({
                               >
                                 {CATEGORY_LABELS[itemObj.category].name}
                               </span>
+
+                              {/* Item Level Badge */}
+                              <span
+                                style={{
+                                  fontSize: "0.7rem",
+                                  background: "linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.35))",
+                                  color: "#fde047",
+                                  padding: "0.15rem 0.55rem",
+                                  borderRadius: "9999px",
+                                  fontWeight: 900,
+                                  border: "1px solid #f59e0b",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.2rem",
+                                }}
+                              >
+                                <span>⭐</span>
+                                <span>المستوى {inv.item_level || 1}</span>
+                              </span>
+                            </div>
+
+                            {/* Upgraded Stats Badges */}
+                            <div style={{ display: "flex", gap: "0.35rem", marginTop: "0.3rem", flexWrap: "wrap" }}>
+                              {(itemObj.base_attack ?? 0) > 0 && (
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    background: "rgba(239, 68, 68, 0.2)",
+                                    color: "#fca5a5",
+                                    padding: "0.1rem 0.45rem",
+                                    borderRadius: "0.4rem",
+                                    fontWeight: 800,
+                                    border: "1px solid rgba(239, 68, 68, 0.35)",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.2rem",
+                                  }}
+                                >
+                                  <span>⚔️</span>
+                                  <span>+{getItemAttack(itemObj, inv.item_level || 1)} هجوم</span>
+                                </span>
+                              )}
+                              {(itemObj.base_defense ?? 0) > 0 && (
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    background: "rgba(59, 130, 246, 0.2)",
+                                    color: "#93c5fd",
+                                    padding: "0.1rem 0.45rem",
+                                    borderRadius: "0.4rem",
+                                    fontWeight: 800,
+                                    border: "1px solid rgba(59, 130, 246, 0.35)",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.2rem",
+                                  }}
+                                >
+                                  <span>🛡️</span>
+                                  <span>+{getItemDefense(itemObj, inv.item_level || 1)} حماية</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -819,51 +1034,97 @@ export default function HeroView({
                         {itemObj.description}
                       </p>
 
-                      {/* Full-Width Action Button at Bottom */}
-                      <div style={{ width: "100%", marginTop: "0.2rem" }}>
-                        {isEquipped ? (
-                          <button
-                            type="button"
-                            onClick={() => handleUnequipItem(itemObj.id, itemObj.category)}
-                            disabled={loadingAction === `unequip_${itemObj.id}`}
-                            style={{
-                              width: "100%",
-                              background: "rgba(239, 68, 68, 0.2)",
-                              color: "#f87171",
-                              border: "1px solid rgba(239, 68, 68, 0.45)",
-                              padding: "0.55rem 1rem",
-                              borderRadius: "0.85rem",
-                              fontSize: "0.85rem",
-                              fontWeight: 800,
-                              cursor: "pointer",
-                              transition: "all 0.15s ease",
-                            }}
-                          >
-                            خلع العتاد من الخانة ↩️
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleEquipItem(itemObj.id, itemObj.category)}
-                            disabled={loadingAction === `equip_${itemObj.id}`}
-                            style={{
-                              width: "100%",
-                              background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
-                              color: "#ffffff",
-                              border: "1px solid #a78bfa",
-                              padding: "0.55rem 1rem",
-                              borderRadius: "0.85rem",
-                              fontSize: "0.85rem",
-                              fontWeight: 900,
-                              cursor: "pointer",
-                              boxShadow: "0 2px 12px rgba(139,92,246,0.35)",
-                              transition: "all 0.15s ease",
-                            }}
-                          >
-                            تجهيز في خانة {CATEGORY_LABELS[itemObj.category].name} ⚔️
-                          </button>
-                        )}
-                      </div>
+                      {/* Action Buttons: Upgrade & Equip/Unequip */}
+                      {(() => {
+                        const currentLvl = inv.item_level || 1
+                        const upgradeCost = getItemUpgradeCost(itemObj, currentLvl)
+                        const canUpgrade = gems >= upgradeCost
+                        const isUpgrading = loadingAction === `upgrade_${itemObj.id}`
+
+                        return (
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem", width: "100%", marginTop: "0.2rem" }}>
+                            {/* UPGRADE BUTTON */}
+                            <button
+                              type="button"
+                              onClick={() => handleUpgradeItem(inv)}
+                              disabled={isUpgrading}
+                              style={{
+                                background: canUpgrade
+                                  ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+                                  : "rgba(255, 255, 255, 0.08)",
+                                color: canUpgrade ? "#ffffff" : "#94a3b8",
+                                border: canUpgrade ? "1px solid #fbbf24" : "1px solid rgba(255, 255, 255, 0.15)",
+                                padding: "0.55rem 0.75rem",
+                                borderRadius: "0.85rem",
+                                fontSize: "0.82rem",
+                                fontWeight: 900,
+                                cursor: isUpgrading ? "not-allowed" : "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "0.35rem",
+                                boxShadow: canUpgrade ? "0 4px 14px rgba(245, 158, 11, 0.35)" : "none",
+                                opacity: isUpgrading ? 0.6 : 1,
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <span>{isUpgrading ? "جاري الترقية..." : "ترقية ⬆️"}</span>
+                              <span
+                                style={{
+                                  fontSize: "0.72rem",
+                                  background: "rgba(0, 0, 0, 0.25)",
+                                  padding: "0.1rem 0.35rem",
+                                  borderRadius: "0.35rem",
+                                }}
+                              >
+                                {upgradeCost} 💎
+                              </span>
+                            </button>
+
+                            {/* EQUIP / UNEQUIP BUTTON */}
+                            {isEquipped ? (
+                              <button
+                                type="button"
+                                onClick={() => handleUnequipItem(itemObj.id, itemObj.category)}
+                                disabled={loadingAction === `unequip_${itemObj.id}`}
+                                style={{
+                                  background: "rgba(239, 68, 68, 0.2)",
+                                  color: "#f87171",
+                                  border: "1px solid rgba(239, 68, 68, 0.45)",
+                                  padding: "0.55rem 0.75rem",
+                                  borderRadius: "0.85rem",
+                                  fontSize: "0.82rem",
+                                  fontWeight: 800,
+                                  cursor: "pointer",
+                                  transition: "all 0.15s ease",
+                                }}
+                              >
+                                خلع ↩️
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleEquipItem(itemObj.id, itemObj.category)}
+                                disabled={loadingAction === `equip_${itemObj.id}`}
+                                style={{
+                                  background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
+                                  color: "#ffffff",
+                                  border: "1px solid #a78bfa",
+                                  padding: "0.55rem 0.75rem",
+                                  borderRadius: "0.85rem",
+                                  fontSize: "0.82rem",
+                                  fontWeight: 900,
+                                  cursor: "pointer",
+                                  boxShadow: "0 2px 12px rgba(139,92,246,0.35)",
+                                  transition: "all 0.15s ease",
+                                }}
+                              >
+                                تجهيز ⚔️
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </div>
                   )
                 })

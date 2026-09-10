@@ -54,6 +54,8 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
     icon_name: "🧢",
     description: "",
     visual_id: "starter_cap",
+    base_attack: 0,
+    base_defense: 5,
   })
 
   // Filtered items list
@@ -105,6 +107,8 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
       icon_name: "🧢",
       description: "",
       visual_id: "starter_cap",
+      base_attack: 0,
+      base_defense: 5,
     })
     setIsAddModalOpen(true)
   }
@@ -119,6 +123,8 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
       icon_name: item.icon_name,
       description: item.description,
       visual_id: item.visual_id,
+      base_attack: item.base_attack || 0,
+      base_defense: item.base_defense || 0,
     })
   }
 
@@ -127,11 +133,15 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
     const presets = VISUAL_PRESETS[newCat] || []
     const defaultPreset = presets[0]?.id || newCat
     const defaultIcon = CATEGORY_ICONS[newCat] || "🛡️"
+    const defaultAttack = newCat === "weapon" ? 25 : newCat === "body" ? 4 : newCat === "head" ? 3 : 2
+    const defaultDefense = newCat === "weapon" ? 3 : newCat === "body" ? 25 : newCat === "head" ? 15 : 10
     setFormData(prev => ({
       ...prev,
       category: newCat,
       visual_id: defaultPreset,
       icon_name: defaultIcon,
+      base_attack: defaultAttack,
+      base_defense: defaultDefense,
     }))
   }
 
@@ -626,6 +636,7 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
                 <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                   <th style={{ padding: "0.75rem 0.5rem", fontSize: "0.8rem", color: "#475569" }}>العنصر</th>
                   <th style={{ padding: "0.75rem 0.5rem", fontSize: "0.8rem", color: "#475569" }}>الفئة</th>
+                  <th style={{ padding: "0.75rem 0.5rem", fontSize: "0.8rem", color: "#475569" }}>الخصائص (⚔️ / 🛡️)</th>
                   <th style={{ padding: "0.75rem 0.5rem", fontSize: "0.8rem", color: "#475569" }}>السعر 💎</th>
                   <th style={{ padding: "0.75rem 0.5rem", fontSize: "0.8rem", color: "#475569" }}>الطبقة (SVG)</th>
                   <th style={{ padding: "0.75rem 0.5rem", fontSize: "0.8rem", color: "#475569", textAlign: "center" }}>
@@ -636,7 +647,7 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
               <tbody>
                 {filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
+                    <td colSpan={6} style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
                       لا توجد عناصر مطابقة للبحث
                     </td>
                   </tr>
@@ -689,6 +700,36 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
                           >
                             {CATEGORY_NAMES[item.category]}
                           </span>
+                        </td>
+
+                        {/* Stats (Attack & Defense) */}
+                        <td style={{ padding: "0.65rem 0.5rem" }}>
+                          <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
+                            <span
+                              style={{
+                                fontSize: "0.75rem",
+                                fontWeight: 800,
+                                color: (item.base_attack ?? 0) > 0 ? "#ef4444" : "#94a3b8",
+                                background: (item.base_attack ?? 0) > 0 ? "rgba(239, 68, 68, 0.1)" : "#f1f5f9",
+                                padding: "0.15rem 0.4rem",
+                                borderRadius: "0.35rem",
+                              }}
+                            >
+                              ⚔️ {item.base_attack || 0}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.75rem",
+                                fontWeight: 800,
+                                color: (item.base_defense ?? 0) > 0 ? "#0284c7" : "#94a3b8",
+                                background: (item.base_defense ?? 0) > 0 ? "rgba(2, 132, 199, 0.1)" : "#f1f5f9",
+                                padding: "0.15rem 0.4rem",
+                                borderRadius: "0.35rem",
+                              }}
+                            >
+                              🛡️ {item.base_defense || 0}
+                            </span>
+                          </div>
                         </td>
 
                         {/* Price in gems */}
@@ -919,6 +960,50 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
                       required
                       value={formData.price_in_gems}
                       onChange={e => setFormData({ ...formData, price_in_gems: Number(e.target.value) })}
+                      style={{
+                        width: "100%",
+                        padding: "0.6rem 0.8rem",
+                        borderRadius: "0.6rem",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.9rem",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* RPG Combat Stats (Attack & Defense) */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.8rem" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.3rem", color: "#ef4444" }}>
+                      قوة الهجوم ⚔️
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1000}
+                      value={formData.base_attack}
+                      onChange={e => setFormData({ ...formData, base_attack: Math.max(0, Number(e.target.value)) })}
+                      style={{
+                        width: "100%",
+                        padding: "0.6rem 0.8rem",
+                        borderRadius: "0.6rem",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.9rem",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.3rem", color: "#0284c7" }}>
+                      قوة الحماية 🛡️
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1000}
+                      value={formData.base_defense}
+                      onChange={e => setFormData({ ...formData, base_defense: Math.max(0, Number(e.target.value)) })}
                       style={{
                         width: "100%",
                         padding: "0.6rem 0.8rem",

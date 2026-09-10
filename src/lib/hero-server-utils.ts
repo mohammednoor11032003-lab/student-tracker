@@ -58,6 +58,8 @@ export async function getShopCatalog(): Promise<ShopItem[]> {
         icon_name: row.icon_name || "🛡️",
         description: row.description || "",
         visual_id: row.visual_data?.visual_id || row.visual_id || row.id,
+        base_attack: Number(row.base_attack) || 0,
+        base_defense: Number(row.base_defense) || 0,
         color_primary: row.visual_data?.color_primary || row.color_primary,
         color_secondary: row.visual_data?.color_secondary || row.color_secondary,
       }))
@@ -83,6 +85,8 @@ export async function createShopCatalogItem(newItem: {
   icon_name: string
   description: string
   visual_id: string
+  base_attack?: number
+  base_defense?: number
 }): Promise<ShopItem> {
   const supabase = getAdminClient()
   const generatedId = `${newItem.category}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
@@ -95,6 +99,8 @@ export async function createShopCatalogItem(newItem: {
     icon_name: newItem.icon_name.trim() || "🛡️",
     description: newItem.description.trim(),
     visual_id: newItem.visual_id.trim() || newItem.category,
+    base_attack: Math.max(0, Number(newItem.base_attack) || 0),
+    base_defense: Math.max(0, Number(newItem.base_defense) || 0),
   }
 
   // 1. Try inserting to DB
@@ -108,6 +114,8 @@ export async function createShopCatalogItem(newItem: {
         icon_name: itemToSave.icon_name,
         description: itemToSave.description,
         visual_data: { visual_id: itemToSave.visual_id },
+        base_attack: itemToSave.base_attack,
+        base_defense: itemToSave.base_defense,
       })
       .select()
       .single()
@@ -147,6 +155,8 @@ export async function updateShopCatalogItem(
     ...existing,
     ...updates,
     price_in_gems: updates.price_in_gems !== undefined ? Math.max(1, Number(updates.price_in_gems)) : existing.price_in_gems,
+    base_attack: updates.base_attack !== undefined ? Math.max(0, Number(updates.base_attack)) : existing.base_attack,
+    base_defense: updates.base_defense !== undefined ? Math.max(0, Number(updates.base_defense)) : existing.base_defense,
   }
 
   // 1. Try updating in DB
@@ -160,6 +170,8 @@ export async function updateShopCatalogItem(
         icon_name: updatedItem.icon_name,
         description: updatedItem.description,
         visual_data: { visual_id: updatedItem.visual_id },
+        base_attack: updatedItem.base_attack,
+        base_defense: updatedItem.base_defense,
       })
       .eq("id", id)
   } catch (err) {

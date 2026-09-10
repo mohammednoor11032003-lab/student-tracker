@@ -8,8 +8,12 @@ import {
 } from "@/lib/hero-server-utils"
 import { GearCategory } from "@/lib/hero-utils"
 
+type AuthCheckResult =
+  | { authorized: true; user?: any; role?: string; isPreview?: boolean; error?: never; status?: never }
+  | { authorized: false; error: string; status: number; user?: never; role?: never; isPreview?: never }
+
 // Helper to verify teacher role (with preview fallback enabled)
-async function verifyTeacher() {
+async function verifyTeacher(): Promise<AuthCheckResult> {
   try {
     const supabase = await createClient()
     const {
@@ -56,7 +60,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { name, category, price_in_gems, icon_name, description, visual_id } = body
+    const { name, category, price_in_gems, icon_name, description, visual_id, base_attack, base_defense } = body
 
     if (!name || !category || price_in_gems === undefined) {
       return NextResponse.json({ error: "Missing required fields (name, category, price_in_gems)" }, { status: 400 })
@@ -74,6 +78,8 @@ export async function POST(req: NextRequest) {
       icon_name: icon_name || "🛡️",
       description: description || "",
       visual_id: visual_id || category,
+      base_attack: Number(base_attack) || 0,
+      base_defense: Number(base_defense) || 0,
     })
 
     return NextResponse.json({ success: true, item: createdItem })
