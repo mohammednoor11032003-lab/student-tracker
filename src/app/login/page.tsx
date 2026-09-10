@@ -72,10 +72,8 @@ export default function LoginPage() {
 
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).single()
       toast.success("اهلاً وسهلاً! 🎉")
-      if (profile?.role === "teacher") router.push("/teacher")
-      else if (profile?.role === "student") router.push("/student")
-      else if (profile?.role === "parent") router.push("/parent")
-      else router.push("/")
+      const target = profile?.role === "teacher" ? "/teacher" : profile?.role === "parent" ? "/parent" : "/student"
+      window.location.href = target
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "حدث خطأ"
       toast.error(msg === "Invalid login credentials" ? "اسم المستخدم أو كلمة السر غير صحيحة ❌" : msg)

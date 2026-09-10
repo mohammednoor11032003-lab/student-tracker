@@ -17,17 +17,18 @@ import { getStudentHeroState, updateStudentHeroState } from "@/lib/hero-utils"
 // Helper to resolve student id and name
 async function resolveStudent(req: NextRequest) {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
+  const userRes = await supabase.auth.getUser()
+  const user = userRes.data?.user || (await supabase.auth.getSession()).data?.session?.user
   
-  if (session?.user) {
+  if (user) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("id, full_name, role")
-      .eq("id", session.user.id)
+      .eq("id", user.id)
       .single()
 
     return {
-      studentId: session.user.id,
+      studentId: user.id,
       studentName: profile?.full_name || "بطل القرآن",
     }
   }

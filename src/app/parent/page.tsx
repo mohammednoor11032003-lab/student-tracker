@@ -5,11 +5,12 @@ import { getTodayDateStr, getWeekAndMonthInfo, formatDateStr } from "@/lib/date-
 
 export default async function ParentDashboard() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) {
+  const userRes = await supabase.auth.getUser()
+  const user = userRes.data?.user || (await supabase.auth.getSession()).data?.session?.user
+  if (!user) {
     redirect("/login")
   }
-  const { data: parentProfile } = await supabase.from("profiles").select("*").eq("id", session!.user.id).single()
+  const { data: parentProfile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
   const studentId = parentProfile?.student_id
   const today = getTodayDateStr()
   const weekInfo = getWeekAndMonthInfo(today)

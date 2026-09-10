@@ -4,12 +4,13 @@ import TeacherNav from "@/components/teacher/TeacherNav"
 
 export default async function TeacherLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  
-  let teacherName = "المعلم (معاينة)"
-  if (session?.user) {
+  const userRes = await supabase.auth.getUser()
+  const user = userRes.data?.user || (await supabase.auth.getSession()).data?.session?.user
+
+  let teacherName = "المعلم"
+  if (user) {
     try {
-      const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", session.user.id).single()
+      const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single()
       if (profile?.full_name) {
         teacherName = profile.full_name
       }

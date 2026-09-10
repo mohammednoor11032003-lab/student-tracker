@@ -14,8 +14,9 @@ interface PageProps {
 
 export default async function StudentDashboard({ searchParams }: PageProps) {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) {
+  const userRes = await supabase.auth.getUser()
+  const user = userRes.data?.user || (await supabase.auth.getSession()).data?.session?.user
+  if (!user) {
     redirect("/login")
   }
 
@@ -31,13 +32,13 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   const year = weekInfo.year
 
   // Check active manual consolidation for today
-  const activeManualConsolidation = await getActiveManualConsolidation(session.user.id, today)
+  const activeManualConsolidation = await getActiveManualConsolidation(user.id, today)
 
   // 1. Fetch current assignments for today
   let { data: assignments } = await supabase
     .from("daily_assignments")
     .select("*, tasks(*)")
-    .eq("student_id", session.user.id)
+    .eq("student_id", user.id)
     .eq("assigned_date", today)
     .order("completed", { ascending: true })
 
@@ -51,7 +52,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     const routineTasks = (allTasks || []).filter(t => !isBountyTask(t))
     if (routineTasks.length > 0) {
       const toInsert = routineTasks.map(t => ({
-        student_id: session.user.id,
+        student_id: user.id,
         task_id: t.id,
         assigned_date: today,
         completed: false,
@@ -61,7 +62,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
       const { data: freshAssignments } = await supabase
         .from("daily_assignments")
         .select("*, tasks(*)")
-        .eq("student_id", session.user.id)
+        .eq("student_id", user.id)
         .eq("assigned_date", today)
         .order("completed", { ascending: true })
       
@@ -70,15 +71,15 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   }
 
   const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes, starBadges, allTasksRes, heroState] = await Promise.all([
-    supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
-    supabase.from("weekly_summaries").select("total_points").eq("student_id", session.user.id).eq("week_start", weekStartStr).single(),
-    supabase.from("daily_assignments").select("completed, tasks(points)").eq("student_id", session.user.id).gte("assigned_date", weekStartStr).lte("assigned_date", weekEndStr).eq("completed", true),
-    getStudentPlan(session.user.id),
+    supabase.from("profiles").select("full_name").eq("id", user.id).single(),
+    supabase.from("weekly_summaries").select("total_points").eq("student_id", user.id).eq("week_start", weekStartStr).single(),
+    supabase.from("daily_assignments").select("completed, tasks(points)").eq("student_id", user.id).gte("assigned_date", weekStartStr).lte("assigned_date", weekEndStr).eq("completed", true),
+    getStudentPlan(user.id),
     supabase.from("weekly_summaries").select("*, profiles(full_name)").eq("week_start", weekStartStr).order("total_points", { ascending: false }),
     supabase.from("monthly_summaries").select("*, profiles(full_name)").eq("month", month).eq("year", year).order("total_points", { ascending: false }),
-    getStudentStarBadges(supabase, session.user.id),
+    getStudentStarBadges(supabase, user.id),
     supabase.from("tasks").select("*"),
-    getStudentHeroState(session.user.id),
+    getStudentHeroState(user.id),
   ])
 
   // Extract optional bounty challenges
@@ -88,7 +89,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   const { data: completedBounties } = await supabase
     .from("daily_assignments")
     .select("task_id")
-    .eq("student_id", session.user.id)
+    .eq("student_id", user.id)
     .gte("assigned_date", weekStartStr)
     .lte("assigned_date", weekEndStr)
     .eq("completed", true)
@@ -101,7 +102,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
 
   return (
     <StudentPortal
-      studentId={session.user.id}
+      studentId={user.id}
       studentName={profileRes.data?.full_name ?? ""}
       todayStr={today}
       initialPlan={studentPlan}

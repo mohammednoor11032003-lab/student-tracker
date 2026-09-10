@@ -4,15 +4,16 @@ import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import toast from "react-hot-toast"
 
+import { useAuth } from "@/contexts/AuthContext"
+
 export default function TeacherNav({ teacherName }: { teacherName: string }) {
   const pathname = usePathname()
-  const router = useRouter()
-  const supabase = createClient()
+  const { signOut } = useAuth()
 
   async function logout() {
-    await supabase.auth.signOut()
-    toast.success("تم تسجيل الخروج")
-    router.push("/login")
+    toast.loading("جاري تسجيل الخروج...", { id: "logout_toast" })
+    await signOut()
+    toast.success("تم تسجيل الخروج بنجاح", { id: "logout_toast" })
   }
 
   const links = [

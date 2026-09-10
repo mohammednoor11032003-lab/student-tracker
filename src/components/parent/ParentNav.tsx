@@ -1,11 +1,14 @@
-﻿"use client"
-import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+"use client"
+import { useAuth } from "@/contexts/AuthContext"
 import toast from "react-hot-toast"
+
 export default function ParentNav({ parentName }: { parentName: string }) {
-  const router = useRouter()
-  const supabase = createClient()
-  async function logout() { await supabase.auth.signOut(); toast.success("تم تسجيل الخروج"); router.push("/login") }
+  const { signOut } = useAuth()
+  async function logout() {
+    toast.loading("جاري تسجيل الخروج...", { id: "logout_toast" })
+    await signOut()
+    toast.success("تم تسجيل الخروج بنجاح", { id: "logout_toast" })
+  }
   return (
     <nav style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(255,255,255,0.2)" }}>
       <div style={{ maxWidth: "700px", margin: "0 auto", padding: "0 1rem" }}>

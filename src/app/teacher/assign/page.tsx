@@ -5,13 +5,14 @@ import { getTodayDateStr } from "@/lib/date-utils"
 
 export default async function AssignPage() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) {
+  const userRes = await supabase.auth.getUser()
+  const user = userRes.data?.user || (await supabase.auth.getSession()).data?.session?.user
+  if (!user) {
     redirect("/login")
   }
   const today = getTodayDateStr()
   const [tasksRes, studentsRes, assignmentsRes] = await Promise.all([
-    supabase.from("tasks").select("*").eq("created_by", session!.user.id),
+    supabase.from("tasks").select("*").eq("created_by", user.id),
     supabase.from("profiles").select("*").eq("role", "student"),
     supabase.from("daily_assignments").select("*, tasks(*), profiles(full_name)").eq("assigned_date", today),
   ])

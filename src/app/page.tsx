@@ -1,12 +1,21 @@
-﻿import { redirect } from "next/navigation"
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 
 export default async function Home() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) redirect("/login")
+  const userRes = await supabase.auth.getUser()
+  const user = userRes.data?.user || (await supabase.auth.getSession()).data?.session?.user
+
+  if (!user) {
+    redirect("/login")
+  }
+
   const { data: profile } = await supabase
-    .from("profiles").select("role").eq("id", session.user.id).single()
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single()
+
   if (profile?.role === "teacher") redirect("/teacher")
   if (profile?.role === "student") redirect("/student")
   if (profile?.role === "parent") redirect("/parent")

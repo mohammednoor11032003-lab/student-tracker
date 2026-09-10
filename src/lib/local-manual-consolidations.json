@@ -4,10 +4,16 @@
     "student_id": "f7c52257-d501-45ec-bacc-0f0c75a295e4",
     "start_date": "2026-09-12",
     "end_date": "2026-09-18",
-    "pages_description": "تثبيت ومراجعة من ص ... إلى ص ...",
+    "pages_description": "من ص 1 إلى ص 21",
     "repetitions_count": 10,
-    "is_active": false,
-    "created_at": "2026-09-10T20:44:26.395Z",
-    "updated_at": "2026-09-10T21:31:00.042Z"
+    "is_active": true,
+    "created_at": "2026-09-10T21:42:20.455Z",
+    "updated_at": "2026-09-10T21:42:20.455Z",
+    "start_page": 1,
+    "end_page": 21,
+    "daily_pages_count": 3,
+    "has_harvest_day": false,
+    "harvest_days_count": 1,
+    "resume_page_pointer": "ص35 النصف العلوي"
   }
 ]

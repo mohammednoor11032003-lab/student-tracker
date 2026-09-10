@@ -6,8 +6,9 @@ import { getTodayDateStr, getWeekAndMonthInfo, formatDateStr } from "@/lib/date-
 
 export default async function TeacherChallengesPage() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) {
+  const userRes = await supabase.auth.getUser()
+  const user = userRes.data?.user || (await supabase.auth.getSession()).data?.session?.user
+  if (!user) {
     redirect("/login")
   }
 
@@ -30,7 +31,7 @@ export default async function TeacherChallengesPage() {
 
   return (
     <TeacherChallenges
-      teacherId={session.user.id}
+      teacherId={user.id}
       initialChallenges={bountyTasks}
       activeWeeklyBountyIds={activeWeeklyBountyIds}
     />

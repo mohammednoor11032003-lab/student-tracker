@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client"
 import { BookOpen, ClipboardList, Trophy, LogOut } from "lucide-react"
 import toast from "react-hot-toast"
 
+import { useAuth } from "@/contexts/AuthContext"
+
 export default function StudentNav({
   studentName,
   isStarOfWeek = false,
@@ -16,13 +18,12 @@ export default function StudentNav({
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const router = useRouter()
-  const supabase = createClient()
+  const { signOut } = useAuth()
 
   async function logout() {
-    await supabase.auth.signOut()
-    toast.success("تم تسجيل الخروج")
-    router.push("/login")
+    toast.loading("جاري تسجيل الخروج...", { id: "logout_toast" })
+    await signOut()
+    toast.success("تم تسجيل الخروج بنجاح", { id: "logout_toast" })
   }
 
   const currentTab = searchParams.get("tab") || (pathname === "/student/plan" ? "plan" : pathname === "/student/leaderboard" ? "leaderboard" : "plan")

@@ -11,6 +11,7 @@ import { StudentPlan, DEFAULT_PLAN } from "@/lib/plan-utils"
 import { Task } from "@/lib/types"
 import { BountyTask } from "@/lib/bounty-utils"
 import { StudentInventoryItem } from "@/lib/hero-utils"
+import LoadingScreen from "@/components/LoadingScreen"
 
 interface Assignment {
   id: string
@@ -143,6 +144,10 @@ export default function StudentPortal({
       url.searchParams.set("tab", tab)
       window.history.replaceState({}, "", url.toString())
     }
+  }
+
+  if (!studentId) {
+    return <LoadingScreen message="جاري استرجاع بيانات الطالب..." />
   }
 
   return (
