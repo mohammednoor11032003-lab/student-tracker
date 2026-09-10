@@ -8,7 +8,7 @@ import {
   CATEGORY_LABELS,
   INITIAL_SHOP_CATALOG,
 } from "@/lib/hero-utils"
-import { Shield, Sparkles, ShoppingBag, Backpack, Check, Plus, Minus, X, RefreshCw } from "lucide-react"
+import { Shield, Sparkles, ShoppingBag, Backpack, Check, Plus, Minus, X, RefreshCw, Zap } from "lucide-react"
 import toast from "react-hot-toast"
 
 interface HeroViewProps {
@@ -16,6 +16,46 @@ interface HeroViewProps {
   studentName: string
   initialGems: number
   initialInventory: StudentInventoryItem[]
+}
+
+const SLOT_CONFIG: Record<
+  GearCategory,
+  {
+    title: string
+    defaultIcon: string
+    color: string
+    glowRgba: string
+    bgGradient: string
+  }
+> = {
+  head: {
+    title: "خوذة / عمامة الرأس",
+    defaultIcon: "🪖",
+    color: "#f59e0b",
+    glowRgba: "rgba(245, 158, 11, 0.4)",
+    bgGradient: "linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(15, 23, 42, 0.95) 100%)",
+  },
+  body: {
+    title: "درع / رداء الجسم",
+    defaultIcon: "🛡️",
+    color: "#38bdf8",
+    glowRgba: "rgba(56, 189, 248, 0.4)",
+    bgGradient: "linear-gradient(135deg, rgba(2, 132, 199, 0.18) 0%, rgba(15, 23, 42, 0.95) 100%)",
+  },
+  weapon: {
+    title: "السلاح / الأداة",
+    defaultIcon: "⚔️",
+    color: "#10b981",
+    glowRgba: "rgba(16, 185, 129, 0.4)",
+    bgGradient: "linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(15, 23, 42, 0.95) 100%)",
+  },
+  feet: {
+    title: "خف / حذاء القدمين",
+    defaultIcon: "🥾",
+    color: "#a855f7",
+    glowRgba: "rgba(168, 85, 247, 0.4)",
+    bgGradient: "linear-gradient(135deg, rgba(168, 85, 247, 0.18) 0%, rgba(15, 23, 42, 0.95) 100%)",
+  },
 }
 
 export default function HeroView({
@@ -170,11 +210,11 @@ export default function HeroView({
       {/* Top Banner & Gems Balance */}
       <div
         style={{
-          background: "linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)",
+          background: "linear-gradient(135deg, #090d16 0%, #020617 100%)",
           borderRadius: "1.5rem",
           padding: "1.25rem 1.75rem",
           border: "2px solid rgba(245, 158, 11, 0.4)",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -200,7 +240,7 @@ export default function HeroView({
             </span>
           </h2>
           <p style={{ margin: "0.25rem 0 0", color: "#94a3b8", fontSize: "0.85rem" }}>
-            جهّز بطلك بأقوى الدروع والأسلحة التاريخية باستخدام الجواهر المكتسبة من إتقانك القرآني!
+            جهّز بطل القرآن بخانات العتاد المضيئة باستخدام الجواهر المكتسبة من إتقانك القرآني!
           </p>
         </div>
 
@@ -211,13 +251,13 @@ export default function HeroView({
             padding: "0.6rem 1.35rem",
             borderRadius: "1.25rem",
             border: "2px solid #38bdf8",
-            boxShadow: "0 4px 20px rgba(2, 132, 199, 0.45)",
+            boxShadow: "0 4px 25px rgba(2, 132, 199, 0.5)",
             display: "flex",
             alignItems: "center",
             gap: "0.65rem",
           }}
         >
-          <span style={{ fontSize: "1.85rem", lineHeight: 1, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.3))" }}>
+          <span style={{ fontSize: "1.85rem", lineHeight: 1, filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.4))" }}>
             💎
           </span>
           <div>
@@ -229,113 +269,170 @@ export default function HeroView({
         </div>
       </div>
 
-      {/* Main Responsive Layout: Mobile (flex-col: character above shop), Desktop (lg:flex-row) */}
+      {/* Main Responsive Layout: Mobile (flex-col: Hero Silhouette & Slots above Shop), Desktop (lg:flex-row) */}
       <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
-        {/* ================= COLUMN 1: CHARACTER & 4 SLOTS ================= */}
+        {/* ================= COLUMN 1: DARK SILHOUETTE & 4 GLOWING GEAR SLOTS ================= */}
         <div
-          className="w-full lg:w-[410px] shrink-0"
+          className="w-full lg:w-[480px] shrink-0"
           style={{
-            background: "linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)",
+            background: "linear-gradient(135deg, #090d16 0%, #020617 100%)",
             borderRadius: "1.5rem",
             padding: "1.5rem",
-            border: "1px solid rgba(255, 255, 255, 0.15)",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+            border: "1px solid rgba(255, 255, 255, 0.12)",
+            boxShadow: "0 15px 35px rgba(0,0,0,0.5)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             position: "relative",
           }}
         >
-          <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-            <span style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 700 }}>
+          {/* Header Row */}
+          <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+            <span style={{ fontSize: "0.9rem", color: "#cbd5e1", fontWeight: 700 }}>
               فارس القرآن: <strong style={{ color: "#ffffff" }}>{studentName}</strong>
             </span>
             <span
               style={{
                 fontSize: "0.75rem",
-                background: "rgba(59, 130, 246, 0.2)",
-                color: "#60a5fa",
-                padding: "0.2rem 0.6rem",
+                background: equippedCount > 0 ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.1)",
+                color: equippedCount > 0 ? "#34d399" : "#94a3b8",
+                padding: "0.25rem 0.65rem",
                 borderRadius: "9999px",
-                border: "1px solid rgba(59, 130, 246, 0.4)",
+                border: equippedCount > 0 ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid rgba(255, 255, 255, 0.15)",
                 fontWeight: 800,
               }}
             >
-              العتاد: {equippedCount} / 4
+              العتاد المجهّز: {equippedCount} / 4
             </span>
           </div>
 
-          {/* Avatar Graphic with strict Faceless condition & thick beard */}
-          <div style={{ position: "relative", margin: "0.5rem 0" }}>
-            <HeroAvatar equipped={equippedMap} size={280} showPedestal={true} />
+          {/* Dark Silhouette (Mysterious, Minimalist Hero Avatar) */}
+          <div style={{ position: "relative", margin: "0.25rem 0 1.25rem" }}>
+            <HeroAvatar size={240} />
           </div>
 
-          {/* 4 Gear Slots Grid */}
-          <div style={{ width: "100%", marginTop: "1rem" }}>
-            <div style={{ fontSize: "0.8rem", color: "#cbd5e1", fontWeight: 800, marginBottom: "0.6rem", textAlign: "center" }}>
-              خانات العتاد المجهّز (Slots)
+          {/* ================= 4 PROMINENT GLOWING GEAR SLOTS ================= */}
+          <div style={{ width: "100%" }}>
+            <div
+              style={{
+                fontSize: "0.85rem",
+                color: "#94a3b8",
+                fontWeight: 800,
+                marginBottom: "0.75rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.4rem",
+              }}
+            >
+              <Zap size={14} color="#f59e0b" />
+              <span>خانات العتاد الأربعة (Equipped Slots)</span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
               {(["head", "body", "weapon", "feet"] as GearCategory[]).map(cat => {
                 const item = equippedMap[cat]
-                const catInfo = CATEGORY_LABELS[cat]
+                const cfg = SLOT_CONFIG[cat]
+                const isEquipped = !!item
 
                 return (
                   <div
                     key={cat}
                     style={{
-                      background: item ? "rgba(15, 23, 42, 0.85)" : "rgba(255, 255, 255, 0.04)",
-                      border: item ? "2px solid #f59e0b" : "1.5px dashed rgba(255, 255, 255, 0.2)",
-                      borderRadius: "1rem",
-                      padding: "0.65rem 0.75rem",
+                      background: isEquipped ? cfg.bgGradient : "rgba(15, 23, 42, 0.6)",
+                      border: isEquipped ? `2px solid ${cfg.color}` : "2px dashed rgba(255, 255, 255, 0.15)",
+                      borderRadius: "1.25rem",
+                      padding: "1rem 0.85rem",
                       display: "flex",
+                      flexDirection: "column",
                       alignItems: "center",
-                      justifyContent: "space-between",
+                      textAlign: "center",
                       gap: "0.5rem",
-                      boxShadow: item ? "0 4px 12px rgba(245, 158, 11, 0.2)" : "none",
+                      position: "relative",
+                      boxShadow: isEquipped ? `0 0 25px ${cfg.glowRgba}, inset 0 0 15px rgba(255,255,255,0.05)` : "none",
+                      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", overflow: "hidden" }}>
-                      <span style={{ fontSize: "1.4rem", flexShrink: 0 }}>
-                        {item ? item.icon_name : catInfo.icon}
-                      </span>
-                      <div style={{ overflow: "hidden" }}>
-                        <div style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 600 }}>{catInfo.name}</div>
-                        <div
-                          style={{
-                            fontSize: "0.85rem",
-                            color: item ? "#ffffff" : "#64748b",
-                            fontWeight: 800,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {item ? item.name : "فارغ"}
-                        </div>
-                      </div>
+                    {/* Slot Category Header */}
+                    <div
+                      style={{
+                        fontSize: "0.7rem",
+                        color: isEquipped ? cfg.color : "#64748b",
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {cfg.title}
                     </div>
 
-                    {item && (
+                    {/* Large Glowing Icon Orb */}
+                    <div
+                      style={{
+                        width: "3.75rem",
+                        height: "3.75rem",
+                        borderRadius: "1rem",
+                        background: isEquipped ? "rgba(0, 0, 0, 0.4)" : "rgba(255, 255, 255, 0.04)",
+                        border: isEquipped ? `1px solid ${cfg.color}` : "1px solid rgba(255, 255, 255, 0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "2rem",
+                        filter: isEquipped ? `drop-shadow(0 0 10px ${cfg.glowRgba})` : "none",
+                        opacity: isEquipped ? 1 : 0.4,
+                      }}
+                    >
+                      {isEquipped ? item.icon_name : cfg.defaultIcon}
+                    </div>
+
+                    {/* Item Name & Details */}
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "0.9rem",
+                          fontWeight: 900,
+                          color: isEquipped ? "#ffffff" : "#64748b",
+                          lineHeight: 1.2,
+                        }}
+                      >
+                        {isEquipped ? item.name : "خانة فارغة"}
+                      </div>
+                      {isEquipped ? (
+                        <div style={{ fontSize: "0.7rem", color: cfg.color, fontWeight: 700, marginTop: "0.2rem" }}>
+                          💎 {item.price_in_gems} جوهرة
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: "0.65rem", color: "#475569", marginTop: "0.2rem" }}>
+                          جهّز من الحقيبة
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Unequip Action Button */}
+                    {isEquipped && (
                       <button
                         type="button"
                         onClick={() => handleUnequipItem(item.id, cat)}
-                        title="خلع العتاد"
+                        disabled={loadingAction === `unequip_${item.id}`}
                         style={{
-                          background: "rgba(239, 68, 68, 0.2)",
+                          marginTop: "0.25rem",
+                          width: "100%",
+                          background: "rgba(239, 68, 68, 0.15)",
                           border: "1px solid rgba(239, 68, 68, 0.4)",
                           color: "#f87171",
-                          borderRadius: "0.5rem",
-                          padding: "0.3rem",
+                          borderRadius: "0.65rem",
+                          padding: "0.35rem 0.5rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 800,
                           cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          flexShrink: 0,
+                          gap: "0.25rem",
+                          transition: "all 0.15s ease",
                         }}
                       >
-                        <X size={14} />
+                        <X size={13} />
+                        <span>خلع</span>
                       </button>
                     )}
                   </div>
@@ -349,11 +446,11 @@ export default function HeroView({
         <div
           className="flex-1 w-full"
           style={{
-            background: "linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)",
+            background: "linear-gradient(135deg, #090d16 0%, #020617 100%)",
             borderRadius: "1.5rem",
             padding: "1.5rem",
-            border: "1px solid rgba(255, 255, 255, 0.15)",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+            border: "1px solid rgba(255, 255, 255, 0.12)",
+            boxShadow: "0 15px 35px rgba(0,0,0,0.5)",
             display: "flex",
             flexDirection: "column",
             gap: "1.25rem",
@@ -365,7 +462,7 @@ export default function HeroView({
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
               gap: "0.5rem",
-              background: "rgba(15, 23, 42, 0.6)",
+              background: "rgba(15, 23, 42, 0.7)",
               padding: "0.35rem",
               borderRadius: "1rem",
               border: "1px solid rgba(255,255,255,0.1)",
@@ -388,7 +485,7 @@ export default function HeroView({
                 justifyContent: "center",
                 gap: "0.4rem",
                 transition: "all 0.2s",
-                boxShadow: activeTab === "shop" ? "0 4px 15px rgba(245, 158, 11, 0.3)" : "none",
+                boxShadow: activeTab === "shop" ? "0 4px 15px rgba(245, 158, 11, 0.35)" : "none",
               }}
             >
               <ShoppingBag size={18} />
@@ -412,7 +509,7 @@ export default function HeroView({
                 justifyContent: "center",
                 gap: "0.4rem",
                 transition: "all 0.2s",
-                boxShadow: activeTab === "inventory" ? "0 4px 15px rgba(139, 92, 246, 0.3)" : "none",
+                boxShadow: activeTab === "inventory" ? "0 4px 15px rgba(139, 92, 246, 0.35)" : "none",
               }}
             >
               <Backpack size={18} />
@@ -498,7 +595,7 @@ export default function HeroView({
                         display: "flex",
                         flexDirection: "column",
                         gap: "0.75rem",
-                        boxShadow: "0 4px 15px rgba(0,0,0,0.15)",
+                        boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
                         transition: "all 0.2s ease",
                       }}
                     >
@@ -562,7 +659,7 @@ export default function HeroView({
                         </div>
                       </div>
 
-                      {/* Description Text (Slightly Smaller & Readable) */}
+                      {/* Description Text */}
                       <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.75rem", lineHeight: 1.45 }}>
                         {item.description}
                       </p>
@@ -594,9 +691,9 @@ export default function HeroView({
                               width: "100%",
                               background: canAfford
                                 ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
-                                : "rgba(255,255,255,0.08)",
+                                : "rgba(255, 255, 255, 0.08)",
                               color: canAfford ? "#ffffff" : "#64748b",
-                              border: canAfford ? "1px solid #38bdf8" : "1px solid rgba(255,255,255,0.15)",
+                              border: canAfford ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.15)",
                               padding: "0.6rem 1rem",
                               borderRadius: "0.85rem",
                               fontSize: "0.9rem",
@@ -643,7 +740,7 @@ export default function HeroView({
                         display: "flex",
                         flexDirection: "column",
                         gap: "0.75rem",
-                        boxShadow: isEquipped ? "0 4px 18px rgba(139, 92, 246, 0.25)" : "0 4px 15px rgba(0,0,0,0.15)",
+                        boxShadow: isEquipped ? "0 4px 18px rgba(139, 92, 246, 0.25)" : "0 4px 15px rgba(0,0,0,0.2)",
                         transition: "all 0.2s ease",
                       }}
                     >
@@ -729,7 +826,7 @@ export default function HeroView({
                               transition: "all 0.15s ease",
                             }}
                           >
-                            خلع العتاد من الشخصية ↩️
+                            خلع العتاد من الخانة ↩️
                           </button>
                         ) : (
                           <button
@@ -750,7 +847,7 @@ export default function HeroView({
                               transition: "all 0.15s ease",
                             }}
                           >
-                            تجهيز على الشخصية ⚔️
+                            تجهيز في خانة {CATEGORY_LABELS[itemObj.category].name} ⚔️
                           </button>
                         )}
                       </div>
