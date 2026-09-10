@@ -42,551 +42,584 @@ export default function HeroAvatar({
     >
       <svg
         width={size}
-        height={Math.round(size * 1.3)}
-        viewBox="0 0 300 390"
+        height={Math.round(size * 1.28)}
+        viewBox="0 0 280 360"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        style={{ filter: "drop-shadow(0 15px 30px rgba(0,0,0,0.4))" }}
+        style={{ filter: "drop-shadow(0 16px 32px rgba(0,0,0,0.35))" }}
       >
         <defs>
-          {/* Skin Gradient */}
-          <linearGradient id="skinBase" x1="150" y1="50" x2="150" y2="140" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#fad7bc" />
-            <stop offset="100%" stopColor="#e3af8b" />
-          </linearGradient>
-          <linearGradient id="skinShadow" x1="150" y1="110" x2="150" y2="140" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#e3af8b" />
-            <stop offset="100%" stopColor="#c58e69" />
+          {/* Ambient Hero Glow */}
+          <radialGradient id="auraGlow" cx="50%" cy="40%" r="50%">
+            <stop offset="0%" stopColor="rgba(56, 189, 248, 0.18)" />
+            <stop offset="60%" stopColor="rgba(56, 189, 248, 0.04)" />
+            <stop offset="100%" stopColor="transparent" />
+          </radialGradient>
+
+          {/* Skin Tone Gradient (Soft warm olive/caramel) */}
+          <linearGradient id="flatSkin" x1="140" y1="45" x2="140" y2="115" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#f7d4bb" />
+            <stop offset="100%" stopColor="#e4b08b" />
           </linearGradient>
 
-          {/* Thick Beard & Hair Gradient */}
-          <linearGradient id="beardGrad" x1="150" y1="70" x2="150" y2="145" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#2c241e" />
-            <stop offset="60%" stopColor="#1a1410" />
-            <stop offset="100%" stopColor="#0f0c09" />
+          {/* Thick Beard & Hair (Smooth rich espresso brown/black) */}
+          <linearGradient id="flatBeard" x1="140" y1="40" x2="140" y2="135" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#2c221c" />
+            <stop offset="100%" stopColor="#15100d" />
           </linearGradient>
 
-          {/* Basic White Islamic Thobe Gradient */}
-          <linearGradient id="thobeGrad" x1="150" y1="130" x2="150" y2="330" gradientUnits="userSpaceOnUse">
+          {/* Seamless White Thobe Gradient */}
+          <linearGradient id="flatThobe" x1="140" y1="105" x2="140" y2="330" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="40%" stopColor="#f8fafc" />
-            <stop offset="85%" stopColor="#e2e8f0" />
+            <stop offset="45%" stopColor="#f8fafc" />
+            <stop offset="90%" stopColor="#e2e8f0" />
             <stop offset="100%" stopColor="#cbd5e1" />
           </linearGradient>
 
-          {/* Gold / Royal Accents Gradient */}
-          <linearGradient id="goldAccent" x1="100" y1="40" x2="200" y2="100" gradientUnits="userSpaceOnUse">
+          {/* Gold / Royal Gradient */}
+          <linearGradient id="flatGold" x1="100" y1="40" x2="180" y2="120" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#fef08a" />
-            <stop offset="35%" stopColor="#f59e0b" />
+            <stop offset="40%" stopColor="#f59e0b" />
             <stop offset="100%" stopColor="#b45309" />
           </linearGradient>
 
-          {/* Steel Armor Gradient */}
-          <linearGradient id="steelArmor" x1="110" y1="130" x2="190" y2="250" gradientUnits="userSpaceOnUse">
+          {/* Polished Steel Armor */}
+          <linearGradient id="flatSteel" x1="100" y1="110" x2="180" y2="240" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#f1f5f9" />
-            <stop offset="30%" stopColor="#cbd5e1" />
-            <stop offset="70%" stopColor="#64748b" />
+            <stop offset="35%" stopColor="#cbd5e1" />
+            <stop offset="75%" stopColor="#64748b" />
             <stop offset="100%" stopColor="#334155" />
           </linearGradient>
 
-          {/* Mamluk Dark Steel Gradient */}
-          <linearGradient id="mamlukSteel" x1="110" y1="130" x2="190" y2="250" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#64748b" />
-            <stop offset="50%" stopColor="#334155" />
+          {/* Mamluk Dark Steel */}
+          <linearGradient id="flatMamluk" x1="100" y1="110" x2="180" y2="240" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#475569" />
+            <stop offset="55%" stopColor="#1e293b" />
             <stop offset="100%" stopColor="#0f172a" />
           </linearGradient>
 
-          {/* Andalus Navy & Gold Gradient */}
-          <linearGradient id="andalusGrad" x1="110" y1="130" x2="190" y2="300" gradientUnits="userSpaceOnUse">
+          {/* Andalus Navy & Gold */}
+          <linearGradient id="flatAndalus" x1="100" y1="110" x2="180" y2="270" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#1e3a8a" />
-            <stop offset="50%" stopColor="#172554" />
+            <stop offset="60%" stopColor="#172554" />
             <stop offset="100%" stopColor="#0f172a" />
           </linearGradient>
 
-          {/* Robe of Honor Celestial Blue */}
-          <linearGradient id="celestialGrad" x1="110" y1="130" x2="190" y2="310" gradientUnits="userSpaceOnUse">
+          {/* Celestial Robe of Honor */}
+          <linearGradient id="flatCelestial" x1="100" y1="110" x2="180" y2="270" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#38bdf8" />
             <stop offset="50%" stopColor="#0284c7" />
             <stop offset="100%" stopColor="#0369a1" />
           </linearGradient>
 
-          {/* Sword of Conquest Light Gradient */}
-          <linearGradient id="conquestBlade" x1="210" y1="50" x2="250" y2="240" gradientUnits="userSpaceOnUse">
+          {/* Sword of Conquest Blade Glow */}
+          <linearGradient id="swordGlow" x1="215" y1="40" x2="235" y2="230" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#ffffff" />
             <stop offset="30%" stopColor="#bae6fd" />
             <stop offset="70%" stopColor="#38bdf8" />
             <stop offset="100%" stopColor="#0284c7" />
           </linearGradient>
 
-          {/* Leather Brown Gradient */}
-          <linearGradient id="leatherGrad" x1="110" y1="140" x2="190" y2="250" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#a16207" />
-            <stop offset="50%" stopColor="#78350f" />
-            <stop offset="100%" stopColor="#451a03" />
-          </linearGradient>
-
-          {/* Green Murabit Gradient */}
-          <linearGradient id="murabitGreen" x1="120" y1="50" x2="180" y2="100" gradientUnits="userSpaceOnUse">
+          {/* Murabit Green */}
+          <linearGradient id="flatMurabit" x1="110" y1="40" x2="170" y2="90" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#34d399" />
             <stop offset="50%" stopColor="#059669" />
             <stop offset="100%" stopColor="#064e3b" />
           </linearGradient>
 
-          {/* Glow Filters */}
-          <filter id="heroGlow" x="-25%" y="-25%" width="150%" height="150%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
+          {/* Leather Brown */}
+          <linearGradient id="flatLeather" x1="100" y1="120" x2="180" y2="230" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#a16207" />
+            <stop offset="55%" stopColor="#78350f" />
+            <stop offset="100%" stopColor="#451a03" />
+          </linearGradient>
+
+          {/* Magic Glow Filter */}
+          <filter id="auraFilter" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3.5" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
         </defs>
 
-        {/* ================= 1. PEDESTAL & GROUND ================= */}
+        {/* Background Subtle Aura */}
+        <ellipse cx="140" cy="180" rx="110" ry="140" fill="url(#auraGlow)" />
+
+        {/* ================= 1. PEDESTAL & GROUND SHADOW ================= */}
         {showPedestal && (
           <g id="pedestal">
-            <ellipse cx="150" cy="362" rx="100" ry="20" fill="rgba(0,0,0,0.5)" filter="blur(5px)" />
-            <ellipse cx="150" cy="358" rx="84" ry="15" fill="#1e293b" stroke="#f59e0b" strokeWidth="2.5" />
-            <ellipse cx="150" cy="356" rx="72" ry="11" fill="#0f172a" />
-            <path d="M 95 357 Q 150 366 205 357" stroke="#fbbf24" strokeWidth="1.5" fill="none" opacity="0.7" />
+            {/* Soft ground shadow */}
+            <ellipse cx="140" cy="336" rx="88" ry="16" fill="rgba(0,0,0,0.45)" filter="blur(4px)" />
+            {/* Elegant dais platform */}
+            <ellipse cx="140" cy="332" rx="76" ry="12" fill="#1e293b" stroke="#f59e0b" strokeWidth="2" />
+            <ellipse cx="140" cy="330" rx="66" ry="9" fill="#0f172a" />
+            <path d="M 94 331 Q 140 338 186 331" stroke="#fbbf24" strokeWidth="1.2" fill="none" opacity="0.6" />
           </g>
         )}
 
-        {/* ================= 2. BASIC ISLAMIC THOBE & BODY GEOMETRY ================= */}
-        <g id="base_body">
-          {/* Base Lower Thobe (Draping skirt with natural folds) */}
+        {/* ================= 2. UNIFIED COHESIVE BODY (FLAT MINIMALIST SILHOUETTE) ================= */}
+        <g id="hero_unified_body">
+          {/* 
+            Main Unified Silhouette:
+            Curves smoothly from neck -> left rounded shoulder -> left arm drape -> thobe hem -> right arm drape -> right rounded shoulder -> neck.
+            A continuous, clean single-body master vector!
+          */}
           <path
-            d="M 116 230 L 98 335 Q 150 348 202 335 L 184 230 Z"
-            fill="url(#thobeGrad)"
+            d="M 132 108
+               C 120 110, 84 122, 74 156
+               C 66 182, 70 236, 64 308
+               C 62 316, 70 320, 82 319
+               Q 140 327, 198 319
+               C 210 320, 218 316, 216 308
+               C 210 236, 214 182, 206 156
+               C 196 122, 160 110, 148 108
+               Z"
+            fill="url(#flatThobe)"
             stroke="#94a3b8"
-            strokeWidth="1.5"
+            strokeWidth="1.8"
+            strokeLinejoin="round"
           />
-          {/* Thobe Crease Folds */}
-          <path d="M 132 235 L 126 338" stroke="#cbd5e1" strokeWidth="1.8" />
-          <path d="M 150 225 L 150 342" stroke="#94a3b8" strokeWidth="2" />
-          <path d="M 168 235 L 174 338" stroke="#cbd5e1" strokeWidth="1.8" />
 
-          {/* Base Upper Thobe (Torso & Shoulders) */}
+          {/* Natural thobe drape lines (minimalist folds) */}
+          <path d="M 140 126 L 140 322" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" />
+          <path d="M 112 185 C 114 235, 108 280, 102 318" stroke="#e2e8f0" strokeWidth="1.5" strokeLinecap="round" />
+          <path d="M 168 185 C 166 235, 172 280, 178 318" stroke="#e2e8f0" strokeWidth="1.5" strokeLinecap="round" />
+
+          {/* Thobe Islamic Mandarin Collar */}
           <path
-            d="M 102 140 L 94 235 Q 150 245 206 235 L 198 140 Q 150 148 102 140 Z"
-            fill="url(#thobeGrad)"
+            d="M 128 108 C 132 116, 148 116, 152 108"
             stroke="#94a3b8"
-            strokeWidth="1.5"
+            strokeWidth="2"
+            fill="none"
           />
+          {/* Neat Placket with buttons */}
+          <circle cx="140" cy="136" r="1.8" fill="#64748b" />
+          <circle cx="140" cy="148" r="1.8" fill="#64748b" />
+          <circle cx="140" cy="160" r="1.8" fill="#64748b" />
 
-          {/* Thobe Islamic Collar & Placket Buttons */}
-          <path d="M 143 136 L 143 185" stroke="#cbd5e1" strokeWidth="2.5" />
-          <circle cx="143" cy="148" r="2" fill="#64748b" />
-          <circle cx="143" cy="160" r="2" fill="#64748b" />
-          <circle cx="143" cy="172" r="2" fill="#64748b" />
+          {/* Right Hand Position (Seamlessly positioned forward to hold weapon) */}
+          <circle cx="204" cy="208" r="8" fill="url(#flatSkin)" stroke="#c58e69" strokeWidth="1.2" />
 
-          {/* Left Arm (Relaxed at side / Ready to hold shield or rest on belt) */}
-          <g id="left_arm">
-            <path
-              d="M 102 140 L 72 200 Q 66 215 76 222 L 92 185 L 110 148 Z"
-              fill="url(#thobeGrad)"
-              stroke="#94a3b8"
-              strokeWidth="1.5"
-            />
-            {/* Left Hand (Holding position) */}
-            <circle cx="76" cy="220" r="9" fill="url(#skinBase)" stroke="#c58e69" strokeWidth="1.5" />
-          </g>
-
-          {/* Right Arm (Configured naturally forward to wield weapon) */}
-          <g id="right_arm">
-            <path
-              d="M 198 140 L 222 192 Q 228 210 216 222 L 198 185 L 190 148 Z"
-              fill="url(#thobeGrad)"
-              stroke="#94a3b8"
-              strokeWidth="1.5"
-            />
-            {/* Right Hand (Grasping weapon firmly) */}
-            <circle cx="216" cy="220" r="9.5" fill="url(#skinBase)" stroke="#c58e69" strokeWidth="1.5" />
-          </g>
+          {/* Left Hand (Subtly resting on waist / holding mantle) */}
+          <circle cx="76" cy="208" r="7.5" fill="url(#flatSkin)" stroke="#c58e69" strokeWidth="1.2" />
         </g>
 
-        {/* ================= 3. FEET OVERLAY (7 DISTINCT ITEMS) ================= */}
+        {/* ================= 3. FEET OVERLAY (MINIMALIST HISTORIC FOOTWEAR) ================= */}
         <g id="feet_layer">
           {feetVisualId === "starter_sandals" ? (
-            /* 1. نعل البداية: نعل جلدي عربي خفيف بسيور */
+            /* نعل البداية: نعل جلدي خفيف */
             <g>
-              <ellipse cx="124" cy="342" rx="14" ry="6" fill="#78350f" stroke="#451a03" strokeWidth="1.5" />
-              <ellipse cx="176" cy="342" rx="14" ry="6" fill="#78350f" stroke="#451a03" strokeWidth="1.5" />
-              <path d="M 115 340 Q 124 334 133 340" stroke="#d97706" strokeWidth="2.5" fill="none" />
-              <path d="M 167 340 Q 176 334 185 340" stroke="#d97706" strokeWidth="2.5" fill="none" />
+              <ellipse cx="118" cy="324" rx="12" ry="4.5" fill="#78350f" stroke="#451a03" strokeWidth="1.2" />
+              <ellipse cx="162" cy="324" rx="12" ry="4.5" fill="#78350f" stroke="#451a03" strokeWidth="1.2" />
+              <path d="M 112 323 Q 118 318 124 323" stroke="#d97706" strokeWidth="2" fill="none" />
+              <path d="M 156 323 Q 162 318 168 323" stroke="#d97706" strokeWidth="2" fill="none" />
             </g>
           ) : feetVisualId === "courier_slippers" ? (
-            /* 2. خف الساعي: خف خفيف ومريح بني أنيق */
+            /* خف الساعي: خف خفيف ومريح */
             <g>
-              <path d="M 112 336 Q 124 332 138 344 L 112 344 Z" fill="#92400e" stroke="#78350f" strokeWidth="1.5" />
-              <path d="M 188 336 Q 176 332 162 344 L 188 344 Z" fill="#92400e" stroke="#78350f" strokeWidth="1.5" />
-              <circle cx="124" cy="340" r="2" fill="#fbbf24" />
-              <circle cx="176" cy="340" r="2" fill="#fbbf24" />
+              <path d="M 108 320 Q 118 316 130 326 L 108 326 Z" fill="#92400e" stroke="#78350f" strokeWidth="1.2" />
+              <path d="M 172 320 Q 162 316 150 326 L 172 326 Z" fill="#92400e" stroke="#78350f" strokeWidth="1.2" />
             </g>
           ) : feetVisualId === "murabit_boots" ? (
-            /* 3. حذاء المرابط: حذاء جلدي متين مع أربطة خضراء */
+            /* حذاء المرابط: حذاء جلدي متين بأربطة خضراء */
             <g>
-              <rect x="114" y="324" width="22" height="22" rx="4" fill="#065f46" stroke="#047857" strokeWidth="1.5" />
-              <rect x="164" y="324" width="22" height="22" rx="4" fill="#065f46" stroke="#047857" strokeWidth="1.5" />
-              <path d="M 114 330 L 136 330 M 114 336 L 136 336" stroke="#34d399" strokeWidth="2" />
-              <path d="M 164 330 L 186 330 M 164 336 L 186 336" stroke="#34d399" strokeWidth="2" />
+              <rect x="108" y="312" width="18" height="15" rx="3" fill="#065f46" stroke="#047857" strokeWidth="1.2" />
+              <rect x="154" y="312" width="18" height="15" rx="3" fill="#065f46" stroke="#047857" strokeWidth="1.2" />
+              <path d="M 108 317 L 126 317 M 154 317 L 172 317" stroke="#34d399" strokeWidth="1.5" />
             </g>
           ) : feetVisualId === "desert_boots" ? (
-            /* 4. خف الصحراء: خف صحراوي رملي عالي الساق */
+            /* خف الصحراء: خف صحراوي رملي */
             <g>
-              <path d="M 112 316 L 110 345 L 138 345 L 136 316 Z" fill="#d97706" stroke="#92400e" strokeWidth="2" />
-              <path d="M 188 316 L 190 345 L 162 345 L 164 316 Z" fill="#d97706" stroke="#92400e" strokeWidth="2" />
-              <path d="M 110 334 Q 124 330 138 334" stroke="#78350f" strokeWidth="2" fill="none" />
-              <path d="M 190 334 Q 176 330 162 334" stroke="#78350f" strokeWidth="2" fill="none" />
+              <path d="M 107 308 L 105 327 L 127 327 L 125 308 Z" fill="#d97706" stroke="#92400e" strokeWidth="1.5" />
+              <path d="M 173 308 L 175 327 L 153 327 L 155 308 Z" fill="#d97706" stroke="#92400e" strokeWidth="1.5" />
             </g>
           ) : feetVisualId === "knight_boots" ? (
-            /* 5. حذاء الفرسان: حذاء جلدي بحلقات مصفحة */
+            /* حذاء الفرسان: حذاء جلدي مصفح */
             <g>
-              <path d="M 112 312 L 109 346 L 138 346 L 135 312 Z" fill="#334155" stroke="#64748b" strokeWidth="2" />
-              <path d="M 188 312 L 191 346 L 162 346 L 165 312 Z" fill="#334155" stroke="#64748b" strokeWidth="2" />
-              <circle cx="124" cy="324" r="3.5" fill="#94a3b8" />
-              <circle cx="176" cy="324" r="3.5" fill="#94a3b8" />
-              <path d="M 110 335 L 138 335 M 162 335 L 190 335" stroke="#cbd5e1" strokeWidth="2" />
+              <path d="M 106 306 L 104 327 L 127 327 L 125 306 Z" fill="#334155" stroke="#64748b" strokeWidth="1.5" />
+              <path d="M 174 306 L 176 327 L 153 327 L 155 306 Z" fill="#334155" stroke="#64748b" strokeWidth="1.5" />
+              <circle cx="116" cy="316" r="2.5" fill="#94a3b8" />
+              <circle cx="164" cy="316" r="2.5" fill="#94a3b8" />
             </g>
           ) : feetVisualId === "armored_cavalry_boots" ? (
-            /* 6. حذاء الخيل المدرع: صفائح فولاذية كاملة */
+            /* حذاء الخيل المدرع: صفائح فولاذية كاملة */
             <g>
-              <path d="M 111 310 L 108 347 L 139 347 L 136 310 Z" fill="url(#steelArmor)" stroke="#475569" strokeWidth="2" />
-              <path d="M 189 310 L 192 347 L 161 347 L 164 310 Z" fill="url(#steelArmor)" stroke="#475569" strokeWidth="2" />
-              <path d="M 108 325 L 139 325 M 161 325 L 192 325" stroke="#38bdf8" strokeWidth="2" />
-              <circle cx="124" cy="336" r="3" fill="#0284c7" />
-              <circle cx="176" cy="336" r="3" fill="#0284c7" />
+              <path d="M 105 305 L 103 328 L 128 328 L 126 305 Z" fill="url(#flatSteel)" stroke="#334155" strokeWidth="1.5" />
+              <path d="M 175 305 L 177 328 L 152 328 L 154 305 Z" fill="url(#flatSteel)" stroke="#334155" strokeWidth="1.5" />
+              <path d="M 103 318 L 128 318 M 152 318 L 177 318" stroke="#38bdf8" strokeWidth="1.5" />
             </g>
           ) : feetVisualId === "shoes_of_confidence" ? (
-            /* 7. خف الواثق: خف أزرق سماوي مذهب فائق الفخامة */
-            <g filter="url(#heroGlow)">
-              <path d="M 110 312 L 108 346 L 139 346 L 137 312 Z" fill="url(#celestialGrad)" stroke="#f59e0b" strokeWidth="2" />
-              <path d="M 190 312 L 192 346 L 161 346 L 163 312 Z" fill="url(#celestialGrad)" stroke="#f59e0b" strokeWidth="2" />
-              <path d="M 108 330 Q 124 324 139 330" stroke="#fbbf24" strokeWidth="2.5" fill="none" />
-              <path d="M 192 330 Q 176 324 161 330" stroke="#fbbf24" strokeWidth="2.5" fill="none" />
-              <circle cx="124" cy="338" r="3.5" fill="#fef08a" />
-              <circle cx="176" cy="338" r="3.5" fill="#fef08a" />
+            /* خف الواثق: خف أزرق سماوي مذهب فخم */
+            <g filter="url(#auraFilter)">
+              <path d="M 105 306 L 103 327 L 128 327 L 126 306 Z" fill="url(#flatCelestial)" stroke="#f59e0b" strokeWidth="1.5" />
+              <path d="M 175 306 L 177 327 L 152 327 L 154 306 Z" fill="url(#flatCelestial)" stroke="#f59e0b" strokeWidth="1.5" />
+              <circle cx="116" cy="318" r="2.5" fill="#fef08a" />
+              <circle cx="164" cy="318" r="2.5" fill="#fef08a" />
             </g>
           ) : (
-            /* Default: نعل مريح بسيط */
+            /* Natural Minimal Leather Shoes */
             <g>
-              <ellipse cx="124" cy="342" rx="14" ry="5.5" fill="#64748b" stroke="#334155" strokeWidth="1.5" />
-              <ellipse cx="176" cy="342" rx="14" ry="5.5" fill="#64748b" stroke="#334155" strokeWidth="1.5" />
+              <ellipse cx="118" cy="324" rx="12" ry="4.5" fill="#64748b" stroke="#334155" strokeWidth="1.2" />
+              <ellipse cx="162" cy="324" rx="12" ry="4.5" fill="#64748b" stroke="#334155" strokeWidth="1.2" />
             </g>
           )}
         </g>
 
-        {/* ================= 4. BODY ARMOR / CLOAK OVERLAY (7 DISTINCT ITEMS) ================= */}
-        <g id="body_layer">
+        {/* ================= 4. BODY ARMOR / CLOAKS (PERFECTLY MAPPED TO SILHOUETTE) ================= */}
+        <g id="body_armor_layer">
           {bodyVisualId === "starter_thobe" ? (
-            /* 1. ثوب المبتدئ: حزام قماشي وتطريز بسيط */
+            /* ثوب المبتدئ: حزام وساش قماشي أنيق */
             <g>
-              <rect x="120" y="210" width="60" height="9" rx="3" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="1.5" />
-              <path d="M 144 140 L 144 200" stroke="#94a3b8" strokeWidth="2" strokeDasharray="3,2" />
+              <path d="M 98 200 Q 140 206 182 200 L 180 210 Q 140 216 100 210 Z" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="1.2" />
+              <circle cx="140" cy="205" r="3" fill="#64748b" />
             </g>
           ) : bodyVisualId === "courier_cloak" ? (
-            /* 2. عباءة الساعي: عباءة رملية مع حزام جلدي متقاطع */
+            /* عباءة الساعي: عباءة رملية مع حزام جلدي متقاطع */
             <g>
-              {/* Cloak Drapes on Back & Shoulders */}
-              <path d="M 98 140 L 82 280 L 105 285 L 108 145 Z" fill="#b45309" stroke="#78350f" strokeWidth="1.5" />
-              <path d="M 202 140 L 218 280 L 195 285 L 192 145 Z" fill="#b45309" stroke="#78350f" strokeWidth="1.5" />
-              {/* Leather Crossed Chest Straps */}
-              <path d="M 104 145 L 196 230" stroke="#78350f" strokeWidth="4.5" />
-              <circle cx="150" cy="188" r="5" fill="#d97706" stroke="#451a03" strokeWidth="1.5" />
+              {/* Draped mantle over shoulders */}
+              <path
+                d="M 132 108 C 118 112, 84 122, 74 156 L 68 250 L 92 245 L 96 150 C 110 130, 130 114, 132 108 Z"
+                fill="#b45309"
+                stroke="#78350f"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M 148 108 C 162 112, 196 122, 206 156 L 212 250 L 188 245 L 184 150 C 170 130, 150 114, 148 108 Z"
+                fill="#b45309"
+                stroke="#78350f"
+                strokeWidth="1.5"
+              />
+              {/* Crossed Leather Straps */}
+              <path d="M 88 128 L 192 208" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+              <circle cx="140" cy="168" r="4.5" fill="#d97706" stroke="#451a03" strokeWidth="1.2" />
             </g>
           ) : bodyVisualId === "guard_vest" ? (
-            /* 3. سترة الحرس: سترة جلدية مدرعة بأبازيم نحاسية */
+            /* سترة الحرس: سترة جلدية مدرعة متناسقة */
             <g>
               <path
-                d="M 104 140 L 96 230 Q 150 238 204 230 L 196 140 Q 150 146 104 140 Z"
-                fill="url(#leatherGrad)"
+                d="M 130 112
+                   C 118 115, 88 126, 80 156
+                   C 76 174, 82 208, 86 220
+                   Q 140 228, 194 220
+                   C 198 208, 204 174, 200 156
+                   C 192 126, 162 115, 150 112
+                   Z"
+                fill="url(#flatLeather)"
                 stroke="#451a03"
-                strokeWidth="2"
+                strokeWidth="1.8"
               />
-              <path d="M 125 155 L 175 155 M 125 180 L 175 180 M 125 205 L 175 205" stroke="#f59e0b" strokeWidth="2.5" />
-              <circle cx="150" cy="155" r="3" fill="#fef08a" />
-              <circle cx="150" cy="180" r="3" fill="#fef08a" />
-              <circle cx="150" cy="205" r="3" fill="#fef08a" />
+              <path d="M 106 142 L 174 142 M 104 166 L 176 166 M 106 190 L 174 190" stroke="#f59e0b" strokeWidth="2" />
+              <circle cx="140" cy="142" r="2.5" fill="#fef08a" />
+              <circle cx="140" cy="166" r="2.5" fill="#fef08a" />
+              <circle cx="140" cy="190" r="2.5" fill="#fef08a" />
             </g>
           ) : bodyVisualId === "light_knight_armor" ? (
-            /* 4. درع الفرسان الخفيف: صدرية فولاذية مع أكتاف مصقولة */
+            /* درع الفرسان الخفيف: صدرية فولاذية مع أكتاف مستديرة مصقولة */
             <g>
               <path
-                d="M 104 138 L 96 232 Q 150 240 204 232 L 196 138 Q 150 146 104 138 Z"
-                fill="url(#steelArmor)"
+                d="M 130 110
+                   C 116 114, 86 124, 78 156
+                   C 76 170, 80 205, 84 218
+                   Q 140 226, 196 218
+                   C 200 205, 204 170, 202 156
+                   C 194 124, 164 114, 150 110
+                   Z"
+                fill="url(#flatSteel)"
                 stroke="#334155"
                 strokeWidth="2"
               />
-              {/* Pauldrons (Shoulders) */}
-              <path d="M 98 138 Q 80 152 102 168 Z" fill="url(#steelArmor)" stroke="#38bdf8" strokeWidth="1.5" />
-              <path d="M 202 138 Q 220 152 198 168 Z" fill="url(#steelArmor)" stroke="#38bdf8" strokeWidth="1.5" />
-              {/* Medallion */}
-              <circle cx="150" cy="180" r="7" fill="#0284c7" stroke="#ffffff" strokeWidth="1.5" />
-              <circle cx="148" cy="178" r="2" fill="#ffffff" />
+              {/* Pauldrons matching shoulder curve */}
+              <path d="M 74 156 C 72 136, 88 122, 106 120 Z" fill="url(#flatSteel)" stroke="#38bdf8" strokeWidth="1.2" />
+              <path d="M 206 156 C 208 136, 192 122, 174 120 Z" fill="url(#flatSteel)" stroke="#38bdf8" strokeWidth="1.2" />
+              {/* Central Knight Medallion */}
+              <circle cx="140" cy="160" r="6.5" fill="#0284c7" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="138.5" cy="158.5" r="2" fill="#ffffff" />
             </g>
           ) : bodyVisualId === "andalus_cloak" ? (
-            /* 5. عباءة الأندلس: كسوة كحلية ملكية بزخرفة قرطبية مذهبة */
+            /* عباءة الأندلس: كسوة كحلية مذهبة تنساب برقي */
             <g>
               <path
-                d="M 102 138 L 92 270 Q 150 280 208 270 L 198 138 Z"
-                fill="url(#andalusGrad)"
+                d="M 130 110
+                   C 116 114, 84 124, 74 156
+                   C 66 182, 70 230, 68 265
+                   Q 140 274, 212 265
+                   C 210 230, 214 182, 206 156
+                   C 196 124, 164 114, 150 110
+                   Z"
+                fill="url(#flatAndalus)"
                 stroke="#f59e0b"
                 strokeWidth="2"
               />
-              {/* Islamic Arabesque Lines */}
-              <path d="M 150 142 L 150 275" stroke="#fbbf24" strokeWidth="2.5" />
-              <path d="M 120 160 Q 150 175 180 160" stroke="#fbbf24" strokeWidth="2" fill="none" />
-              <path d="M 120 200 Q 150 215 180 200" stroke="#fbbf24" strokeWidth="2" fill="none" />
-              <path d="M 120 240 Q 150 255 180 240" stroke="#fbbf24" strokeWidth="2" fill="none" />
-              <rect x="120" y="215" width="60" height="12" rx="4" fill="#b45309" stroke="#fef08a" strokeWidth="1.5" />
-              <circle cx="150" cy="221" r="4.5" fill="#f59e0b" />
+              {/* Golden Arabesque Borders */}
+              <path d="M 140 114 L 140 270" stroke="#fbbf24" strokeWidth="2.5" />
+              <path d="M 98 140 Q 140 155 182 140" stroke="#fbbf24" strokeWidth="1.8" fill="none" />
+              <path d="M 94 175 Q 140 190 186 175" stroke="#fbbf24" strokeWidth="1.8" fill="none" />
+              {/* Andalusian sash */}
+              <rect x="100" y="198" width="80" height="10" rx="3" fill="#b45309" stroke="#fef08a" strokeWidth="1.2" />
+              <circle cx="140" cy="203" r="3.5" fill="#f59e0b" />
             </g>
           ) : bodyVisualId === "mamluk_steel_armor" ? (
-            /* 6. درع المماليك الفولاذي: درع حلقي مع قرص صدر حديدي مهيب */
+            /* درع المماليك الفولاذي: درع مع قرص صدري حديدي مهيب */
             <g>
               <path
-                d="M 102 138 L 94 235 Q 150 245 206 235 L 198 138 Q 150 146 102 138 Z"
-                fill="url(#mamlukSteel)"
+                d="M 130 110
+                   C 116 114, 84 124, 76 156
+                   C 72 174, 78 212, 82 225
+                   Q 140 232, 198 225
+                   C 202 212, 208 174, 204 156
+                   C 196 124, 164 114, 150 110
+                   Z"
+                fill="url(#flatMamluk)"
                 stroke="#0f172a"
-                strokeWidth="2.5"
+                strokeWidth="2.2"
               />
-              {/* Chainmail Grid Pattern */}
-              <path d="M 110 150 H 190 M 106 165 H 194 M 104 180 H 196 M 104 195 H 196" stroke="#475569" strokeWidth="1.2" strokeDasharray="3,3" />
-              {/* Central Roundel Shielding Plate */}
-              <circle cx="150" cy="185" r="18" fill="url(#steelArmor)" stroke="#f59e0b" strokeWidth="2.5" />
-              <circle cx="150" cy="185" r="10" fill="#1e293b" stroke="#cbd5e1" strokeWidth="1.5" />
-              <circle cx="150" cy="185" r="4" fill="#f59e0b" />
-              {/* Heavy Pauldrons */}
-              <path d="M 96 136 Q 74 150 100 172 Z" fill="url(#steelArmor)" stroke="#0f172a" strokeWidth="2" />
-              <path d="M 204 136 Q 226 150 200 172 Z" fill="url(#steelArmor)" stroke="#0f172a" strokeWidth="2" />
+              {/* Heavy Rounded Central Roundel */}
+              <circle cx="140" cy="168" r="16" fill="url(#flatSteel)" stroke="#f59e0b" strokeWidth="2" />
+              <circle cx="140" cy="168" r="9" fill="#1e293b" stroke="#cbd5e1" strokeWidth="1.2" />
+              <circle cx="140" cy="168" r="3.5" fill="#f59e0b" />
+              {/* Pauldron Armor Guards */}
+              <path d="M 74 154 C 70 134, 88 120, 106 118 Z" fill="url(#flatSteel)" stroke="#0f172a" strokeWidth="1.5" />
+              <path d="M 206 154 C 210 134, 192 120, 174 118 Z" fill="url(#flatSteel)" stroke="#0f172a" strokeWidth="1.5" />
             </g>
           ) : bodyVisualId === "robe_of_honor" ? (
-            /* 7. حُلة الكرامة: حُلة سماوية مذهبة متلألئة بأنوار القرآن */
-            <g filter="url(#heroGlow)">
+            /* حُلة الكرامة: حُلة سماوية ملكية مذهبة متوهجة */
+            <g filter="url(#auraFilter)">
               <path
-                d="M 100 138 L 90 285 Q 150 298 210 285 L 200 138 Z"
-                fill="url(#celestialGrad)"
+                d="M 130 110
+                   C 114 114, 82 124, 72 156
+                   C 64 182, 68 236, 64 275
+                   Q 140 286, 216 275
+                   C 212 236, 216 182, 208 156
+                   C 198 124, 166 114, 150 110
+                   Z"
+                fill="url(#flatCelestial)"
                 stroke="#fbbf24"
-                strokeWidth="2.5"
+                strokeWidth="2.2"
               />
-              {/* Gold Filigree Embroidery */}
-              <path d="M 150 142 L 150 290" stroke="#fef08a" strokeWidth="3" />
-              <path d="M 115 170 Q 150 190 185 170" stroke="#fef08a" strokeWidth="2.5" fill="none" />
-              <path d="M 115 220 Q 150 240 185 220" stroke="#fef08a" strokeWidth="2.5" fill="none" />
-              {/* Royal Gold Girdle */}
-              <rect x="115" y="210" width="70" height="14" rx="4" fill="url(#goldAccent)" stroke="#78350f" strokeWidth="1.5" />
-              <circle cx="150" cy="217" r="5" fill="#ffffff" />
+              {/* Celestial Gold Borders */}
+              <path d="M 140 114 L 140 280" stroke="#fef08a" strokeWidth="2.5" />
+              <path d="M 95 150 Q 140 166 185 150" stroke="#fef08a" strokeWidth="2" fill="none" />
+              <path d="M 90 195 Q 140 212 190 195" stroke="#fef08a" strokeWidth="2" fill="none" />
+              <rect x="96" y="196" width="88" height="11" rx="3.5" fill="url(#flatGold)" stroke="#78350f" strokeWidth="1.2" />
+              <circle cx="140" cy="201.5" r="4" fill="#ffffff" />
             </g>
           ) : null}
         </g>
 
-        {/* ================= 5. WEAPON OVERLAY (7 DISTINCT ITEMS IN HAND) ================= */}
+        {/* ================= 5. WEAPON OVERLAY (MINIMALIST VECTOR MASTERPIECES) ================= */}
         <g id="weapon_layer">
           {weaponVisualId === "traveler_staff" ? (
-            /* 1. عصا الترحال: عصا سنديان خشبية متينة */
+            /* عصا الترحال: عصا سنديان خشبية برأس كروي مصقول */
             <g>
-              <rect x="212" y="70" width="7" height="270" rx="3.5" fill="#92400e" stroke="#78350f" strokeWidth="1.5" />
-              <circle cx="215.5" cy="74" r="7" fill="#d97706" stroke="#78350f" strokeWidth="1.5" />
-              {/* Leather Hand Grip Wrap */}
-              <rect x="211" y="208" width="9" height="24" rx="2" fill="#451a03" stroke="#b45309" strokeWidth="1" />
+              <rect x="202" y="60" width="5.5" height="260" rx="2.7" fill="#92400e" stroke="#78350f" strokeWidth="1.2" />
+              <circle cx="204.7" cy="62" r="6" fill="#d97706" stroke="#78350f" strokeWidth="1.2" />
+              <rect x="201" y="196" width="7.5" height="22" rx="2" fill="#451a03" />
             </g>
           ) : weaponVisualId === "dagger_of_certainty" ? (
-            /* 2. خنجر اليقين: خنجر فولاذي منقوش */
+            /* خنجر اليقين: خنجر فولاذي منقوش */
             <g>
-              <path d="M 215 210 L 235 155 Q 238 150 240 156 L 222 214 Z" fill="url(#steelArmor)" stroke="#475569" strokeWidth="1.5" />
-              <rect x="210" y="212" width="16" height="5" rx="1.5" fill="#f59e0b" stroke="#78350f" strokeWidth="1" />
-              <path d="M 216 217 L 214 235" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+              <path d="M 204 200 L 222 148 Q 225 144 227 150 L 210 204 Z" fill="url(#flatSteel)" stroke="#334155" strokeWidth="1.5" />
+              <rect x="199" y="201" width="14" height="4.5" rx="1.5" fill="#f59e0b" stroke="#78350f" strokeWidth="1" />
+              <circle cx="206" cy="203" r="1.5" fill="#ef4444" />
             </g>
           ) : weaponVisualId === "bow_of_insight" ? (
-            /* 3. قوس البصيرة: قوس عربي مركب مشدود */
+            /* قوس البصيرة: قوس عربي مشدود وأنيق */
             <g>
-              <path d="M 205 105 Q 255 190 215 295" stroke="#b45309" strokeWidth="6" fill="none" strokeLinecap="round" />
-              <path d="M 205 105 L 215 295" stroke="#f8fafc" strokeWidth="1.5" strokeDasharray="4,1" />
-              <circle cx="230" cy="200" r="4" fill="#fbbf24" />
+              <path d="M 194 95 Q 242 175 204 280" stroke="#b45309" strokeWidth="5" fill="none" strokeLinecap="round" />
+              <path d="M 194 95 L 204 280" stroke="#f8fafc" strokeWidth="1.2" strokeDasharray="3,1" />
+              <circle cx="218" cy="188" r="3.5" fill="#fbbf24" />
             </g>
           ) : weaponVisualId === "sword_of_resolve" ? (
-            /* 4. سيف العزيمة: سيف دمشقي مستقيم بمقبض ذهبي */
+            /* سيف العزيمة: سيف دمشقي مستقيم */
             <g>
-              {/* Blade */}
-              <path d="M 214 210 L 236 65 L 240 50 L 244 65 L 222 210 Z" fill="url(#steelArmor)" stroke="#334155" strokeWidth="1.5" />
-              <path d="M 218 205 L 240 65" stroke="#f8fafc" strokeWidth="1.5" />
-              {/* Crossguard */}
-              <rect x="204" y="208" width="28" height="6" rx="2" fill="url(#goldAccent)" stroke="#78350f" strokeWidth="1" />
-              {/* Grip & Pommel */}
-              <rect x="215" y="214" width="6" height="18" rx="2" fill="#78350f" />
-              <circle cx="218" cy="234" r="4" fill="url(#goldAccent)" stroke="#78350f" strokeWidth="1" />
+              <path d="M 203 198 L 223 58 L 226 44 L 229 58 L 209 198 Z" fill="url(#flatSteel)" stroke="#334155" strokeWidth="1.5" />
+              <path d="M 206 194 L 226 58" stroke="#ffffff" strokeWidth="1.2" />
+              <rect x="194" y="198" width="24" height="5.5" rx="1.5" fill="url(#flatGold)" stroke="#78350f" strokeWidth="1" />
+              <circle cx="206" cy="220" r="3.5" fill="url(#flatGold)" stroke="#78350f" strokeWidth="1" />
             </g>
           ) : weaponVisualId === "spear_of_steadfastness" ? (
-            /* 5. رمح الثبات: رمح طويل مع راية خضراء */
+            /* رمح الثبات: رمح طويل مع راية خضراء */
             <g>
-              {/* Shaft */}
-              <rect x="213" y="45" width="6" height="300" rx="3" fill="#78350f" stroke="#451a03" strokeWidth="1.2" />
-              {/* Spearhead */}
-              <path d="M 211 48 L 216 18 L 221 48 Z" fill="url(#steelArmor)" stroke="#0284c7" strokeWidth="1.5" />
-              {/* Fluttering Green Flag */}
-              <path d="M 219 46 Q 255 58 245 80 Q 230 75 219 72 Z" fill="#059669" stroke="#10b981" strokeWidth="1" />
+              <rect x="203" y="38" width="5" height="282" rx="2.5" fill="#78350f" stroke="#451a03" strokeWidth="1" />
+              <path d="M 201 40 L 205.5 12 L 210 40 Z" fill="url(#flatSteel)" stroke="#0284c7" strokeWidth="1.5" />
+              {/* Fluttering Flag */}
+              <path d="M 208 38 Q 242 48 234 68 Q 220 64 208 62 Z" fill="#059669" stroke="#10b981" strokeWidth="1" />
             </g>
           ) : weaponVisualId === "blade_of_yarmouk" ? (
-            /* 6. نصل اليرموك: نصل منحني مهيب مع تفاصيل ذهبية */
+            /* نصل اليرموك: نصل منحني مهيب مع تفاصيل ذهبية */
             <g>
-              {/* Curved Scimitar Blade */}
               <path
-                d="M 215 210 Q 235 140 258 75 Q 255 68 248 74 Q 228 135 221 210 Z"
-                fill="url(#steelArmor)"
+                d="M 204 200 Q 224 135 246 72 Q 243 65 236 71 Q 216 130 209 200 Z"
+                fill="url(#flatSteel)"
                 stroke="#1e293b"
-                strokeWidth="2"
+                strokeWidth="1.8"
               />
-              <path d="M 221 175 Q 236 120 248 80" stroke="#f59e0b" strokeWidth="1.5" />
-              {/* Ornate Guard & Hilt */}
-              <rect x="206" y="208" width="25" height="7" rx="2" fill="url(#goldAccent)" stroke="#451a03" strokeWidth="1.2" />
-              <circle cx="218.5" cy="211.5" r="2.5" fill="#ef4444" />
+              <path d="M 209 168 Q 222 115 234 76" stroke="#f59e0b" strokeWidth="1.2" />
+              <rect x="195" y="199" width="22" height="6" rx="1.8" fill="url(#flatGold)" stroke="#451a03" strokeWidth="1" />
+              <circle cx="206" cy="202" r="2" fill="#ef4444" />
             </g>
           ) : weaponVisualId === "sword_of_conquest" ? (
-            /* 7. سيف الفتح المبين: سيف ملحمي متوهج بالنور السماوي والنجوم */
-            <g filter="url(#heroGlow)">
-              {/* Radiant Blade */}
+            /* سيف الفتح المبين: سيف ملحمي مضيء بالنور السماوي والنجوم */
+            <g filter="url(#auraFilter)">
               <path
-                d="M 213 210 L 236 50 L 241 35 L 246 50 L 223 210 Z"
-                fill="url(#conquestBlade)"
+                d="M 203 198 L 224 45 L 228 30 L 232 45 L 210 198 Z"
+                fill="url(#swordGlow)"
                 stroke="#ffffff"
                 strokeWidth="2"
               />
-              <path d="M 218 205 L 241 50" stroke="#ffffff" strokeWidth="2.5" />
-              {/* Crossguard & Large Gem */}
-              <rect x="202" y="208" width="32" height="7" rx="2.5" fill="url(#goldAccent)" stroke="#78350f" strokeWidth="1.2" />
-              <circle cx="218" cy="211.5" r="3.5" fill="#38bdf8" stroke="#ffffff" strokeWidth="1" />
-              <circle cx="218" cy="234" r="5" fill="url(#goldAccent)" stroke="#78350f" strokeWidth="1.2" />
-              {/* Star Sparkles */}
-              <path d="M 241 30 L 242 35 L 247 36 L 242 37 L 241 42 L 240 37 L 235 36 L 240 35 Z" fill="#ffffff" />
+              <path d="M 206 194 L 228 45" stroke="#ffffff" strokeWidth="2" />
+              <rect x="192" y="198" width="28" height="6.5" rx="2" fill="url(#flatGold)" stroke="#78350f" strokeWidth="1" />
+              <circle cx="206" cy="201.2" r="3" fill="#38bdf8" stroke="#ffffff" strokeWidth="1" />
+              <circle cx="206" cy="222" r="4.5" fill="url(#flatGold)" stroke="#78350f" strokeWidth="1" />
+              {/* Star Particle Sparkles */}
+              <path d="M 228 24 L 229 28 L 233 29 L 229 30 L 228 34 L 227 30 L 223 29 L 227 28 Z" fill="#ffffff" />
             </g>
           ) : null}
         </g>
 
-        {/* ================= 6. HEAD, HAIR & THICK BEARD (STRICTLY FACELESS) ================= */}
+        {/* ================= 6. HEAD, INTEGRATED THICK BEARD & HAIR (ORGANIC COHESIVE PATH) ================= */}
         <g id="head_and_beard">
-          {/* Neck */}
-          <rect x="141" y="118" width="18" height="24" rx="3" fill="url(#skinShadow)" stroke="#c58e69" strokeWidth="1" />
-
-          {/* Hair Base (Back of the head & temples) */}
+          {/* Back Hair Mass (Smooth dome behind head) */}
           <path
-            d="M 120 100 C 112 68 122 42 150 42 C 178 42 188 68 180 100 Z"
-            fill="url(#beardGrad)"
+            d="M 112 85 C 106 52 116 34 140 34 C 164 34 174 52 168 85 Z"
+            fill="url(#flatBeard)"
           />
 
-          {/* Head Shape (Clean, Dignified Oval - PURE BLANK FACE, NO EYES, NO NOSE, NO MOUTH) */}
-          <ellipse cx="150" cy="94" rx="25" ry="32" fill="url(#skinBase)" stroke="#c58e69" strokeWidth="1.8" />
+          {/* Neck base transition */}
+          <path d="M 131 100 L 131 112 L 149 112 L 149 100 Z" fill="url(#flatSkin)" />
 
-          {/* Thick Dignified Beard (لحية كثيفة وقورة تملأ الفك والذقن والوجنتين) */}
+          {/* 
+            Face & Thick Beard (Integrated Natural Bezier Master Path):
+            The upper half curves smoothly for the face outline (100% strictly faceless: zero eyes, nose, mouth).
+            The lower half curves out and down in a full, rounded, masculine beard flowing gracefully into the chest.
+          */}
           <path
-            d="M 125 90 
-               C 124 115 130 142 150 144 
-               C 170 142 176 115 175 90 
-               C 174 105 168 126 150 126 
-               C 132 126 126 105 125 90 Z"
-            fill="url(#beardGrad)"
+            d="M 118 72
+               C 114 46, 126 38, 140 38
+               C 154 38, 166 46, 162 72
+               C 162 82, 164 96, 160 108
+               C 156 122, 148 132, 140 132
+               C 132 132, 124 122, 120 108
+               C 116 96, 118 82, 118 72
+               Z"
+            fill="url(#flatSkin)"
+            stroke="#c58e69"
+            strokeWidth="1.5"
           />
-          {/* Natural Beard Fullness Shadow & Strands */}
+
+          {/* 
+            Thick Beard Overlay (Cohesive Path enveloping jawline & chin naturally):
+            Starts at the sideburns, curves under cheek contour, and fills the lower jaw/chin generously.
+          */}
           <path
-            d="M 132 124 Q 150 148 168 124 Q 150 134 132 124 Z"
+            d="M 118 76
+               C 126 84, 134 88, 140 88
+               C 146 88, 154 84, 162 76
+               C 166 94, 164 114, 156 126
+               C 148 136, 132 136, 124 126
+               C 116 114, 114 94, 118 76
+               Z"
+            fill="url(#flatBeard)"
+          />
+
+          {/* Moustache Contour (Clean masculine frame above beard - NO mouth opening) */}
+          <path
+            d="M 128 92 C 136 88, 144 88, 152 92 C 145 96, 135 96, 128 92 Z"
             fill="#0f0c09"
           />
 
-          {/* Dignified Full Moustache Frame (NO mouth opening/slit at all) */}
+          {/* Front hairline (well-groomed neat hairline on forehead) */}
           <path
-            d="M 136 112 Q 150 108 164 112 Q 150 117 136 112 Z"
-            fill="url(#beardGrad)"
-          />
-
-          {/* Front Hair Strands (Neat, well-groomed hairline on forehead) */}
-          <path
-            d="M 124 74 Q 150 58 176 74 Q 166 62 150 62 Q 134 62 124 74 Z"
-            fill="url(#beardGrad)"
+            d="M 120 60 C 132 50, 148 50, 160 60 C 150 52, 130 52, 120 60 Z"
+            fill="url(#flatBeard)"
           />
         </g>
 
-        {/* ================= 7. HEADGEAR OVERLAY (7 DISTINCT ITEMS) ================= */}
+        {/* ================= 7. HEADGEAR OVERLAY (SEAMLESSLY MAPPED TO HEAD) ================= */}
         <g id="headgear_layer">
           {headVisualId === "starter_cap" ? (
-            /* 1. طاقية البداية: طاقية بيضاء محبوكة بسيطة ووقورة */
+            /* طاقية البداية: طاقية قماشية بيضاء مقوسة بإتقان */
             <g>
               <path
-                d="M 126 78 Q 150 54 174 78 Q 150 72 126 78 Z"
+                d="M 118 64 C 122 46, 132 40, 140 40 C 148 40, 158 46, 162 64 C 152 60, 128 60, 118 64 Z"
                 fill="#ffffff"
                 stroke="#cbd5e1"
                 strokeWidth="1.5"
               />
-              <path d="M 134 72 Q 150 64 166 72" stroke="#e2e8f0" strokeWidth="1.5" strokeDasharray="3,2" />
+              <path d="M 126 56 Q 140 50 154 56" stroke="#e2e8f0" strokeWidth="1.2" strokeDasharray="2,2" />
             </g>
           ) : headVisualId === "courier_keffiyeh" ? (
-            /* 2. كوفية الساعي: كوفية رملية مريحة مع عقال */
+            /* كوفية الساعي: كوفية مريحة مع عقال عربي أنيق */
             <g>
-              <path d="M 120 80 Q 150 60 180 80 L 186 115 L 175 110 L 172 85 Q 150 78 128 85 L 125 110 L 114 115 Z" fill="#d97706" stroke="#92400e" strokeWidth="1.5" />
-              {/* Black Agal */}
-              <ellipse cx="150" cy="74" rx="27" ry="6" fill="#1e293b" stroke="#0f172a" strokeWidth="2" />
+              <path
+                d="M 114 66 C 120 46, 132 40, 140 40 C 148 40, 160 46, 166 66 L 172 98 L 162 94 L 160 70 Q 140 64 120 70 L 118 94 L 108 98 Z"
+                fill="#d97706"
+                stroke="#92400e"
+                strokeWidth="1.2"
+              />
+              {/* Sleek Agal */}
+              <ellipse cx="140" cy="58" rx="24" ry="5" fill="#1e293b" stroke="#0f172a" strokeWidth="1.8" />
             </g>
           ) : headVisualId === "murabit_turban" ? (
-            /* 3. عمامة المرابط: عمامة خضراء مباركة مع ذؤابة منسدلة */
+            /* عمامة المرابط: عمامة خضراء مباركة مع ذؤابة منسدلة */
             <g>
-              <ellipse cx="150" cy="68" rx="29" ry="18" fill="url(#murabitGreen)" stroke="#064e3b" strokeWidth="2" />
-              <path d="M 123 72 Q 150 82 177 72 Q 150 64 123 72 Z" fill="#059669" stroke="#34d399" strokeWidth="1.5" />
-              {/* Hanging Turban Tail */}
-              <path d="M 174 74 Q 186 105 180 130" stroke="#059669" strokeWidth="6" strokeLinecap="round" fill="none" />
+              <ellipse cx="140" cy="54" rx="26" ry="16" fill="url(#flatMurabit)" stroke="#064e3b" strokeWidth="1.8" />
+              <path d="M 116 58 Q 140 68 164 58 Q 140 50 116 58 Z" fill="#059669" stroke="#34d399" strokeWidth="1.2" />
+              {/* Hanging tail */}
+              <path d="M 160 60 Q 172 90 166 115" stroke="#059669" strokeWidth="5.5" strokeLinecap="round" fill="none" />
             </g>
           ) : headVisualId === "knight_helmet" ? (
-            /* 4. خوذة الفرسان: خوذة حديدية مصقولة بحامية أنف وعين */
+            /* خوذة الفرسان: خوذة حديدية مصقولة بحامية أنف وعين */
             <g>
               <path
-                d="M 122 86 C 120 54 135 44 150 44 C 165 44 180 54 178 86 Z"
-                fill="url(#steelArmor)"
+                d="M 116 70 C 114 42, 126 34, 140 34 C 154 34, 166 42, 164 70 Z"
+                fill="url(#flatSteel)"
                 stroke="#334155"
-                strokeWidth="2"
+                strokeWidth="1.8"
               />
-              <path d="M 123 84 Q 150 88 177 84" stroke="#94a3b8" strokeWidth="2.5" />
-              <circle cx="150" cy="58" r="3.5" fill="#f59e0b" />
+              <path d="M 116 68 Q 140 72 164 68" stroke="#94a3b8" strokeWidth="2" />
+              <circle cx="140" cy="46" r="3" fill="#f59e0b" />
             </g>
           ) : headVisualId === "hijaz_turban" ? (
-            /* 5. عمامة الحجاز: عمامة حجازية ناصعة البياض بالقصب الذهبي */
+            /* عمامة الحجاز: عمامة ناصعة البياض بالقصب الذهبي */
             <g>
-              <ellipse cx="150" cy="66" rx="30" ry="19" fill="#ffffff" stroke="#cbd5e1" strokeWidth="2" />
-              {/* Gold Brocade Bands */}
-              <path d="M 122 70 Q 150 82 178 70" stroke="#f59e0b" strokeWidth="2.5" fill="none" />
-              <path d="M 126 60 Q 150 72 174 60" stroke="#f59e0b" strokeWidth="2" fill="none" />
-              <circle cx="150" cy="72" r="4.5" fill="url(#goldAccent)" stroke="#78350f" strokeWidth="1" />
+              <ellipse cx="140" cy="52" rx="27" ry="17" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.8" />
+              <path d="M 116 56 Q 140 66 164 56" stroke="#f59e0b" strokeWidth="2" fill="none" />
+              <path d="M 120 48 Q 140 58 160 48" stroke="#f59e0b" strokeWidth="2" fill="none" />
+              <circle cx="140" cy="58" r="3.5" fill="url(#flatGold)" stroke="#78350f" strokeWidth="1" />
             </g>
           ) : headVisualId === "ayyubid_helmet" ? (
-            /* 6. خوذة الأيوبيين: خوذة مخروطية مذهبة ذات بأس وهيبة */
+            /* خوذة الأيوبيين: خوذة مخروطية مذهبة ذات بأس وهيبة */
             <g>
-              {/* Conical Spire */}
               <path
-                d="M 122 84 L 150 32 L 178 84 Q 150 90 122 84 Z"
-                fill="url(#goldAccent)"
-                stroke="#78350f"
-                strokeWidth="2"
-              />
-              <circle cx="150" cy="32" r="3.5" fill="#ef4444" />
-              <path d="M 124 82 H 176" stroke="#ffffff" strokeWidth="2" />
-              {/* Cheek Guards */}
-              <path d="M 123 84 L 120 110 L 129 104 Z" fill="url(#goldAccent)" stroke="#78350f" strokeWidth="1.2" />
-              <path d="M 177 84 L 180 110 L 171 104 Z" fill="url(#goldAccent)" stroke="#78350f" strokeWidth="1.2" />
-            </g>
-          ) : headVisualId === "crown_of_dignity" ? (
-            /* 7. تاج الوقار: التاج الأعظم المرصع بالياقوت والأنوار المضيئة */
-            <g filter="url(#heroGlow)">
-              <path
-                d="M 124 76 Q 150 82 176 76 L 178 70 Q 150 76 122 70 Z"
-                fill="url(#goldAccent)"
-                stroke="#78350f"
-                strokeWidth="2"
-              />
-              {/* 5 Spires */}
-              <path
-                d="M 124 74 L 127 50 L 136 64 L 150 40 L 164 64 L 173 50 L 176 74 Z"
-                fill="url(#goldAccent)"
+                d="M 116 68 L 140 24 L 164 68 Q 140 74 116 68 Z"
+                fill="url(#flatGold)"
                 stroke="#78350f"
                 strokeWidth="1.8"
               />
-              {/* Rubies & Gems */}
-              <circle cx="150" cy="42" r="4.5" fill="#ef4444" stroke="#ffffff" strokeWidth="1.2" />
-              <circle cx="128" cy="52" r="3" fill="#38bdf8" stroke="#ffffff" strokeWidth="1" />
-              <circle cx="172" cy="52" r="3" fill="#38bdf8" stroke="#ffffff" strokeWidth="1" />
-              <circle cx="150" cy="74" r="3" fill="#ef4444" />
+              <circle cx="140" cy="24" r="3" fill="#ef4444" />
+              <path d="M 118 66 H 162" stroke="#ffffff" strokeWidth="1.5" />
+              <path d="M 117 68 L 114 90 L 122 84 Z" fill="url(#flatGold)" stroke="#78350f" strokeWidth="1" />
+              <path d="M 163 68 L 166 90 L 158 84 Z" fill="url(#flatGold)" stroke="#78350f" strokeWidth="1" />
+            </g>
+          ) : headVisualId === "crown_of_dignity" ? (
+            /* تاج الوقار: التاج الأعظم المرصع بالياقوت والأنوار المضيئة */
+            <g filter="url(#auraFilter)">
+              <path
+                d="M 118 62 Q 140 68 162 62 L 164 56 Q 140 62 116 56 Z"
+                fill="url(#flatGold)"
+                stroke="#78350f"
+                strokeWidth="1.8"
+              />
+              <path
+                d="M 118 60 L 120 40 L 128 52 L 140 32 L 152 52 L 160 40 L 162 60 Z"
+                fill="url(#flatGold)"
+                stroke="#78350f"
+                strokeWidth="1.5"
+              />
+              <circle cx="140" cy="34" r="3.8" fill="#ef4444" stroke="#ffffff" strokeWidth="1" />
+              <circle cx="121" cy="42" r="2.5" fill="#38bdf8" stroke="#ffffff" strokeWidth="0.8" />
+              <circle cx="159" cy="42" r="2.5" fill="#38bdf8" stroke="#ffffff" strokeWidth="0.8" />
+              <circle cx="140" cy="60" r="2.5" fill="#ef4444" />
             </g>
           ) : null}
         </g>
