@@ -6,14 +6,13 @@ import { getTodayDateStr } from "@/lib/date-utils"
 export default async function TeacherDashboard() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user) {
-    redirect("/login")
-  }
   const today = getTodayDateStr()
 
   const [studentsRes, tasksRes, completionsRes] = await Promise.all([
     supabase.from("profiles").select("*").eq("role", "student"),
-    supabase.from("tasks").select("*").eq("created_by", session!.user.id),
+    session?.user
+      ? supabase.from("tasks").select("*").eq("created_by", session.user.id)
+      : supabase.from("tasks").select("*").limit(20),
     supabase.from("daily_assignments")
       .select("*, profiles(full_name), tasks(name, points)")
       .eq("assigned_date", today).eq("completed", true),
