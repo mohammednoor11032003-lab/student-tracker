@@ -71,9 +71,28 @@ function StudentTasks({
   // State
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [studentPlan, setStudentPlan] = useState<StudentPlan>(initialPlan || DEFAULT_PLAN)
-  const [manualConsolidation, setManualConsolidation] = useState<ManualConsolidation | null>(initialManualConsolidation)
+  const [allManualConsolidations, setAllManualConsolidations] = useState<ManualConsolidation[]>(
+    initialManualConsolidation ? [initialManualConsolidation] : []
+  )
   const [manualRepetitionsCount, setManualRepetitionsCount] = useState<number>(0)
   const [isSavingManualConsolidation, setIsSavingManualConsolidation] = useState(false)
+
+  // Fetch all consolidations for this student to support future/past date navigation
+  useEffect(() => {
+    if (!studentId) return
+    let isMounted = true
+    fetch(`/api/manual-consolidation?studentId=${studentId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.success && data.consolidations) {
+          setAllManualConsolidations(data.consolidations)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      isMounted = false
+    }
+  }, [studentId])
   const [assignmentsCache, setAssignmentsCache] = useState<Record<string, Assignment[]>>({
     [todayStr]: initAssignments,
   })
@@ -830,9 +849,48 @@ function StudentTasks({
   const activePlan = projectedInfo.projectedPlan
   const planDetails = projectedInfo.planDetails
 
+  // Active manual consolidation for the currently selected date
+  const activeManualForDate = useMemo(() => {
+    return allManualConsolidations.find(
+      c => c.is_active && selectedDate >= c.start_date && selectedDate <= c.end_date
+    ) || null
+  }, [allManualConsolidations, selectedDate])
+
+  // Smart daily page split & Harvest Day calculation
+  const manualDetails = useMemo(() => {
+    if (!activeManualForDate) return null
+    const sDate = new Date(activeManualForDate.start_date + "T00:00:00")
+    const currDate = new Date(selectedDate + "T00:00:00")
+    const dayIndex = Math.max(0, Math.floor((currDate.getTime() - sDate.getTime()) / 86400000))
+    const totalPages = Math.max(0, activeManualForDate.end_page - activeManualForDate.start_page + 1)
+    const dailyCount = activeManualForDate.daily_pages_count || 4
+    const reviewDays = Math.ceil(totalPages / dailyCount)
+    const isHarvestDay = Boolean(activeManualForDate.has_harvest_day && dayIndex >= reviewDays)
+
+    const todayStart = activeManualForDate.start_page + (dayIndex * dailyCount)
+    const todayEnd = Math.min(activeManualForDate.end_page, todayStart + dailyCount - 1)
+
+    const taskTitle = isHarvestDay
+      ? `يوم حصاد التثبيت: تسميع من ص ${activeManualForDate.start_page} إلى ص ${activeManualForDate.end_page}`
+      : `مهمة التثبيت: تسميع من ص ${todayStart} إلى ص ${todayEnd}`
+
+    return {
+      dayIndex,
+      totalPages,
+      reviewDays,
+      dailyCount,
+      isHarvestDay,
+      todayStart,
+      todayEnd,
+      taskTitle,
+    }
+  }, [activeManualForDate, selectedDate])
+
   // Future simulated tasks list
   const futureSimulatedTasks = useMemo(() => {
     if (!isFuture) return []
+    // If future date is covered by an active manual consolidation, hide routine simulated tasks!
+    if (activeManualForDate) return []
     if (activePlan.is_in_consolidation) {
       return [
         {
@@ -852,7 +910,7 @@ function StudentTasks({
       { id: "future_revision", name: "المراجعة", emoji: "🔄", points: 5, detail: planDetails.tasks.revision },
       { id: "future_night", name: "قيام الليل", emoji: "🌙", points: 5, detail: planDetails.tasks.nightPrayer },
     ]
-  }, [isFuture, activePlan.is_in_consolidation, planDetails])
+  }, [isFuture, activeManualForDate, activePlan.is_in_consolidation, planDetails])
 
   const TASK_ORDER = [
     "السماع",
@@ -871,15 +929,6 @@ function StudentTasks({
   const hasNoMemorizationPenalty = assignments.some(
     a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed
   )
-
-  // Active manual consolidation for the currently selected date
-  const activeManualForDate = useMemo(() => {
-    if (!manualConsolidation || !manualConsolidation.is_active) return null
-    if (selectedDate >= manualConsolidation.start_date && selectedDate <= manualConsolidation.end_date) {
-      return manualConsolidation
-    }
-    return null
-  }, [manualConsolidation, selectedDate])
 
   const regularTasks = assignments
     .filter(a => (a.tasks?.points ?? 0) >= 0)
@@ -956,7 +1005,7 @@ function StudentTasks({
   }
 
   async function handleCompleteManualConsolidation() {
-    if (!isToday || isSavingManualConsolidation || hasAbsencePenalty || !activeManualForDate) return
+    if (!isToday || isSavingManualConsolidation || hasAbsencePenalty || !activeManualForDate || !manualDetails) return
     const target = activeManualForDate.repetitions_count || 5
     if (manualRepetitionsCount < target) {
       toast.error(`يجب إكمال العداد إلى ${target} تكرارات أولاً!`, { icon: "⚠️" })
@@ -964,6 +1013,10 @@ function StudentTasks({
     }
 
     setIsSavingManualConsolidation(true)
+    const isHarvest = manualDetails.isHarvestDay
+    const awardedPoints = isHarvest ? 40 : 30
+    const awardedGems = isHarvest ? 20 : 15
+
     try {
       // 1. Mark as completed in localStorage
       if (typeof window !== "undefined") {
@@ -971,38 +1024,44 @@ function StudentTasks({
       }
       setIsManualCompleted(true)
 
-      // 2. Award 30 points and record via /api/complete-task
-      const res = await fetch("/api/complete-task", {
+      // 2. Award points and record via /api/complete-task
+      await fetch("/api/complete-task", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentId,
-          taskId: "manual_consolidation_task",
-          points: 30,
+          taskId: isHarvest ? "manual_harvest_task" : "manual_consolidation_task",
+          points: awardedPoints,
           completed: true,
           assignedDate: todayStr,
         }),
       })
 
-      // 3. Award +15 bonus gems
+      // 3. Award bonus gems
       fetch("/api/hero", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "award_gems",
           studentId,
-          amount: 15,
+          amount: awardedGems,
         }),
       }).catch(err => console.error("Failed to award manual consolidation gems:", err))
 
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: 15 } }))
+        window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: awardedGems } }))
       }
 
-      setWeeklyPoints(prev => prev + 30)
-      toast.success("🛡️ مبارك! أتممت مهمة التثبيت اليومية بنجاح وحصلت على +30 نقطة و+15 جوهرة 💎!", {
-        duration: 5500,
-      })
+      setWeeklyPoints(prev => prev + awardedPoints)
+      if (isHarvest) {
+        toast.success(`🌾 مبارك! أتممت يوم حصاد التثبيت بنجاح وحصلت على +${awardedPoints} نقطة و+${awardedGems} جوهرة 💎!`, {
+          duration: 6000,
+        })
+      } else {
+        toast.success(`🛡️ مبارك! أتممت مهمة التثبيت اليومية بنجاح وحصلت على +${awardedPoints} نقطة و+${awardedGems} جوهرة 💎!`, {
+          duration: 5500,
+        })
+      }
     } catch (err) {
       console.error("Error completing manual consolidation:", err)
       toast.error("حدث خطأ أثناء اعتماد مهمة التثبيت")
@@ -2300,16 +2359,20 @@ function StudentTasks({
               </div>
             )}
 
-          {/* ================= 🛡️ MANUAL CONSOLIDATION CARD (نظام التثبيت اليدوي المخصص) ================= */}
-          {activeManualForDate && (
+          {/* ================= 🛡️ MANUAL CONSOLIDATION CARD (نظام التثبيت اليدوي المخصص & يوم الحصاد) ================= */}
+          {activeManualForDate && manualDetails && (
             <div
               className="card"
               style={{
                 borderRadius: "1.5rem",
                 padding: "1.5rem",
-                background: "linear-gradient(135deg, #1e1b4b 0%, #31104b 50%, #4c0519 100%)",
-                border: "2px solid #f43f5e",
-                boxShadow: "0 12px 35px rgba(244, 63, 94, 0.25)",
+                background: manualDetails.isHarvestDay
+                  ? "linear-gradient(135deg, #451a03 0%, #78350f 50%, #b45309 100%)"
+                  : "linear-gradient(135deg, #1e1b4b 0%, #31104b 50%, #4c0519 100%)",
+                border: manualDetails.isHarvestDay ? "2px solid #f59e0b" : "2px solid #f43f5e",
+                boxShadow: manualDetails.isHarvestDay
+                  ? "0 12px 35px rgba(245, 158, 11, 0.35)"
+                  : "0 12px 35px rgba(244, 63, 94, 0.25)",
                 display: "flex",
                 flexDirection: "column",
                 gap: "1.25rem",
@@ -2327,7 +2390,9 @@ function StudentTasks({
                   left: "-40px",
                   width: "140px",
                   height: "140px",
-                  background: "radial-gradient(circle, rgba(244, 63, 94, 0.3) 0%, transparent 70%)",
+                  background: manualDetails.isHarvestDay
+                    ? "radial-gradient(circle, rgba(245, 158, 11, 0.4) 0%, transparent 70%)"
+                    : "radial-gradient(circle, rgba(244, 63, 94, 0.3) 0%, transparent 70%)",
                   borderRadius: "50%",
                   pointerEvents: "none",
                 }}
@@ -2338,25 +2403,37 @@ function StudentTasks({
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                   <div
                     style={{
-                      width: "46px",
-                      height: "46px",
+                      width: "48px",
+                      height: "48px",
                       borderRadius: "1rem",
-                      background: "linear-gradient(135deg, #f43f5e, #be123c)",
+                      background: manualDetails.isHarvestDay
+                        ? "linear-gradient(135deg, #f59e0b, #d97706)"
+                        : "linear-gradient(135deg, #f43f5e, #be123c)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: "1.6rem",
-                      boxShadow: "0 4px 15px rgba(244, 63, 94, 0.4)",
+                      boxShadow: manualDetails.isHarvestDay
+                        ? "0 4px 15px rgba(245, 158, 11, 0.5)"
+                        : "0 4px 15px rgba(244, 63, 94, 0.4)",
                     }}
                   >
-                    🛡️
+                    {manualDetails.isHarvestDay ? "🌾" : "🛡️"}
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontWeight: 900, fontSize: "1.3rem", color: "#fff" }}>
-                      نظام التثبيت اليدوي المكثف
+                      {manualDetails.isHarvestDay ? "يوم حصاد التثبيت الشامل 🌾" : "نظام التثبيت اليدوي المكثف"}
                     </h3>
-                    <span style={{ fontSize: "0.85rem", color: "#fca5a5", fontWeight: 700 }}>
-                      أنت الآن في فترة تثبيت ومراجعة لتقوية حفظك 🛡️✨
+                    <span
+                      style={{
+                        fontSize: "0.85rem",
+                        color: manualDetails.isHarvestDay ? "#fde68a" : "#fca5a5",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {manualDetails.isHarvestDay
+                        ? "تسميع ومراجعة كافة صفحات دورة التثبيت دفعة واحدة لترسيخ الحفظ ونيل وسام الحصاد! 🌾✨"
+                        : "أنت الآن في فترة تثبيت ومراجعة لتقوية حفظك 🛡️✨"}
                     </span>
                   </div>
                 </div>
@@ -2364,16 +2441,16 @@ function StudentTasks({
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   <span
                     style={{
-                      background: "rgba(244, 63, 94, 0.2)",
-                      border: "1px solid #f43f5e",
-                      color: "#fecdd3",
+                      background: manualDetails.isHarvestDay ? "rgba(245, 158, 11, 0.25)" : "rgba(244, 63, 94, 0.2)",
+                      border: manualDetails.isHarvestDay ? "1px solid #f59e0b" : "1px solid #f43f5e",
+                      color: manualDetails.isHarvestDay ? "#fef3c7" : "#fecdd3",
                       padding: "0.35rem 0.85rem",
                       borderRadius: "9999px",
                       fontWeight: 900,
                       fontSize: "0.85rem",
                     }}
                   >
-                    الهدف: {activeManualForDate.repetitions_count} تكرارات يومياً
+                    الهدف: {activeManualForDate.repetitions_count} تكرارات
                   </span>
                   <span
                     style={{
@@ -2386,7 +2463,7 @@ function StudentTasks({
                       boxShadow: "0 2px 10px rgba(245, 158, 11, 0.35)",
                     }}
                   >
-                    +30 نقطة و+15 💎
+                    {manualDetails.isHarvestDay ? "+40 نقطة و+20 💎" : "+30 نقطة و+15 💎"}
                   </span>
                 </div>
               </div>
@@ -2394,27 +2471,35 @@ function StudentTasks({
               {/* Task Details Box */}
               <div
                 style={{
-                  background: "rgba(255, 255, 255, 0.08)",
+                  background: manualDetails.isHarvestDay ? "rgba(245, 158, 11, 0.12)" : "rgba(255, 255, 255, 0.08)",
                   backdropFilter: "blur(8px)",
                   borderRadius: "1rem",
                   padding: "1.1rem",
-                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  border: manualDetails.isHarvestDay ? "1px solid rgba(245, 158, 11, 0.35)" : "1px solid rgba(255, 255, 255, 0.15)",
                   zIndex: 1,
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.4rem" }}>
-                  <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#fecdd3" }}>
-                    📖 المقدار المطلوب:
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: "1.1rem",
+                      color: manualDetails.isHarvestDay ? "#fef08a" : "#fecdd3",
+                    }}
+                  >
+                    {manualDetails.isHarvestDay ? "🌾 يوم الحصاد النهائي:" : "📖 المقدار المطلوب لليوم:"}
                   </div>
                   <span style={{ fontSize: "0.75rem", color: "#cbd5e1" }}>
                     من {activeManualForDate.start_date} حتى {activeManualForDate.end_date}
                   </span>
                 </div>
-                <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "white" }}>
-                  مهمة التثبيت: {activeManualForDate.pages_description} - التكرار: {activeManualForDate.repetitions_count} مرات
+                <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "white" }}>
+                  {manualDetails.taskTitle}
                 </div>
-                <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "#e2e8f0" }}>
-                  خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار. انقر على العداد أدناه مع كل تكرار تنجزه!
+                <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "#e2e8f0", lineHeight: 1.5 }}>
+                  {manualDetails.isHarvestDay
+                    ? "🌾 هذا هو يوم الحصاد الأكبر! المطلوب تسميع كل ما سبق دفعة واحدة لترسيخ الحفظ ونيل وسام الحصاد الذهبي! انقر على العداد بعد كل قراءة."
+                    : `اليوم ${manualDetails.dayIndex + 1} من أصل ${manualDetails.reviewDays} أيام تثبيت (المقدار: ${manualDetails.todayEnd - manualDetails.todayStart + 1} صفحات). خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار.`}
                 </p>
               </div>
 
@@ -2441,6 +2526,8 @@ function StudentTasks({
                           ? "linear-gradient(135deg, #059669, #047857)"
                           : isTargetReached
                           ? "linear-gradient(135deg, #10b981, #059669)"
+                          : manualDetails.isHarvestDay
+                          ? "linear-gradient(135deg, #d97706, #b45309)"
                           : "linear-gradient(135deg, #e11d48, #be123c)",
                         color: hasAbsencePenalty ? "#64748b" : "white",
                         fontWeight: 900,
@@ -2480,16 +2567,16 @@ function StudentTasks({
 
                       <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", zIndex: 1 }}>
                         <span style={{ fontSize: "1.4rem" }}>
-                          {hasAbsencePenalty ? "🔒" : isManualCompleted ? "✅" : isTargetReached ? "🎉" : "📿"}
+                          {hasAbsencePenalty ? "🔒" : isManualCompleted ? "✅" : isTargetReached ? "🎉" : manualDetails.isHarvestDay ? "🌾" : "📿"}
                         </span>
                         <span>
                           {hasAbsencePenalty
                             ? "🔒 معطلة بسبب تسجيل الغياب"
                             : isManualCompleted
-                            ? "تم اعتماد إنجاز مهمة التثبيت لليوم!"
+                            ? manualDetails.isHarvestDay ? "تم اعتماد إنجاز يوم حصاد التثبيت بنجاح!" : "تم اعتماد إنجاز مهمة التثبيت لليوم!"
                             : isTargetReached
                             ? "اكتمل عدد التكرارات المطلوبة!"
-                            : "انقر لاحتساب تكرار التثبيت"}
+                            : manualDetails.isHarvestDay ? "انقر لاحتساب تكرار يوم الحصاد" : "انقر لاحتساب تكرار التثبيت"}
                         </span>
                       </div>
 
@@ -2521,7 +2608,9 @@ function StudentTasks({
                           padding: "0.95rem",
                           borderRadius: "0.85rem",
                           border: "none",
-                          background: "linear-gradient(135deg, #059669, #047857)",
+                          background: manualDetails.isHarvestDay
+                            ? "linear-gradient(135deg, #d97706, #b45309)"
+                            : "linear-gradient(135deg, #059669, #047857)",
                           color: "white",
                           fontWeight: 900,
                           fontSize: "1.1rem",
@@ -2537,6 +2626,8 @@ function StudentTasks({
                         <span>
                           {isSavingManualConsolidation
                             ? "جاري الحفظ..."
+                            : manualDetails.isHarvestDay
+                            ? "اعتماد إنجاز يوم الحصاد (+40 نقطة و+20 💎) 🌾"
                             : "اعتماد إنجاز مهمة التثبيت (+30 نقطة و+15 💎)"}
                         </span>
                       </button>
@@ -2547,8 +2638,8 @@ function StudentTasks({
             </div>
           )}
 
-          {/* Regular Daily Tasks OR Future Simulated Tasks */}
-          {isFuture ? (
+          {/* Regular Daily Tasks OR Future Simulated Tasks (Hidden if date falls under manual consolidation) */}
+          {activeManualForDate ? null : isFuture ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <h2 style={{ color: "white", fontWeight: 800, margin: 0, fontSize: "1.15rem" }}>
