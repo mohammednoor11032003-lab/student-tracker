@@ -28,6 +28,8 @@ interface LeaderboardEntry {
   profiles: { full_name: string } | null
 }
 
+import { ManualConsolidation } from "@/lib/manual-consolidation"
+
 interface StudentPortalProps {
   studentId: string
   studentName: string
@@ -44,6 +46,7 @@ interface StudentPortalProps {
   completedBountyTaskIds?: string[]
   initialGems?: number
   initialInventory?: StudentInventoryItem[]
+  initialManualConsolidation?: ManualConsolidation | null
 }
 
 export default function StudentPortal({
@@ -62,6 +65,7 @@ export default function StudentPortal({
   completedBountyTaskIds = [],
   initialGems = 0,
   initialInventory = [],
+  initialManualConsolidation = null,
 }: StudentPortalProps) {
   const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "hero" | "arena" | "leaderboard">(initialTab)
   const [gems, setGems] = useState<number>(initialGems)
@@ -311,6 +315,7 @@ export default function StudentPortal({
           todayStr={todayStr}
           bounties={bounties}
           completedBountyTaskIds={completedBountyTaskIds}
+          initialManualConsolidation={initialManualConsolidation}
         />
       </div>
 

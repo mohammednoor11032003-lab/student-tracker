@@ -2,6 +2,7 @@
 import { useState } from "react"
 import toast from "react-hot-toast"
 import { StudentPlan, getDailyPlanDetails, DEFAULT_PLAN, getReviewCycle } from "@/lib/plan-utils"
+import ManualConsolidationModal from "@/components/teacher/ManualConsolidationModal"
 
 interface StudentWithPlan {
   id: string
@@ -19,6 +20,7 @@ export default function TeacherPlansManager({
   const [students, setStudents] = useState<StudentWithPlan[]>(initialStudents)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
+  const [manualModalStudent, setManualModalStudent] = useState<{ id: string; name: string } | null>(null)
 
   function handleFieldChange(studentId: string, field: keyof StudentPlan, value: unknown) {
     setStudents(prev =>
@@ -194,25 +196,50 @@ export default function TeacherPlansManager({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleSavePlan(s)}
-                  disabled={isSaving}
-                  style={{
-                    background: isSaving ? "#9ca3af" : "linear-gradient(135deg, #7c3aed, #6d28d9)",
-                    color: "white",
-                    border: "none",
-                    padding: "0.75rem 1.75rem",
-                    borderRadius: "0.85rem",
-                    fontWeight: 900,
-                    cursor: isSaving ? "not-allowed" : "pointer",
-                    fontSize: "1rem",
-                    boxShadow: "0 4px 14px rgba(124,58,237,0.35)",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {isSaving ? "جاري الحفظ..." : "حفظ خطة الطالب 💾"}
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => setManualModalStudent({ id: s.id, name: s.full_name })}
+                    style={{
+                      background: "linear-gradient(135deg, #f43f5e, #be123c)",
+                      color: "white",
+                      border: "none",
+                      padding: "0.75rem 1.25rem",
+                      borderRadius: "0.85rem",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      fontSize: "0.95rem",
+                      boxShadow: "0 4px 12px rgba(244, 63, 94, 0.3)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <span>🛡️</span>
+                    <span>إنشاء نظام تثبيت يدوي</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSavePlan(s)}
+                    disabled={isSaving}
+                    style={{
+                      background: isSaving ? "#9ca3af" : "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                      color: "white",
+                      border: "none",
+                      padding: "0.75rem 1.75rem",
+                      borderRadius: "0.85rem",
+                      fontWeight: 900,
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      fontSize: "1rem",
+                      boxShadow: "0 4px 14px rgba(124,58,237,0.35)",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    {isSaving ? "جاري الحفظ..." : "حفظ خطة الطالب 💾"}
+                  </button>
+                </div>
               </div>
 
               {/* Top Basic Settings Grid */}
@@ -436,6 +463,17 @@ export default function TeacherPlansManager({
           )
         })}
       </div>
+
+      {/* Manual Consolidation Modal for Selected Student */}
+      {manualModalStudent && (
+        <ManualConsolidationModal
+          isOpen={!!manualModalStudent}
+          onClose={() => setManualModalStudent(null)}
+          studentId={manualModalStudent.id}
+          studentName={manualModalStudent.name}
+          todayStr={todayStr}
+        />
+      )}
     </div>
   )
 }

@@ -38,6 +38,8 @@ import { StudentPlan, DEFAULT_PLAN, getDailyPlanDetails, calculateProjectedPlan,
 import BountyBoard from "./BountyBoard"
 import { BountyTask, getWeeklyBounties } from "@/lib/bounty-utils"
 
+import { ManualConsolidation } from "@/lib/manual-consolidation"
+
 function StudentTasks({
   assignments: initAssignments,
   studentId,
@@ -49,6 +51,7 @@ function StudentTasks({
   todayStr: propTodayStr,
   bounties = [],
   completedBountyTaskIds = [],
+  initialManualConsolidation = null,
 }: {
   assignments: Assignment[]
   studentId: string
@@ -60,6 +63,7 @@ function StudentTasks({
   todayStr?: string
   bounties?: BountyTask[]
   completedBountyTaskIds?: string[]
+  initialManualConsolidation?: ManualConsolidation | null
 }) {
   const supabase = createClient()
   const todayStr = propTodayStr || getTodayDateStr()
@@ -67,6 +71,9 @@ function StudentTasks({
   // State
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [studentPlan, setStudentPlan] = useState<StudentPlan>(initialPlan || DEFAULT_PLAN)
+  const [manualConsolidation, setManualConsolidation] = useState<ManualConsolidation | null>(initialManualConsolidation)
+  const [manualRepetitionsCount, setManualRepetitionsCount] = useState<number>(0)
+  const [isSavingManualConsolidation, setIsSavingManualConsolidation] = useState(false)
   const [assignmentsCache, setAssignmentsCache] = useState<Record<string, Assignment[]>>({
     [todayStr]: initAssignments,
   })
@@ -865,10 +872,23 @@ function StudentTasks({
     a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed
   )
 
+  // Active manual consolidation for the currently selected date
+  const activeManualForDate = useMemo(() => {
+    if (!manualConsolidation || !manualConsolidation.is_active) return null
+    if (selectedDate >= manualConsolidation.start_date && selectedDate <= manualConsolidation.end_date) {
+      return manualConsolidation
+    }
+    return null
+  }, [manualConsolidation, selectedDate])
+
   const regularTasks = assignments
     .filter(a => (a.tasks?.points ?? 0) >= 0)
     .filter(a => {
-      // If student is in consolidation week, hide the 5 lesson tasks!
+      // 1. If student is under an active Manual Consolidation for this date, hide all 6 routine tasks!
+      if (activeManualForDate) {
+        return false
+      }
+      // 2. If student is in auto-consolidation week, hide the lesson tasks!
       if (activePlan?.is_in_consolidation) {
         const name = a.tasks?.name || ""
         const isSuspendedDuringConsolidation =
@@ -896,7 +916,102 @@ function StudentTasks({
       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99)
     })
 
-  // Consolidation Clicker Counter & Handlers
+  // Manual Consolidation Persistence & Clicker Handlers
+  const manualConsolidationKey = `manual_consolidation_count_${studentId}_${selectedDate}`
+  const manualCompletedKey = `manual_consolidation_done_${studentId}_${selectedDate}`
+  const [isManualCompleted, setIsManualCompleted] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(`manual_consolidation_done_${studentId}_${todayStr}`) === "true"
+    }
+    return false
+  })
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedCount = localStorage.getItem(`manual_consolidation_count_${studentId}_${selectedDate}`)
+      setManualRepetitionsCount(savedCount ? Number(savedCount) : 0)
+      const savedDone = localStorage.getItem(`manual_consolidation_done_${studentId}_${selectedDate}`)
+      setIsManualCompleted(savedDone === "true")
+    }
+  }, [studentId, selectedDate])
+
+  function handleIncrementManualRepetition() {
+    if (!isToday) {
+      toast.error("🔒 لا يمكن التفاعل مع مهام الأيام السابقة", { icon: "🔒" })
+      return
+    }
+    if (hasAbsencePenalty) {
+      toast.error("🔒 هذه المهمة معطلة بسبب تسجيل الغياب", { icon: "🔒" })
+      return
+    }
+    if (!activeManualForDate) return
+    const target = activeManualForDate.repetitions_count || 5
+    setManualRepetitionsCount(prev => {
+      const next = Math.min(target, prev + 1)
+      if (typeof window !== "undefined") {
+        localStorage.setItem(manualConsolidationKey, String(next))
+      }
+      return next
+    })
+  }
+
+  async function handleCompleteManualConsolidation() {
+    if (!isToday || isSavingManualConsolidation || hasAbsencePenalty || !activeManualForDate) return
+    const target = activeManualForDate.repetitions_count || 5
+    if (manualRepetitionsCount < target) {
+      toast.error(`يجب إكمال العداد إلى ${target} تكرارات أولاً!`, { icon: "⚠️" })
+      return
+    }
+
+    setIsSavingManualConsolidation(true)
+    try {
+      // 1. Mark as completed in localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem(manualCompletedKey, "true")
+      }
+      setIsManualCompleted(true)
+
+      // 2. Award 30 points and record via /api/complete-task
+      const res = await fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "manual_consolidation_task",
+          points: 30,
+          completed: true,
+          assignedDate: todayStr,
+        }),
+      })
+
+      // 3. Award +15 bonus gems
+      fetch("/api/hero", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "award_gems",
+          studentId,
+          amount: 15,
+        }),
+      }).catch(err => console.error("Failed to award manual consolidation gems:", err))
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: 15 } }))
+      }
+
+      setWeeklyPoints(prev => prev + 30)
+      toast.success("🛡️ مبارك! أتممت مهمة التثبيت اليومية بنجاح وحصلت على +30 نقطة و+15 جوهرة 💎!", {
+        duration: 5500,
+      })
+    } catch (err) {
+      console.error("Error completing manual consolidation:", err)
+      toast.error("حدث خطأ أثناء اعتماد مهمة التثبيت")
+    } finally {
+      setIsSavingManualConsolidation(false)
+    }
+  }
+
+  // Auto-Consolidation Clicker Counter & Handlers
   const consolidationDay = studentPlan?.consolidation_day || 1
   const [consolidationCount, setConsolidationCount] = useState<number>(0)
   const [isSavingConsolidation, setIsSavingConsolidation] = useState(false)
@@ -2176,6 +2291,253 @@ function StudentTasks({
                           {isSavingConsolidation
                             ? "جاري الحفظ..."
                             : `اعتماد إنجاز تثبيت اليوم (${consolidationDay}/7)`}
+                        </span>
+                      </button>
+                    )}
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
+          {/* ================= 🛡️ MANUAL CONSOLIDATION CARD (نظام التثبيت اليدوي المخصص) ================= */}
+          {activeManualForDate && (
+            <div
+              className="card"
+              style={{
+                borderRadius: "1.5rem",
+                padding: "1.5rem",
+                background: "linear-gradient(135deg, #1e1b4b 0%, #31104b 50%, #4c0519 100%)",
+                border: "2px solid #f43f5e",
+                boxShadow: "0 12px 35px rgba(244, 63, 94, 0.25)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.25rem",
+                color: "white",
+                position: "relative",
+                overflow: "hidden",
+                marginBottom: "1rem",
+              }}
+            >
+              {/* Background ambient glow */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "-40px",
+                  left: "-40px",
+                  width: "140px",
+                  height: "140px",
+                  background: "radial-gradient(circle, rgba(244, 63, 94, 0.3) 0%, transparent 70%)",
+                  borderRadius: "50%",
+                  pointerEvents: "none",
+                }}
+              />
+
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", zIndex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <div
+                    style={{
+                      width: "46px",
+                      height: "46px",
+                      borderRadius: "1rem",
+                      background: "linear-gradient(135deg, #f43f5e, #be123c)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1.6rem",
+                      boxShadow: "0 4px 15px rgba(244, 63, 94, 0.4)",
+                    }}
+                  >
+                    🛡️
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontWeight: 900, fontSize: "1.3rem", color: "#fff" }}>
+                      نظام التثبيت اليدوي المكثف
+                    </h3>
+                    <span style={{ fontSize: "0.85rem", color: "#fca5a5", fontWeight: 700 }}>
+                      أنت الآن في فترة تثبيت ومراجعة لتقوية حفظك 🛡️✨
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span
+                    style={{
+                      background: "rgba(244, 63, 94, 0.2)",
+                      border: "1px solid #f43f5e",
+                      color: "#fecdd3",
+                      padding: "0.35rem 0.85rem",
+                      borderRadius: "9999px",
+                      fontWeight: 900,
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    الهدف: {activeManualForDate.repetitions_count} تكرارات يومياً
+                  </span>
+                  <span
+                    style={{
+                      background: "linear-gradient(135deg, #f59e0b 0%, #b45309 100%)",
+                      color: "white",
+                      padding: "0.35rem 0.85rem",
+                      borderRadius: "9999px",
+                      fontWeight: 900,
+                      fontSize: "0.85rem",
+                      boxShadow: "0 2px 10px rgba(245, 158, 11, 0.35)",
+                    }}
+                  >
+                    +30 نقطة و+15 💎
+                  </span>
+                </div>
+              </div>
+
+              {/* Task Details Box */}
+              <div
+                style={{
+                  background: "rgba(255, 255, 255, 0.08)",
+                  backdropFilter: "blur(8px)",
+                  borderRadius: "1rem",
+                  padding: "1.1rem",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  zIndex: 1,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.4rem" }}>
+                  <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#fecdd3" }}>
+                    📖 المقدار المطلوب:
+                  </div>
+                  <span style={{ fontSize: "0.75rem", color: "#cbd5e1" }}>
+                    من {activeManualForDate.start_date} حتى {activeManualForDate.end_date}
+                  </span>
+                </div>
+                <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "white" }}>
+                  مهمة التثبيت: {activeManualForDate.pages_description} - التكرار: {activeManualForDate.repetitions_count} مرات
+                </div>
+                <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "#e2e8f0" }}>
+                  خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار. انقر على العداد أدناه مع كل تكرار تنجزه!
+                </p>
+              </div>
+
+              {/* Clicker Counter Button */}
+              {(() => {
+                const target = activeManualForDate.repetitions_count || 5
+                const isTargetReached = manualRepetitionsCount >= target
+                const pct = Math.min(100, Math.round((manualRepetitionsCount / target) * 100))
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem", zIndex: 1 }}>
+                    <button
+                      type="button"
+                      onClick={handleIncrementManualRepetition}
+                      disabled={!isToday || isTargetReached || hasAbsencePenalty || isManualCompleted}
+                      style={{
+                        width: "100%",
+                        padding: "1.1rem 1.25rem",
+                        borderRadius: "1rem",
+                        border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
+                        background: hasAbsencePenalty
+                          ? "rgba(241, 245, 249, 0.85)"
+                          : isManualCompleted
+                          ? "linear-gradient(135deg, #059669, #047857)"
+                          : isTargetReached
+                          ? "linear-gradient(135deg, #10b981, #059669)"
+                          : "linear-gradient(135deg, #e11d48, #be123c)",
+                        color: hasAbsencePenalty ? "#64748b" : "white",
+                        fontWeight: 900,
+                        fontSize: "1.2rem",
+                        cursor: hasAbsencePenalty || isManualCompleted ? "default" : isTargetReached || !isToday ? "default" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        boxShadow: hasAbsencePenalty ? "none" : isTargetReached ? "0 4px 15px rgba(16,185,129,0.3)" : "0 4px 15px rgba(225,29,72,0.35)",
+                        position: "relative",
+                        overflow: "hidden",
+                        transition: "all 0.15s",
+                        opacity: hasAbsencePenalty ? 0.6 : 1,
+                      }}
+                      onMouseDown={e => {
+                        if (!isTargetReached && isToday && !hasAbsencePenalty && !isManualCompleted) e.currentTarget.style.transform = "scale(0.97)"
+                      }}
+                      onMouseUp={e => {
+                        if (!isTargetReached && isToday && !hasAbsencePenalty && !isManualCompleted) e.currentTarget.style.transform = "scale(1)"
+                      }}
+                    >
+                      {/* Background progress fill */}
+                      {!hasAbsencePenalty && !isManualCompleted && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: `${pct}%`,
+                            background: "rgba(255,255,255,0.22)",
+                            pointerEvents: "none",
+                            transition: "width 0.2s ease",
+                          }}
+                        />
+                      )}
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", zIndex: 1 }}>
+                        <span style={{ fontSize: "1.4rem" }}>
+                          {hasAbsencePenalty ? "🔒" : isManualCompleted ? "✅" : isTargetReached ? "🎉" : "📿"}
+                        </span>
+                        <span>
+                          {hasAbsencePenalty
+                            ? "🔒 معطلة بسبب تسجيل الغياب"
+                            : isManualCompleted
+                            ? "تم اعتماد إنجاز مهمة التثبيت لليوم!"
+                            : isTargetReached
+                            ? "اكتمل عدد التكرارات المطلوبة!"
+                            : "انقر لاحتساب تكرار التثبيت"}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          zIndex: 1,
+                          background: hasAbsencePenalty ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.25)",
+                          padding: "0.35rem 0.85rem",
+                          borderRadius: "0.65rem",
+                          fontSize: "1.15rem",
+                          fontWeight: 900,
+                          minWidth: "80px",
+                          textAlign: "center",
+                          color: hasAbsencePenalty ? "#64748b" : "white",
+                        }}
+                      >
+                        {manualRepetitionsCount} / {target}
+                      </div>
+                    </button>
+
+                    {/* Completion Action Button */}
+                    {isTargetReached && !isManualCompleted && (
+                      <button
+                        type="button"
+                        onClick={handleCompleteManualConsolidation}
+                        disabled={!isToday || isSavingManualConsolidation || hasAbsencePenalty}
+                        style={{
+                          width: "100%",
+                          padding: "0.95rem",
+                          borderRadius: "0.85rem",
+                          border: "none",
+                          background: "linear-gradient(135deg, #059669, #047857)",
+                          color: "white",
+                          fontWeight: 900,
+                          fontSize: "1.1rem",
+                          cursor: isSavingManualConsolidation ? "not-allowed" : "pointer",
+                          boxShadow: "0 4px 15px rgba(5,150,105,0.4)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        <span>✓</span>
+                        <span>
+                          {isSavingManualConsolidation
+                            ? "جاري الحفظ..."
+                            : "اعتماد إنجاز مهمة التثبيت (+30 نقطة و+15 💎)"}
                         </span>
                       </button>
                     )}

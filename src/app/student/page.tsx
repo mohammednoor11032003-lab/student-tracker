@@ -6,6 +6,7 @@ import { getStudentPlan } from "@/lib/student-plan"
 import { getStudentStarBadges } from "@/lib/badge-utils"
 import { isBountyTask, parseBountyTask } from "@/lib/bounty-utils"
 import { getStudentHeroState } from "@/lib/hero-utils"
+import { getActiveManualConsolidation } from "@/lib/manual-consolidation"
 
 interface PageProps {
   searchParams: Promise<{ tab?: string }>
@@ -29,6 +30,9 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   const month = weekInfo.month
   const year = weekInfo.year
 
+  // Check active manual consolidation for today
+  const activeManualConsolidation = await getActiveManualConsolidation(session.user.id, today)
+
   // 1. Fetch current assignments for today
   let { data: assignments } = await supabase
     .from("daily_assignments")
@@ -37,8 +41,8 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     .eq("assigned_date", today)
     .order("completed", { ascending: true })
 
-  // 2. If no assignments exist for today, automatically create them for the student!
-  if (!assignments || assignments.length === 0) {
+  // 2. If no assignments exist for today, automatically create them for the student (only if not under manual consolidation)
+  if ((!assignments || assignments.length === 0) && !activeManualConsolidation) {
     const { data: allTasks } = await supabase
       .from("tasks")
       .select("id, name, description")
@@ -112,6 +116,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
       completedBountyTaskIds={completedBountyTaskIds}
       initialGems={heroState.gems_balance}
       initialInventory={heroState.inventory}
+      initialManualConsolidation={activeManualConsolidation}
     />
   )
 }

@@ -113,12 +113,21 @@ export async function POST(req: NextRequest) {
     // Auto-progression for Daily Memorization Plan (الدرس والمراجعة)
     try {
       if (taskId && studentId) {
-        const { data: taskObj } = await supabase.from("tasks").select("name").eq("id", taskId).single()
-        const tName = taskObj?.name || ""
-        if ((tName.includes("الدرس") && !tName.includes("جنب")) || tName.includes("المراجعة")) {
-          const currentPlan = await getStudentPlan(studentId)
-          const nextPlan = calculateNextPlanState(currentPlan, tName, completed)
-          await updateStudentPlan(studentId, nextPlan)
+        // Check if student is currently under an active Manual Consolidation
+        const { getActiveManualConsolidation } = await import("@/lib/manual-consolidation")
+        const activeManual = await getActiveManualConsolidation(studentId, effectiveDate)
+
+        if (activeManual) {
+          // Freeze Current Page Pointer! Do NOT advance current_page or page_part during manual consolidation
+          console.log(`Student ${studentId} is under manual consolidation (${activeManual.pages_description}). Page pointer is frozen.`)
+        } else {
+          const { data: taskObj } = await supabase.from("tasks").select("name").eq("id", taskId).single()
+          const tName = taskObj?.name || ""
+          if ((tName.includes("الدرس") && !tName.includes("جنب")) || tName.includes("المراجعة")) {
+            const currentPlan = await getStudentPlan(studentId)
+            const nextPlan = calculateNextPlanState(currentPlan, tName, completed)
+            await updateStudentPlan(studentId, nextPlan)
+          }
         }
       }
     } catch (planErr) {
