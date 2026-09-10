@@ -1,5 +1,5 @@
-﻿"use client"
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react"
+"use client"
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from "react"
 import { usePathname } from "next/navigation"
 import { User, Session } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/client"
@@ -42,47 +42,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const pathname = usePathname()
+  const isMountedRef = useRef(true)
 
-  // Helper to fetch user profile directly from database
+  // Helper to fetch user profile directly from database with timeout
   const fetchProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+    console.log("[AuthContext] fetchProfile: Starting query for userId:", userId)
     try {
-      const { data, error } = await supabase
+      const fetchPromise = supabase
         .from("profiles")
         .select("*")
         .eq("id", userId)
         .single()
-      if (!error && data) {
+
+      // Timeout after 3 seconds so profile fetching never blocks loading forever
+      const timeoutPromise = new Promise<{ data: null; error: Error }>((_, reject) =>
+        setTimeout(() => reject(new Error("Profile fetch timeout")), 3000)
+      )
+
+      const { data, error } = (await Promise.race([fetchPromise, timeoutPromise])) as any
+
+      if (error) {
+        console.error("[AuthContext] fetchProfile: Error or query failure:", error)
+        return null
+      }
+
+      if (data) {
+        console.log("[AuthContext] fetchProfile: Profile loaded successfully for:", data.full_name, "Role:", data.role)
         return data as UserProfile
       }
     } catch (err) {
-      console.error("Error fetching user profile:", err)
+      console.error("[AuthContext] fetchProfile: Unexpected exception:", err)
     }
     return null
   }, [supabase])
 
   // Centralized robust signOut
   const signOut = useCallback(async () => {
+    console.log("[AuthContext] signOut: Initiating full sign out...")
     try {
       setIsLoading(true)
       await supabase.auth.signOut()
     } catch (err) {
-      console.error("Error signing out from Supabase:", err)
+      console.error("[AuthContext] signOut: Error signing out from Supabase:", err)
     } finally {
-      // 1. Wipe all React State immediately
+      console.log("[AuthContext] signOut: Cleaning state and local storage...")
       setUser(null)
       setSession(null)
       setProfile(null)
 
-      // 2. Clear entire browser storage (localStorage & sessionStorage) to destroy stale student keys
       if (typeof window !== "undefined") {
         try {
           localStorage.clear()
           sessionStorage.clear()
         } catch (storageErr) {
-          console.error("Storage clear error:", storageErr)
+          console.error("[AuthContext] signOut: Storage clear error:", storageErr)
         }
-
-        // 3. Hard redirect to purge all in-memory React/Next.js memory caches & cookies
         window.location.href = "/login"
       }
     }
@@ -91,43 +105,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Public Profile refresher
   const refreshProfile = useCallback(async () => {
     if (user?.id) {
+      console.log("[AuthContext] refreshProfile: Refreshing profile for user:", user.id)
       const fresh = await fetchProfile(user.id)
-      if (fresh) setProfile(fresh)
+      if (fresh && isMountedRef.current) setProfile(fresh)
     }
   }, [user?.id, fetchProfile])
 
-  // Initial Auth Check & Auth State Listener
+  // Track mount status
   useEffect(() => {
-    let isMounted = true
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  // Initial Auth Check & Auth State Listener (Runs ONCE on mount)
+  useEffect(() => {
+    console.log("[AuthContext] Mount: Initializing authentication check...")
+    let didCancel = false
+
+    // Safety Fallback Timer: Under no circumstance allow isLoading to remain true longer than 3.5s
+    const safetyTimer = setTimeout(() => {
+      if (!didCancel && isMountedRef.current) {
+        setIsLoading(prev => {
+          if (prev) {
+            console.warn("[AuthContext] Safety fallback triggered: forcing isLoading = false after 3.5s timeout")
+            return false
+          }
+          return false
+        })
+      }
+    }, 3500)
 
     async function initAuth() {
+      console.log("[AuthContext] initAuth: Fetching session from Supabase...")
       try {
         const { data: { session: initSession }, error } = await supabase.auth.getSession()
-        if (!isMounted) return
 
-        if (error || !initSession?.user) {
+        if (didCancel) return
+
+        if (error) {
+          console.error("[AuthContext] initAuth: Supabase getSession error:", error)
           setUser(null)
           setSession(null)
           setProfile(null)
-          setIsLoading(false)
           return
         }
 
-        const userProfile = await fetchProfile(initSession.user.id)
-        if (!isMounted) return
+        if (!initSession?.user) {
+          console.log("[AuthContext] initAuth: No active session found.")
+          setUser(null)
+          setSession(null)
+          setProfile(null)
+          return
+        }
 
+        console.log("[AuthContext] initAuth: Active session found for user:", initSession.user.id)
         setUser(initSession.user)
         setSession(initSession)
-        setProfile(userProfile)
+
+        const userProfile = await fetchProfile(initSession.user.id)
+        if (didCancel) return
+
+        if (userProfile) {
+          console.log("[AuthContext] initAuth: User profile attached successfully:", userProfile.full_name)
+          setProfile(userProfile)
+        } else {
+          console.warn("[AuthContext] initAuth: No profile row found in DB for user:", initSession.user.id)
+        }
       } catch (err) {
-        console.error("Auth initialization error:", err)
-        if (isMounted) {
+        console.error("[AuthContext] initAuth: Critical caught error during auth init:", err)
+        if (!didCancel) {
           setUser(null)
           setSession(null)
           setProfile(null)
         }
       } finally {
-        if (isMounted) {
+        if (!didCancel && isMountedRef.current) {
+          console.log("[AuthContext] initAuth: Completed. Setting isLoading = false.")
           setIsLoading(false)
         }
       }
@@ -135,13 +190,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initAuth()
 
-    // 3. Supabase Auth State Change Listener
+    // Supabase Auth State Change Listener
+    console.log("[AuthContext] Subscribing to onAuthStateChange...")
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        if (!isMounted) return
+        console.log(`[AuthContext] onAuthStateChange event received: '${event}'`, currentSession?.user?.id ? `for user: ${currentSession.user.id}` : "no user")
+        if (didCancel || !isMountedRef.current) return
 
         if (event === "SIGNED_OUT" || !currentSession?.user) {
-          // Immediately wipe state upon SIGNED_OUT
+          console.log("[AuthContext] User signed out or session destroyed.")
           setUser(null)
           setSession(null)
           setProfile(null)
@@ -152,32 +209,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               localStorage.clear()
               sessionStorage.clear()
             } catch {}
-            if (pathname !== "/login") {
+            if (window.location.pathname !== "/login") {
               window.location.href = "/login"
             }
           }
           return
         }
 
-        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        if (
+          event === "SIGNED_IN" ||
+          event === "INITIAL_SESSION" ||
+          event === "TOKEN_REFRESHED" ||
+          event === "USER_UPDATED"
+        ) {
           setUser(currentSession.user)
           setSession(currentSession)
 
-          // Fetch fresh profile from database for newly authenticated user
-          const userProfile = await fetchProfile(currentSession.user.id)
-          if (isMounted) {
-            setProfile(userProfile)
-            setIsLoading(false)
+          try {
+            const userProfile = await fetchProfile(currentSession.user.id)
+            if (!didCancel && isMountedRef.current) {
+              setProfile(userProfile)
+            }
+          } catch (profileErr) {
+            console.error("[AuthContext] onAuthStateChange: Error fetching profile:", profileErr)
+          } finally {
+            if (!didCancel && isMountedRef.current) {
+              setIsLoading(false)
+            }
           }
         }
       }
     )
 
     return () => {
-      isMounted = false
+      console.log("[AuthContext] Unmounting: cleaning up auth subscription and safety timer.")
+      didCancel = true
+      clearTimeout(safetyTimer)
       subscription.unsubscribe()
     }
-  }, [supabase, fetchProfile, pathname])
+  }, [supabase, fetchProfile])
 
   const role = profile?.role ?? null
 
@@ -198,7 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/parent") ||
     pathname === "/"
 
-  // 1. Strict Gatekeeper: Never render protected components while isLoading
+  // 1. Gatekeeper: Never render protected components while isLoading
   if (isLoading && isProtectedRoute) {
     return <LoadingScreen message="جاري التحقق من الجلسة وتحميل البيانات..." />
   }
