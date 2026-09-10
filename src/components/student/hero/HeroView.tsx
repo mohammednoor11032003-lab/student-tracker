@@ -306,9 +306,9 @@ export default function HeroView({
             </span>
           </div>
 
-          {/* Dark Silhouette (Mysterious, Minimalist Hero Avatar) */}
+          {/* Hero Avatar (Full-Body Flat Vector with Equipment Layers) */}
           <div style={{ position: "relative", margin: "0.25rem 0 1.25rem" }}>
-            <HeroAvatar size={240} />
+            <HeroAvatar equipped={equippedMap} size={250} />
           </div>
 
           {/* ================= 4 PROMINENT GLOWING GEAR SLOTS ================= */}
