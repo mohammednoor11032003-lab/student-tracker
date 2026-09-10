@@ -200,7 +200,7 @@ export default function HeroView({
             </span>
           </h2>
           <p style={{ margin: "0.25rem 0 0", color: "#94a3b8", fontSize: "0.85rem" }}>
-            جهّز بطلك بأقوى الدروع والأسلحة باستخدام الجواهر المكتسبة من إتقانك القرآني!
+            جهّز بطلك بأقوى الدروع والأسلحة التاريخية باستخدام الجواهر المكتسبة من إتقانك القرآني!
           </p>
         </div>
 
@@ -229,17 +229,11 @@ export default function HeroView({
         </div>
       </div>
 
-      {/* Main Two-Column Layout */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-          gap: "1.5rem",
-          alignItems: "start",
-        }}
-      >
+      {/* Main Responsive Layout: Mobile (flex-col: character above shop), Desktop (lg:flex-row) */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
         {/* ================= COLUMN 1: CHARACTER & 4 SLOTS ================= */}
         <div
+          className="w-full lg:w-[410px] shrink-0"
           style={{
             background: "linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)",
             borderRadius: "1.5rem",
@@ -271,7 +265,7 @@ export default function HeroView({
             </span>
           </div>
 
-          {/* Avatar Graphic with strict Faceless condition */}
+          {/* Avatar Graphic with strict Faceless condition & thick beard */}
           <div style={{ position: "relative", margin: "0.5rem 0" }}>
             <HeroAvatar equipped={equippedMap} size={280} showPedestal={true} />
           </div>
@@ -330,21 +324,18 @@ export default function HeroView({
                         title="خلع العتاد"
                         style={{
                           background: "rgba(239, 68, 68, 0.2)",
-                          color: "#f87171",
                           border: "1px solid rgba(239, 68, 68, 0.4)",
+                          color: "#f87171",
                           borderRadius: "0.5rem",
-                          width: "28px",
-                          height: "28px",
+                          padding: "0.3rem",
+                          cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          cursor: "pointer",
-                          fontSize: "0.75rem",
-                          fontWeight: 800,
                           flexShrink: 0,
                         }}
                       >
-                        ✕
+                        <X size={14} />
                       </button>
                     )}
                   </div>
@@ -356,6 +347,7 @@ export default function HeroView({
 
         {/* ================= COLUMN 2: SHOP & INVENTORY ================= */}
         <div
+          className="flex-1 w-full"
           style={{
             background: "linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)",
             borderRadius: "1.5rem",
@@ -364,16 +356,16 @@ export default function HeroView({
             boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
             display: "flex",
             flexDirection: "column",
-            gap: "1rem",
+            gap: "1.25rem",
           }}
         >
-          {/* Shop vs Inventory Sub-tabs */}
+          {/* Tabs Switcher: Shop vs Inventory */}
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr",
               gap: "0.5rem",
-              background: "rgba(0,0,0,0.25)",
+              background: "rgba(15, 23, 42, 0.6)",
               padding: "0.35rem",
               borderRadius: "1rem",
               border: "1px solid rgba(255,255,255,0.1)",
@@ -383,66 +375,70 @@ export default function HeroView({
               type="button"
               onClick={() => setActiveTab("shop")}
               style={{
-                padding: "0.6rem 0.5rem",
+                padding: "0.65rem 0.5rem",
                 borderRadius: "0.75rem",
                 border: "none",
                 background: activeTab === "shop" ? "linear-gradient(135deg, #f59e0b, #d97706)" : "transparent",
                 color: activeTab === "shop" ? "white" : "#94a3b8",
                 fontWeight: 800,
-                fontSize: "0.9rem",
+                fontSize: "0.95rem",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "0.4rem",
                 transition: "all 0.2s",
+                boxShadow: activeTab === "shop" ? "0 4px 15px rgba(245, 158, 11, 0.3)" : "none",
               }}
             >
               <ShoppingBag size={18} />
-              <span>متجر العتاد 🛒</span>
+              <span>متجر العتاد ({INITIAL_SHOP_CATALOG.length}) 🛒</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("inventory")}
               style={{
-                padding: "0.6rem 0.5rem",
+                padding: "0.65rem 0.5rem",
                 borderRadius: "0.75rem",
                 border: "none",
                 background: activeTab === "inventory" ? "linear-gradient(135deg, #8b5cf6, #7c3aed)" : "transparent",
                 color: activeTab === "inventory" ? "white" : "#94a3b8",
                 fontWeight: 800,
-                fontSize: "0.9rem",
+                fontSize: "0.95rem",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "0.4rem",
                 transition: "all 0.2s",
+                boxShadow: activeTab === "inventory" ? "0 4px 15px rgba(139, 92, 246, 0.3)" : "none",
               }}
             >
               <Backpack size={18} />
-              <span>مخزوني ({inventory.length}) 🎒</span>
+              <span>حقيبتي ({inventory.length}) 🎒</span>
             </button>
           </div>
 
-          {/* Category Filter Pills */}
-          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+          {/* Category Filter Pills (Enhanced High Contrast) */}
+          <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={() => setCategoryFilter("all")}
               style={{
-                padding: "0.35rem 0.75rem",
+                padding: "0.4rem 0.85rem",
                 borderRadius: "9999px",
-                border: "none",
-                background: categoryFilter === "all" ? "#ffffff" : "rgba(255,255,255,0.08)",
-                color: categoryFilter === "all" ? "#0f172a" : "#cbd5e1",
-                fontSize: "0.8rem",
-                fontWeight: 700,
+                border: categoryFilter === "all" ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.3)",
+                background: categoryFilter === "all" ? "#ffffff" : "rgba(255, 255, 255, 0.16)",
+                color: categoryFilter === "all" ? "#0f172a" : "#ffffff",
+                fontSize: "0.82rem",
+                fontWeight: 800,
                 cursor: "pointer",
+                boxShadow: categoryFilter === "all" ? "0 2px 10px rgba(255,255,255,0.25)" : "none",
+                transition: "all 0.15s ease",
               }}
             >
-              الكل
+              الكل (28)
             </button>
             {(["head", "body", "weapon", "feet"] as GearCategory[]).map(cat => (
               <button
@@ -450,34 +446,36 @@ export default function HeroView({
                 key={cat}
                 onClick={() => setCategoryFilter(cat)}
                 style={{
-                  padding: "0.35rem 0.75rem",
+                  padding: "0.4rem 0.85rem",
                   borderRadius: "9999px",
-                  border: "none",
-                  background: categoryFilter === cat ? "#ffffff" : "rgba(255,255,255,0.08)",
-                  color: categoryFilter === cat ? "#0f172a" : "#cbd5e1",
-                  fontSize: "0.8rem",
-                  fontWeight: 700,
+                  border: categoryFilter === cat ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.3)",
+                  background: categoryFilter === cat ? "#ffffff" : "rgba(255, 255, 255, 0.16)",
+                  color: categoryFilter === cat ? "#0f172a" : "#ffffff",
+                  fontSize: "0.82rem",
+                  fontWeight: 800,
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.3rem",
+                  gap: "0.35rem",
+                  boxShadow: categoryFilter === cat ? "0 2px 10px rgba(255,255,255,0.25)" : "none",
+                  transition: "all 0.15s ease",
                 }}
               >
                 <span>{CATEGORY_LABELS[cat].icon}</span>
-                <span>{CATEGORY_LABELS[cat].name}</span>
+                <span>{CATEGORY_LABELS[cat].name} (7)</span>
               </button>
             ))}
           </div>
 
-          {/* Items List */}
+          {/* Items List (Vertical Cards with Full-Width Action Buttons) */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "0.85rem",
-              maxHeight: "460px",
+              gap: "0.9rem",
+              maxHeight: "560px",
               overflowY: "auto",
-              paddingRight: "0.25rem",
+              paddingRight: "0.35rem",
             }}
           >
             {activeTab === "shop" ? (
@@ -493,83 +491,126 @@ export default function HeroView({
                     <div
                       key={item.id}
                       style={{
-                        background: "rgba(15, 23, 42, 0.7)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: "1rem",
-                        padding: "0.85rem 1rem",
+                        background: "rgba(15, 23, 42, 0.75)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: "1.15rem",
+                        padding: "1rem",
                         display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
+                        flexDirection: "column",
                         gap: "0.75rem",
+                        boxShadow: "0 4px 15px rgba(0,0,0,0.15)",
+                        transition: "all 0.2s ease",
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                      {/* Top Row: Icon + Name/Category + Gems Price Tag */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          <div
+                            style={{
+                              width: "3rem",
+                              height: "3rem",
+                              borderRadius: "0.85rem",
+                              background: "rgba(255,255,255,0.08)",
+                              border: "1px solid rgba(255,255,255,0.15)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "1.75rem",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {item.icon_name}
+                          </div>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 800, color: "#ffffff", fontSize: "1rem" }}>{item.name}</span>
+                              <span
+                                style={{
+                                  fontSize: "0.68rem",
+                                  background: "rgba(255,255,255,0.12)",
+                                  color: "#cbd5e1",
+                                  padding: "0.15rem 0.5rem",
+                                  borderRadius: "9999px",
+                                  fontWeight: 700,
+                                  border: "1px solid rgba(255,255,255,0.15)",
+                                }}
+                              >
+                                {CATEGORY_LABELS[item.category].name}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Price Tag at Top-Right */}
                         <div
                           style={{
-                            width: "2.85rem",
-                            height: "2.85rem",
-                            borderRadius: "0.75rem",
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            display: "flex",
+                            display: "inline-flex",
                             alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "1.6rem",
+                            gap: "0.3rem",
+                            background: "rgba(2, 132, 199, 0.18)",
+                            border: "1px solid rgba(56, 189, 248, 0.4)",
+                            color: "#38bdf8",
+                            padding: "0.3rem 0.65rem",
+                            borderRadius: "0.75rem",
+                            fontWeight: 800,
+                            fontSize: "0.85rem",
                             flexShrink: 0,
                           }}
                         >
-                          {item.icon_name}
-                        </div>
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                            <span style={{ fontWeight: 800, color: "#ffffff", fontSize: "0.95rem" }}>{item.name}</span>
-                            <span style={{ fontSize: "0.65rem", background: "rgba(255,255,255,0.1)", color: "#cbd5e1", padding: "0.1rem 0.4rem", borderRadius: "9999px" }}>
-                              {CATEGORY_LABELS[item.category].name}
-                            </span>
-                          </div>
-                          <p style={{ margin: "0.2rem 0 0", color: "#94a3b8", fontSize: "0.75rem", lineHeight: 1.35 }}>
-                            {item.description}
-                          </p>
+                          <span>💎</span>
+                          <span>{item.price_in_gems}</span>
                         </div>
                       </div>
 
-                      <div style={{ flexShrink: 0, textAlign: "left" }}>
+                      {/* Description Text (Slightly Smaller & Readable) */}
+                      <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.75rem", lineHeight: 1.45 }}>
+                        {item.description}
+                      </p>
+
+                      {/* Full-Width Action Button at Bottom of Card */}
+                      <div style={{ width: "100%", marginTop: "0.2rem" }}>
                         {isOwned ? (
-                          <span
+                          <div
                             style={{
-                              background: "rgba(16, 185, 129, 0.2)",
+                              width: "100%",
+                              textAlign: "center",
+                              background: "rgba(16, 185, 129, 0.15)",
                               color: "#34d399",
-                              padding: "0.35rem 0.75rem",
-                              borderRadius: "0.75rem",
-                              fontSize: "0.75rem",
+                              padding: "0.55rem 0.85rem",
+                              borderRadius: "0.85rem",
+                              fontSize: "0.85rem",
                               fontWeight: 800,
-                              border: "1px solid rgba(16, 185, 129, 0.4)",
+                              border: "1px solid rgba(16, 185, 129, 0.35)",
                             }}
                           >
-                            مملوك ✓
-                          </span>
+                            مملوك في حقيبتك ✓
+                          </div>
                         ) : (
                           <button
                             type="button"
                             onClick={() => handleBuyItem(item)}
                             disabled={loadingAction === `buy_${item.id}`}
                             style={{
-                              background: canAfford ? "linear-gradient(135deg, #0284c7, #0369a1)" : "rgba(255,255,255,0.06)",
+                              width: "100%",
+                              background: canAfford
+                                ? "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
+                                : "rgba(255,255,255,0.08)",
                               color: canAfford ? "#ffffff" : "#64748b",
-                              border: canAfford ? "1px solid #38bdf8" : "1px solid rgba(255,255,255,0.1)",
-                              padding: "0.45rem 0.85rem",
-                              borderRadius: "0.75rem",
-                              fontSize: "0.85rem",
+                              border: canAfford ? "1px solid #38bdf8" : "1px solid rgba(255,255,255,0.15)",
+                              padding: "0.6rem 1rem",
+                              borderRadius: "0.85rem",
+                              fontSize: "0.9rem",
                               fontWeight: 900,
                               cursor: canAfford ? "pointer" : "not-allowed",
                               display: "flex",
                               alignItems: "center",
-                              gap: "0.3rem",
-                              boxShadow: canAfford ? "0 2px 10px rgba(2,132,199,0.3)" : "none",
+                              justifyContent: "center",
+                              gap: "0.4rem",
+                              boxShadow: canAfford ? "0 4px 15px rgba(2, 132, 199, 0.35)" : "none",
+                              transition: "all 0.15s ease",
                             }}
                           >
-                            <span>💎 {item.price_in_gems}</span>
-                            <span style={{ fontSize: "0.75rem", opacity: 0.85 }}>شراء</span>
+                            <span>شراء مقابل {item.price_in_gems} جوهرة 💎</span>
                           </button>
                         )}
                       </div>
@@ -580,10 +621,10 @@ export default function HeroView({
             ) : (
               /* INVENTORY ITEMS */
               filteredInventoryItems.length === 0 ? (
-                <div style={{ textAlign: "center", color: "#94a3b8", padding: "2.5rem 1rem" }}>
-                  <Backpack size={36} color="#64748b" style={{ margin: "0 auto 0.5rem" }} />
-                  <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>مخزونك فارغ في هذا التصنيف</div>
-                  <div style={{ fontSize: "0.8rem", marginTop: "0.25rem" }}>تصفح المتجر واشترِ عتاداً جديداً بجواهرك!</div>
+                <div style={{ textAlign: "center", color: "#94a3b8", padding: "3rem 1rem" }}>
+                  <Backpack size={42} color="#64748b" style={{ margin: "0 auto 0.65rem" }} />
+                  <div style={{ fontWeight: 800, fontSize: "1rem", color: "#e2e8f0" }}>حقيبتك فارغة في هذا التصنيف</div>
+                  <div style={{ fontSize: "0.85rem", marginTop: "0.35rem" }}>تصفح المتجر واشترِ عتاداً تاريخياً جديداً بجواهرك!</div>
                 </div>
               ) : (
                 filteredInventoryItems.map(inv => {
@@ -595,64 +636,100 @@ export default function HeroView({
                     <div
                       key={inv.id}
                       style={{
-                        background: isEquipped ? "rgba(139, 92, 246, 0.15)" : "rgba(15, 23, 42, 0.7)",
-                        border: isEquipped ? "2px solid #8b5cf6" : "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: "1rem",
-                        padding: "0.85rem 1rem",
+                        background: isEquipped ? "rgba(139, 92, 246, 0.15)" : "rgba(15, 23, 42, 0.75)",
+                        border: isEquipped ? "2px solid #8b5cf6" : "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: "1.15rem",
+                        padding: "1rem",
                         display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
+                        flexDirection: "column",
                         gap: "0.75rem",
+                        boxShadow: isEquipped ? "0 4px 18px rgba(139, 92, 246, 0.25)" : "0 4px 15px rgba(0,0,0,0.15)",
+                        transition: "all 0.2s ease",
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                        <div
-                          style={{
-                            width: "2.85rem",
-                            height: "2.85rem",
-                            borderRadius: "0.75rem",
-                            background: "rgba(255,255,255,0.06)",
-                            border: "1px solid rgba(255,255,255,0.1)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "1.6rem",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {itemObj.icon_name}
-                        </div>
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                            <span style={{ fontWeight: 800, color: "#ffffff", fontSize: "0.95rem" }}>{itemObj.name}</span>
-                            <span style={{ fontSize: "0.65rem", background: "rgba(255,255,255,0.1)", color: "#cbd5e1", padding: "0.1rem 0.4rem", borderRadius: "9999px" }}>
-                              {CATEGORY_LABELS[itemObj.category].name}
-                            </span>
+                      {/* Top Row: Icon + Name/Category + Equipped Badge */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          <div
+                            style={{
+                              width: "3rem",
+                              height: "3rem",
+                              borderRadius: "0.85rem",
+                              background: "rgba(255,255,255,0.08)",
+                              border: "1px solid rgba(255,255,255,0.15)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "1.75rem",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {itemObj.icon_name}
                           </div>
-                          <p style={{ margin: "0.2rem 0 0", color: "#94a3b8", fontSize: "0.75rem", lineHeight: 1.35 }}>
-                            {itemObj.description}
-                          </p>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 800, color: "#ffffff", fontSize: "1rem" }}>{itemObj.name}</span>
+                              <span
+                                style={{
+                                  fontSize: "0.68rem",
+                                  background: "rgba(255,255,255,0.12)",
+                                  color: "#cbd5e1",
+                                  padding: "0.15rem 0.5rem",
+                                  borderRadius: "9999px",
+                                  fontWeight: 700,
+                                  border: "1px solid rgba(255,255,255,0.15)",
+                                }}
+                              >
+                                {CATEGORY_LABELS[itemObj.category].name}
+                              </span>
+                            </div>
+                          </div>
                         </div>
+
+                        {isEquipped && (
+                          <span
+                            style={{
+                              fontSize: "0.75rem",
+                              background: "rgba(139, 92, 246, 0.25)",
+                              color: "#c4b5fd",
+                              padding: "0.25rem 0.65rem",
+                              borderRadius: "9999px",
+                              border: "1px solid #8b5cf6",
+                              fontWeight: 800,
+                              flexShrink: 0,
+                            }}
+                          >
+                            مجهّز حالياً ⚔️
+                          </span>
+                        )}
                       </div>
 
-                      <div style={{ flexShrink: 0 }}>
+                      {/* Description */}
+                      <p style={{ margin: 0, color: "#94a3b8", fontSize: "0.75rem", lineHeight: 1.45 }}>
+                        {itemObj.description}
+                      </p>
+
+                      {/* Full-Width Action Button at Bottom */}
+                      <div style={{ width: "100%", marginTop: "0.2rem" }}>
                         {isEquipped ? (
                           <button
                             type="button"
                             onClick={() => handleUnequipItem(itemObj.id, itemObj.category)}
                             disabled={loadingAction === `unequip_${itemObj.id}`}
                             style={{
+                              width: "100%",
                               background: "rgba(239, 68, 68, 0.2)",
                               color: "#f87171",
-                              border: "1px solid rgba(239, 68, 68, 0.4)",
-                              padding: "0.45rem 0.85rem",
-                              borderRadius: "0.75rem",
-                              fontSize: "0.8rem",
+                              border: "1px solid rgba(239, 68, 68, 0.45)",
+                              padding: "0.55rem 1rem",
+                              borderRadius: "0.85rem",
+                              fontSize: "0.85rem",
                               fontWeight: 800,
                               cursor: "pointer",
+                              transition: "all 0.15s ease",
                             }}
                           >
-                            خلع العتاد ↩️
+                            خلع العتاد من الشخصية ↩️
                           </button>
                         ) : (
                           <button
@@ -660,18 +737,20 @@ export default function HeroView({
                             onClick={() => handleEquipItem(itemObj.id, itemObj.category)}
                             disabled={loadingAction === `equip_${itemObj.id}`}
                             style={{
+                              width: "100%",
                               background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
                               color: "#ffffff",
                               border: "1px solid #a78bfa",
-                              padding: "0.45rem 0.85rem",
-                              borderRadius: "0.75rem",
-                              fontSize: "0.8rem",
+                              padding: "0.55rem 1rem",
+                              borderRadius: "0.85rem",
+                              fontSize: "0.85rem",
                               fontWeight: 900,
                               cursor: "pointer",
-                              boxShadow: "0 2px 10px rgba(139,92,246,0.3)",
+                              boxShadow: "0 2px 12px rgba(139,92,246,0.35)",
+                              transition: "all 0.15s ease",
                             }}
                           >
-                            تجهيز ⚔️
+                            تجهيز على الشخصية ⚔️
                           </button>
                         )}
                       </div>
