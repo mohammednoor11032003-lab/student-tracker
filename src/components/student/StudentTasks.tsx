@@ -564,9 +564,10 @@ function StudentTasks({
         throw new Error("Failed to claim bounty")
       }
       setWeeklyPoints(prev => prev + bounty.points)
-      toast.success(`مبروك! تم استلام مكافأة التحدي (+${bounty.points} نقطة و+10 جواهر 💎) 🏆🎉`)
+      const gemsToAward = bounty.gems || Math.max(10, Math.round(bounty.points * 0.4))
+      toast.success(`مبروك! تم استلام مكافأة التحدي (+${bounty.points} نقطة و+${gemsToAward} جواهر 💎) 🏆🎉`)
 
-      // Award bonus gems for bounty challenge (+10 gems)
+      // Award bonus gems for bounty challenge
       try {
         fetch("/api/hero", {
           method: "POST",
@@ -574,11 +575,11 @@ function StudentTasks({
           body: JSON.stringify({
             action: "award_gems",
             studentId,
-            amount: 10,
+            amount: gemsToAward,
           }),
         }).catch(err => console.error("Failed to award bounty gems:", err))
         if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: 10 } }))
+          window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: gemsToAward } }))
         }
       } catch {}
     } catch (err) {

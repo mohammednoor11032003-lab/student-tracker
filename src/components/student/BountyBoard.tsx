@@ -322,27 +322,51 @@ export default function BountyBoard({
                     </div>
                   </div>
 
-                  {/* Large High Reward Badge */}
-                  <div
-                    style={{
-                      background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
-                      padding: "0.35rem 0.75rem",
-                      borderRadius: "0.75rem",
-                      border: "1px solid #fbbf24",
-                      boxShadow: "0 2px 10px rgba(245, 158, 11, 0.35)",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      minWidth: "65px",
-                    }}
-                  >
-                    <span style={{ color: "#ffffff", fontSize: "1.15rem", fontWeight: 900, lineHeight: 1 }}>
-                      +{bounty.points}
-                    </span>
-                    <span style={{ color: "#fef3c7", fontSize: "0.65rem", fontWeight: 700 }}>
-                      نقطة
-                    </span>
+                  {/* Large High Reward Dual Badge (Points + Gems) */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    <div
+                      style={{
+                        background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
+                        padding: "0.35rem 0.65rem",
+                        borderRadius: "0.75rem",
+                        border: "1px solid #fbbf24",
+                        boxShadow: "0 2px 10px rgba(245, 158, 11, 0.35)",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: "55px",
+                      }}
+                    >
+                      <span style={{ color: "#ffffff", fontSize: "1.1rem", fontWeight: 900, lineHeight: 1 }}>
+                        +{bounty.points}
+                      </span>
+                      <span style={{ color: "#fef3c7", fontSize: "0.65rem", fontWeight: 700 }}>
+                        نقطة
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                        padding: "0.35rem 0.65rem",
+                        borderRadius: "0.75rem",
+                        border: "1px solid #38bdf8",
+                        boxShadow: "0 2px 10px rgba(14, 165, 233, 0.35)",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: "55px",
+                      }}
+                    >
+                      <span style={{ color: "#ffffff", fontSize: "1.1rem", fontWeight: 900, lineHeight: 1, display: "flex", alignItems: "center", gap: "0.15rem" }}>
+                        +{bounty.gems || Math.max(10, Math.round(bounty.points * 0.4))}
+                      </span>
+                      <span style={{ color: "#e0f2fe", fontSize: "0.65rem", fontWeight: 700 }}>
+                        💎 جوهرة
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -429,7 +453,7 @@ export default function BountyBoard({
                     }}
                   >
                     <CheckCircle2 size={18} />
-                    <span>تم إنجاز التحدي (+{bounty.points} نقطة) ✓</span>
+                    <span>تم إنجاز التحدي (+{bounty.points} نقطة و+{bounty.gems || Math.max(10, Math.round(bounty.points * 0.4))} 💎) ✓</span>
                   </div>
                 ) : (
                   /* State 3: In Progress with Interactive Clicker Counters */

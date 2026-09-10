@@ -3,6 +3,7 @@ export interface BountyTask {
   name: string
   description: string
   points: number
+  gems: number
   emoji: string
   target: number
   unit?: string
@@ -46,6 +47,7 @@ export function parseBountyTask(task: {
   let target = 1
   let unit = "مرات"
   let details = task.description || ""
+  let gems = Math.max(10, Math.round(task.points * 0.4))
 
   if (task.description) {
     try {
@@ -54,6 +56,7 @@ export function parseBountyTask(task: {
         if (parsed.target) target = Number(parsed.target) || 1
         if (parsed.unit) unit = String(parsed.unit)
         if (parsed.details) details = String(parsed.details)
+        if (parsed.gems) gems = Number(parsed.gems)
       }
     } catch {
       // not JSON, fallback to raw text
@@ -65,6 +68,7 @@ export function parseBountyTask(task: {
     name: task.name,
     description: task.description || "",
     points: task.points,
+    gems,
     emoji: task.emoji || "🏆",
     target,
     unit,

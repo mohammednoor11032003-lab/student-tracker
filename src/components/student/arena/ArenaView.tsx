@@ -114,6 +114,8 @@ export default function ArenaView({
           opponent_name: outcome.defender_name,
           opponent_id: outcome.defender_id,
           is_victory: outcome.is_victory,
+          outcome: outcome.outcome,
+          is_draw: outcome.is_draw,
           gems_awarded: outcome.gems_awarded,
           is_quran_boosted: outcome.is_quran_boosted,
           attacker_attack: outcome.attacker_attack,
@@ -556,11 +558,25 @@ export default function ArenaView({
                           fontWeight: 800,
                           padding: "0.2rem 0.5rem",
                           borderRadius: "0.35rem",
-                          background: battle.is_victory ? "#ecfdf5" : "#fef2f2",
-                          color: battle.is_victory ? "#059669" : "#dc2626",
+                          background:
+                            battle.outcome === "draw" || (battle as any).is_draw
+                              ? "#fffbeb"
+                              : battle.is_victory
+                              ? "#ecfdf5"
+                              : "#fef2f2",
+                          color:
+                            battle.outcome === "draw" || (battle as any).is_draw
+                              ? "#d97706"
+                              : battle.is_victory
+                              ? "#059669"
+                              : "#dc2626",
                         }}
                       >
-                        {battle.is_victory ? "🏆 نصر" : "🛡️ هزيمة"}
+                        {battle.outcome === "draw" || (battle as any).is_draw
+                          ? "🤝 تعادل"
+                          : battle.is_victory
+                          ? "🏆 نصر"
+                          : "🛡️ هزيمة"}
                       </span>
                     </td>
                     <td style={{ padding: "0.65rem 0.75rem", fontWeight: 800, fontSize: "0.85rem", color: battle.is_victory ? "#059669" : "#94a3b8" }}>

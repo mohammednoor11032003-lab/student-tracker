@@ -35,9 +35,11 @@ export interface BattleOutcome {
   defender_attack: number
   defender_defense: number
   is_quran_boosted: boolean
+  outcome: "victory" | "defeat" | "draw"
   winner_id: string
   winner_name: string
   is_victory: boolean
+  is_draw: boolean
   gems_awarded: number
   remaining_challenges: number
   rounds: BattleRound[]
@@ -50,7 +52,9 @@ export interface BattleHistoryItem {
   created_at: string
   opponent_name: string
   opponent_id: string
+  outcome: "victory" | "defeat" | "draw"
   is_victory: boolean
+  is_draw: boolean
   gems_awarded: number
   is_quran_boosted: boolean
   attacker_attack: number
@@ -166,7 +170,20 @@ export async function getStudentCombatStats(studentId: string): Promise<{
 export async function getStudentTodayBattlesCount(studentId: string, todayStr: string): Promise<number> {
   const supabase = getAdminClient()
 
-  // 1. Try DB
+  // 1. Try battle_history table
+  try {
+    const { count, error } = await supabase
+      .from("battle_history")
+      .select("*", { count: "exact", head: true })
+      .eq("attacker_id", studentId)
+      .eq("battle_date", todayStr)
+
+    if (!error && typeof count === "number" && count > 0) {
+      return count
+    }
+  } catch {}
+
+  // 2. Try arena_battles table
   try {
     const { count, error } = await supabase
       .from("arena_battles")
@@ -174,12 +191,12 @@ export async function getStudentTodayBattlesCount(studentId: string, todayStr: s
       .eq("attacker_id", studentId)
       .eq("battle_date", todayStr)
 
-    if (!error && typeof count === "number") {
+    if (!error && typeof count === "number" && count > 0) {
       return count
     }
   } catch {}
 
-  // 2. Fallback to local storage
+  // 3. Fallback to local storage
   const local = getLocalBattles()
   const todayBattles = local.filter(b => b.attacker_id === studentId && b.battle_date === todayStr)
   return todayBattles.length
@@ -191,7 +208,42 @@ export async function getStudentTodayBattlesCount(studentId: string, todayStr: s
 export async function getStudentRecentBattles(studentId: string): Promise<BattleHistoryItem[]> {
   const supabase = getAdminClient()
 
-  // 1. Try DB
+  // 1. Try battle_history
+  try {
+    const { data, error } = await supabase
+      .from("battle_history")
+      .select("*")
+      .or(`attacker_id.eq.${studentId},defender_id.eq.${studentId}`)
+      .order("created_at", { ascending: false })
+      .limit(10)
+
+    if (!error && data && data.length > 0) {
+      return data.map(b => {
+        const isAttacker = b.attacker_id === studentId
+        const isDraw = b.outcome === "draw" || b.winner_id === "draw" || b.is_draw
+        const isVictory = !isDraw && b.winner_id === studentId
+        const opponentName = isAttacker ? b.defender_name : b.attacker_name
+        const opponentId = isAttacker ? b.defender_id : b.attacker_id
+
+        return {
+          id: b.id,
+          battle_date: b.battle_date,
+          created_at: b.created_at,
+          opponent_name: opponentName,
+          opponent_id: opponentId,
+          outcome: (b.outcome as "victory" | "defeat" | "draw") || (isDraw ? "draw" : isVictory ? "victory" : "defeat"),
+          is_victory: isVictory,
+          is_draw: isDraw,
+          gems_awarded: isVictory ? b.gems_awarded || 10 : 0,
+          is_quran_boosted: Boolean(b.is_quran_boosted),
+          attacker_attack: b.attacker_attack,
+          defender_attack: b.defender_attack,
+        }
+      })
+    }
+  } catch {}
+
+  // 2. Try arena_battles
   try {
     const { data, error } = await supabase
       .from("arena_battles")
@@ -203,7 +255,8 @@ export async function getStudentRecentBattles(studentId: string): Promise<Battle
     if (!error && data && data.length > 0) {
       return data.map(b => {
         const isAttacker = b.attacker_id === studentId
-        const isVictory = b.winner_id === studentId
+        const isDraw = b.outcome === "draw" || b.winner_id === "draw" || b.is_draw
+        const isVictory = !isDraw && b.winner_id === studentId
         const opponentName = isAttacker ? b.defender_name : b.attacker_name
         const opponentId = isAttacker ? b.defender_id : b.attacker_id
 
@@ -213,7 +266,9 @@ export async function getStudentRecentBattles(studentId: string): Promise<Battle
           created_at: b.created_at,
           opponent_name: opponentName,
           opponent_id: opponentId,
+          outcome: (b.outcome as "victory" | "defeat" | "draw") || (isDraw ? "draw" : isVictory ? "victory" : "defeat"),
           is_victory: isVictory,
+          is_draw: isDraw,
           gems_awarded: isVictory ? b.gems_awarded || 10 : 0,
           is_quran_boosted: Boolean(b.is_quran_boosted),
           attacker_attack: b.attacker_attack,
@@ -223,7 +278,7 @@ export async function getStudentRecentBattles(studentId: string): Promise<Battle
     }
   } catch {}
 
-  // 2. Fallback to local storage
+  // 3. Fallback to local storage
   const local = getLocalBattles()
   return local
     .filter(b => b.attacker_id === studentId || b.defender_id === studentId)
@@ -231,14 +286,17 @@ export async function getStudentRecentBattles(studentId: string): Promise<Battle
     .slice(0, 10)
     .map(b => {
       const isAttacker = b.attacker_id === studentId
-      const isVictory = b.winner_id === studentId
+      const isDraw = b.outcome === "draw" || b.winner_id === "draw" || b.is_draw
+      const isVictory = !isDraw && b.winner_id === studentId
       return {
         id: b.id,
         battle_date: b.battle_date,
         created_at: b.created_at,
         opponent_name: isAttacker ? b.defender_name : b.attacker_name,
         opponent_id: isAttacker ? b.defender_id : b.attacker_id,
+        outcome: (b.outcome as "victory" | "defeat" | "draw") || (isDraw ? "draw" : isVictory ? "victory" : "defeat"),
         is_victory: isVictory,
+        is_draw: isDraw,
         gems_awarded: isVictory ? b.gems_awarded || 10 : 0,
         is_quran_boosted: Boolean(b.is_quran_boosted),
         attacker_attack: b.attacker_attack,
@@ -394,18 +452,24 @@ export function simulateBattle(params: {
     })
   }
 
-  // Determine Winner
-  // Comparison: Net HP or remaining health
-  const isVictory = attackerHp >= defenderHp
-  const winnerId = isVictory ? attackerId : defenderId
-  const winnerName = isVictory ? attackerName : defenderName
+  // Determine Winner (with explicit Tie / Draw logic)
+  const isDraw =
+    (effectiveAttackerAttack === defenderAttack && attackerDefense === defenderDefense) ||
+    Math.abs(attackerHp - defenderHp) <= 2
+
+  const isVictory = !isDraw && attackerHp > defenderHp
+  const outcomeStatus: "victory" | "defeat" | "draw" = isDraw ? "draw" : isVictory ? "victory" : "defeat"
+  const winnerId = isDraw ? "draw" : isVictory ? attackerId : defenderId
+  const winnerName = isDraw ? "تعادل" : isVictory ? attackerName : defenderName
   const gemsAwarded = isVictory ? 10 : 0
 
-  const summaryMessage = isVictory
+  const summaryMessage = isDraw
+    ? "تعادل شريف وبطولي! تساوت القوى والعتاد بينكما وحُسم النزال دون فائز أو خاسر (لم تُمنح جواهر النصر)."
+    : isVictory
     ? isQuranBoosted
-      ? `نصر مبين! بفضل بركة إتمامك للورد القرآني وعتادك القوي، حققت الفوز ونلت 10 جواهر 💎!`
-      : `مبارك الفوز! تمكنت من حسم النزال وربحت 10 جواهر 💎!`
-    : `نزال بطولي رائع! كان الفوز قريباً، طوّر عتادك وأتم وردك القرآني للحصول على قوة مضاعفة 1.5x!`
+      ? "نصر مبين! بفضل بركة إتمامك للورد القرآني وعتادك القوي، حققت الفوز ونلت 10 جواهر 💎!"
+      : "مبارك الفوز! تمكنت من حسم النزال وربحت 10 جواهر 💎!"
+    : "نزال بطولي رائع! كان الفوز قريباً، طوّر عتادك وأتم وردك القرآني للحصول على قوة مضاعفة 1.5x!"
 
   const battleId = `battle_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
 
@@ -421,9 +485,11 @@ export function simulateBattle(params: {
     defender_attack: defenderAttack,
     defender_defense: defenderDefense,
     is_quran_boosted: isQuranBoosted,
+    outcome: outcomeStatus,
     winner_id: winnerId,
     winner_name: winnerName,
     is_victory: isVictory,
+    is_draw: isDraw,
     gems_awarded: gemsAwarded,
     remaining_challenges: Math.max(0, remainingChallenges - 1),
     rounds,
@@ -437,7 +503,29 @@ export function simulateBattle(params: {
 export async function recordBattleResult(outcome: BattleOutcome, todayStr: string) {
   const supabase = getAdminClient()
 
-  // 1. Try DB
+  // 1. Try DB - battle_history
+  try {
+    await supabase.from("battle_history").insert({
+      attacker_id: outcome.attacker_id,
+      defender_id: outcome.defender_id,
+      attacker_name: outcome.attacker_name,
+      defender_name: outcome.defender_name,
+      attacker_attack: outcome.attacker_attack,
+      attacker_defense: outcome.attacker_defense,
+      defender_attack: outcome.defender_attack,
+      defender_defense: outcome.defender_defense,
+      is_quran_boosted: outcome.is_quran_boosted,
+      outcome: outcome.outcome,
+      winner_id: outcome.winner_id,
+      gems_awarded: outcome.gems_awarded,
+      battle_date: todayStr,
+      rounds_data: outcome.rounds,
+    })
+  } catch (err) {
+    console.error("DB record battle_history error:", err)
+  }
+
+  // 2. Try DB - arena_battles
   try {
     await supabase.from("arena_battles").insert({
       attacker_id: outcome.attacker_id,
@@ -449,16 +537,16 @@ export async function recordBattleResult(outcome: BattleOutcome, todayStr: strin
       defender_attack: outcome.defender_attack,
       defender_defense: outcome.defender_defense,
       is_quran_boosted: outcome.is_quran_boosted,
-      winner_id: outcome.winner_id.startsWith("bot_") ? outcome.attacker_id : outcome.winner_id,
+      winner_id: outcome.winner_id.startsWith("bot_") || outcome.winner_id === "draw" ? outcome.attacker_id : outcome.winner_id,
       gems_awarded: outcome.gems_awarded,
       battle_date: todayStr,
       rounds_data: outcome.rounds,
     })
   } catch (err) {
-    console.error("DB record battle error (using local storage fallback):", err)
+    console.error("DB record arena_battles error:", err)
   }
 
-  // 2. Update local fallback
+  // 3. Update local fallback
   const local = getLocalBattles()
   local.unshift({
     id: outcome.battle_id,

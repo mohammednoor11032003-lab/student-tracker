@@ -53,13 +53,18 @@ async function resolveStudent(req: NextRequest) {
 // 1. GET: Fetch arena overview, stats, opponents, and history
 export async function GET(req: NextRequest) {
   try {
+    const url = new URL(req.url)
+    const queryStudentId = url.searchParams.get("studentId")
     const studentInfo = await resolveStudent(req)
-    if (!studentInfo) {
+
+    const studentId = queryStudentId || studentInfo?.studentId
+    const studentName = studentInfo?.studentName || "بطل القرآن"
+
+    if (!studentId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const todayStr = getTodayDateStr()
-    const { studentId, studentName } = studentInfo
 
     // Parallel fetch: stats, today battles count, quran boost, opponents, recent battles, hero gems
     const [stats, todayBattles, isQuranBoosted, opponents, recentBattles, heroState] = await Promise.all([
@@ -102,9 +107,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const studentInfo = await resolveStudent(req)
-    
-    const studentId = studentInfo?.studentId || body.studentId
-    const studentName = studentInfo?.studentName || body.studentName || "بطل القرآن"
+
+    // Prioritize body.studentId for accurate student execution
+    const studentId = body.studentId || studentInfo?.studentId
+    const studentName = body.studentName || studentInfo?.studentName || "بطل القرآن"
     const defenderId = body.defenderId
 
     if (!studentId || !defenderId) {

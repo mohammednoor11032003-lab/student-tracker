@@ -83,9 +83,11 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
       }}
     >
       <div
+        className="max-h-[90vh] overflow-y-auto flex flex-col"
         style={{
           width: "100%",
           maxWidth: "580px",
+          maxHeight: "90vh",
           background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)",
           borderRadius: "1.5rem",
           border: outcome.is_quran_boosted ? "2px solid #fbbf24" : "1px solid rgba(255,255,255,0.15)",
@@ -93,7 +95,6 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
             ? "0 20px 50px rgba(251, 191, 36, 0.3)"
             : "0 20px 50px rgba(0, 0, 0, 0.5)",
           color: "white",
-          overflow: "hidden",
           position: "relative",
           animation: "modalFadeIn 0.3s ease-out",
         }}
@@ -107,6 +108,10 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
             padding: "1rem 1.25rem",
             background: "rgba(255,255,255,0.05)",
             borderBottom: "1px solid rgba(255,255,255,0.1)",
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+            backdropFilter: "blur(8px)",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -158,7 +163,7 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
           </div>
         )}
 
-        <div style={{ padding: "1.25rem" }}>
+        <div style={{ padding: "1.25rem", flex: 1 }}>
           {/* Combatants VS Display */}
           <div
             style={{
@@ -308,7 +313,7 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
           </div>
 
           {/* Rounds Progression Cards */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", minHeight: "160px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", minHeight: "140px" }}>
             {outcome.rounds.map((round, idx) => {
               const isVisible = currentStep >= round.round_number
               if (!isVisible) return null
@@ -380,34 +385,62 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
               style={{
                 marginTop: "1rem",
                 padding: "1.25rem",
-                background: outcome.is_victory
+                background: outcome.is_draw
+                  ? "linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.3) 100%)"
+                  : outcome.is_victory
                   ? "linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.4) 100%)"
                   : "linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(185, 28, 28, 0.3) 100%)",
-                border: outcome.is_victory ? "2px solid #10b981" : "1px solid #ef4444",
+                border: outcome.is_draw
+                  ? "2px solid #f59e0b"
+                  : outcome.is_victory
+                  ? "2px solid #10b981"
+                  : "1px solid #ef4444",
                 borderRadius: "1rem",
                 textAlign: "center",
                 animation: "scaleIn 0.3s ease-out",
               }}
             >
               <div style={{ fontSize: "2.5rem", marginBottom: "0.25rem" }}>
-                {outcome.is_victory ? "🏆" : "🛡️"}
+                {outcome.is_draw ? "🤝" : outcome.is_victory ? "🏆" : "🛡️"}
               </div>
               <h2
                 style={{
                   margin: "0 0 0.5rem",
                   fontSize: "1.35rem",
                   fontWeight: 900,
-                  color: outcome.is_victory ? "#34d399" : "#fca5a5",
+                  color: outcome.is_draw ? "#fbbf24" : outcome.is_victory ? "#34d399" : "#fca5a5",
                 }}
               >
-                {outcome.is_victory ? "نصر مبين ومظفر! 🎉" : "نزال بطولي مشرف!"}
+                {outcome.is_draw
+                  ? "تعادل بطولي مشرف! 🤝"
+                  : outcome.is_victory
+                  ? "نصر مبين ومظفر! 🎉"
+                  : "نزال بطولي مشرف!"}
               </h2>
 
               <p style={{ margin: "0 0 0.85rem", fontSize: "0.85rem", color: "#f1f5f9", lineHeight: 1.5 }}>
                 {outcome.summary_message}
               </p>
 
-              {outcome.is_victory && (
+              {outcome.is_draw ? (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    background: "rgba(245, 158, 11, 0.2)",
+                    border: "1px solid #f59e0b",
+                    borderRadius: "0.6rem",
+                    padding: "0.4rem 0.85rem",
+                    color: "#fef08a",
+                    fontWeight: 800,
+                    fontSize: "0.85rem",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <span>تساوت القوى في الميدان • لم يحصل أي طرف على جواهر النصر</span>
+                </div>
+              ) : outcome.is_victory ? (
                 <div
                   style={{
                     display: "inline-flex",
@@ -426,27 +459,34 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
                   <Trophy size={18} color="#fbbf24" />
                   <span>+10 جواهر 💎 أضيفت إلى رصيدك!</span>
                 </div>
-              )}
+              ) : null}
 
-              <div>
+              <div style={{ marginTop: "0.5rem" }}>
                 <button
                   type="button"
                   onClick={onClose}
                   style={{
-                    background: outcome.is_victory
+                    background: outcome.is_draw
+                      ? "linear-gradient(135deg, #d97706 0%, #b45309 100%)"
+                      : outcome.is_victory
                       ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
                       : "linear-gradient(135deg, #475569 0%, #334155 100%)",
                     color: "white",
                     border: "none",
                     borderRadius: "0.75rem",
-                    padding: "0.65rem 1.75rem",
-                    fontSize: "0.9rem",
-                    fontWeight: 800,
+                    padding: "0.75rem 2rem",
+                    fontSize: "0.95rem",
+                    fontWeight: 900,
                     cursor: "pointer",
-                    boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
+                    boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.5rem",
                   }}
                 >
-                  متابعة إلى الميدان
+                  <span>المتابعة إلى الميدان</span>
+                  <Swords size={16} />
                 </button>
               </div>
             </div>

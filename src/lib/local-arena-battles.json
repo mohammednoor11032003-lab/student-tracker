@@ -1,0 +1,47 @@
+[
+  {
+    "id": "battle_1789069979616_ykwsg",
+    "attacker_id": "d42d62cc-f9c7-4484-8789-1de973ec8375",
+    "defender_id": "bot_faris_al_himma",
+    "attacker_name": "أحمد معتز الحلو",
+    "defender_name": "فارس الهمّة 🏇",
+    "attacker_attack": 15,
+    "attacker_defense": 15,
+    "defender_attack": 35,
+    "defender_defense": 25,
+    "is_quran_boosted": false,
+    "winner_id": "bot_faris_al_himma",
+    "gems_awarded": 0,
+    "battle_date": "2026-09-10",
+    "created_at": "2026-09-10T19:53:00.957Z",
+    "rounds": [
+      {
+        "round_number": 1,
+        "attacker_action": "⚔️ ضربة سيف خاطفة!",
+        "attacker_damage": 9,
+        "defender_remaining_hp": 141,
+        "defender_action": "🗡️ تصدٍ وردّ هجومي سريع!",
+        "defender_damage": 26,
+        "attacker_remaining_hp": 104
+      },
+      {
+        "round_number": 2,
+        "attacker_action": "🛡️ هجوم تكتيكي مدروس!",
+        "attacker_damage": 6,
+        "defender_remaining_hp": 135,
+        "defender_action": "🏹 رمية سهم محكمة!",
+        "defender_damage": 26,
+        "attacker_remaining_hp": 78
+      },
+      {
+        "round_number": 3,
+        "attacker_action": "⚡ هجمة العزيمة القاضية!",
+        "attacker_damage": 6,
+        "defender_remaining_hp": 129,
+        "defender_action": "🔥 هجمة مضادة قوية!",
+        "defender_damage": 26,
+        "attacker_remaining_hp": 52
+      }
+    ]
+  }
+]
