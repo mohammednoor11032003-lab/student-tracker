@@ -52,6 +52,33 @@ export function formatDateStr(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+/**
+ * Returns today's date string in YYYY-MM-DD format using Jordan local time (Asia/Amman, UTC+3).
+ * Guarantees that SSR (running in UTC like Vercel) and client browsers agree on the exact calendar day.
+ */
+export function getTodayDateStr(d: Date = new Date()): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Amman",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d)
+  } catch {
+    return formatDateStr(d)
+  }
+}
+
+/**
+ * Converts any timestamp or date into Jordan local date string YYYY-MM-DD.
+ */
+export function getDateStrFromTimestamp(timestamp: string | Date): string {
+  if (!timestamp) return getTodayDateStr()
+  const d = typeof timestamp === "string" ? new Date(timestamp) : timestamp
+  return getTodayDateStr(d)
+}
+
+
 export function getWeekAndMonthInfo(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number)
   const target = new Date(y, m - 1, d)

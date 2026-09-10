@@ -1,11 +1,14 @@
-﻿import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import Leaderboard from "@/components/Leaderboard"
+import { getTodayDateStr, getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
+
 export default async function TeacherLeaderboardPage() {
   const supabase = await createClient()
-  const now = new Date()
-  const month = now.getMonth() + 1; const year = now.getFullYear()
-  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay())
-  const weekStartStr = weekStart.toISOString().split("T")[0]
+  const today = getTodayDateStr()
+  const weekInfo = getWeekAndMonthInfo(today)
+  const month = weekInfo.month
+  const year = weekInfo.year
+  const weekStartStr = formatDateStr(weekInfo.weekStart)
   const [weekly, monthly] = await Promise.all([
     supabase.from("weekly_summaries").select("*, profiles(full_name)").eq("week_start", weekStartStr).order("total_points", { ascending: false }),
     supabase.from("monthly_summaries").select("*, profiles(full_name)").eq("month", month).eq("year", year).order("total_points", { ascending: false }),

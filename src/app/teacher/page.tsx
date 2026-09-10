@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
+import { getTodayDateStr } from "@/lib/date-utils"
 
 export default async function TeacherDashboard() {
   const supabase = await createClient()
@@ -8,7 +9,7 @@ export default async function TeacherDashboard() {
   if (!session?.user) {
     redirect("/login")
   }
-  const today = new Date().toISOString().split("T")[0]
+  const today = getTodayDateStr()
 
   const [studentsRes, tasksRes, completionsRes] = await Promise.all([
     supabase.from("profiles").select("*").eq("role", "student"),

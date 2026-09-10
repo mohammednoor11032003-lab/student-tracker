@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getStudentPlan, updateStudentPlan } from "@/lib/student-plan"
 import { getDailyPlanDetails } from "@/lib/plan-utils"
+import { getTodayDateStr } from "@/lib/date-utils"
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const studentId = searchParams.get("studentId")
-    const dateStr = searchParams.get("date") || new Date().toISOString().split("T")[0]
+    const dateStr = searchParams.get("date") || getTodayDateStr()
 
     if (!studentId) {
       return NextResponse.json({ error: "studentId is required" }, { status: 400 })
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const updatedPlan = await updateStudentPlan(studentId, updates || {})
-    const effectiveDate = dateStr || new Date().toISOString().split("T")[0]
+    const effectiveDate = dateStr || getTodayDateStr()
     const details = getDailyPlanDetails(updatedPlan, effectiveDate)
 
     return NextResponse.json({ plan: updatedPlan, details })

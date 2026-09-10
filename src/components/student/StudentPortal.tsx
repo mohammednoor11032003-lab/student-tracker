@@ -187,6 +187,7 @@ export default function StudentPortal({
           initialPlan={initialPlan}
           isStarOfWeek={isStarOfWeek}
           isStarOfMonth={isStarOfMonth}
+          todayStr={todayStr}
         />
       </div>
 

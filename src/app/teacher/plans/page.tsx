@@ -1,10 +1,11 @@
 import { createClient } from "@/lib/supabase/server"
 import { getStudentPlan } from "@/lib/student-plan"
 import TeacherPlansManager from "@/components/teacher/TeacherPlansManager"
+import { getTodayDateStr } from "@/lib/date-utils"
 
 export default async function TeacherPlansPage() {
   const supabase = await createClient()
-  const todayStr = new Date().toISOString().split("T")[0]
+  const todayStr = getTodayDateStr()
 
   const { data: students } = await supabase
     .from("profiles")

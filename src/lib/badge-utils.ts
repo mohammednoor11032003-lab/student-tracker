@@ -1,5 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js"
-import { getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
+import { getWeekAndMonthInfo, formatDateStr, getTodayDateStr } from "@/lib/date-utils"
 
 export interface StudentStarBadges {
   isStarOfWeek: boolean
@@ -37,7 +37,7 @@ export async function getStudentStarBadges(
   studentId: string
 ): Promise<StudentStarBadges> {
   try {
-    const today = new Date().toISOString().split("T")[0]
+    const today = getTodayDateStr()
     const weekInfo = getWeekAndMonthInfo(today)
     const weekStartStr = formatDateStr(weekInfo.weekStart)
 
@@ -46,10 +46,9 @@ export async function getStudentStarBadges(
     prevWeekDate.setDate(prevWeekDate.getDate() - 7)
     const prevWeekStartStr = formatDateStr(prevWeekDate)
 
-    // Calculate previous month and year
-    const now = new Date()
-    const currentMonth = now.getMonth() + 1
-    const currentYear = now.getFullYear()
+    // Calculate previous month and year based on current weekInfo
+    const currentMonth = weekInfo.month
+    const currentYear = weekInfo.year
     const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1
     const prevMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear
 

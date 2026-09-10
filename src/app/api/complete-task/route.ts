@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
+import { getWeekAndMonthInfo, formatDateStr, getTodayDateStr } from "@/lib/date-utils"
 import { getStudentPlan, updateStudentPlan } from "@/lib/student-plan"
 import { calculateNextPlanState } from "@/lib/plan-utils"
 
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   try {
     const { assignmentId, studentId, taskId, points, completed = true, assignedDate } = await req.json()
 
-    const todayStr = new Date().toISOString().split("T")[0]
+    const todayStr = getTodayDateStr()
     const effectiveDate = assignedDate || todayStr
 
     // 1. If this is a dynamic task like 'المهمة البديلة' without an assignmentId, upsert it into daily_assignments

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import StudentPortal from "@/components/student/StudentPortal"
-import { getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
+import { getWeekAndMonthInfo, formatDateStr, getTodayDateStr } from "@/lib/date-utils"
 import { getStudentPlan } from "@/lib/student-plan"
 import { getStudentStarBadges } from "@/lib/badge-utils"
 
@@ -19,14 +19,13 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   const { tab } = await searchParams
   const initialTab = tab === "tasks" || tab === "leaderboard" ? tab : "plan"
 
-  const today = new Date().toISOString().split("T")[0]
+  const today = getTodayDateStr()
   const weekInfo = getWeekAndMonthInfo(today)
   const weekStartStr = formatDateStr(weekInfo.weekStart)
   const weekEndStr = formatDateStr(weekInfo.weekEnd)
 
-  const now = new Date()
-  const month = now.getMonth() + 1
-  const year = now.getFullYear()
+  const month = weekInfo.month
+  const year = weekInfo.year
 
   // 1. Fetch current assignments for today
   let { data: assignments } = await supabase

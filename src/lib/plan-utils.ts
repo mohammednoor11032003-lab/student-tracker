@@ -1,3 +1,5 @@
+import { getTodayDateStr } from "@/lib/date-utils"
+
 export interface HizbInfo {
   hizb: number // 1 to 60
   juz: number // 1 to 30
@@ -449,7 +451,7 @@ export function calculateProjectedPlan(
   diffDays: number
 } {
   const safePlan = studentPlan || DEFAULT_PLAN
-  const baseDateStr = fromDateStr || new Date().toISOString().split("T")[0]
+  const baseDateStr = fromDateStr || getTodayDateStr()
 
   const [by, bm, bd] = baseDateStr.split("-").map(Number)
   const [ty, tm, td] = targetDateStr.split("-").map(Number)

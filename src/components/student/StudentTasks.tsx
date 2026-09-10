@@ -20,6 +20,7 @@ import {
   MONTH_NAMES,
   getMonthFirstSaturday,
   formatDateStr,
+  getTodayDateStr,
   getWeekAndMonthInfo,
   formatDisplayDate,
   AlternativeSubTask,
@@ -43,6 +44,7 @@ function StudentTasks({
   initialPlan,
   isStarOfWeek = false,
   isStarOfMonth = false,
+  todayStr: propTodayStr,
 }: {
   assignments: Assignment[]
   studentId: string
@@ -51,9 +53,10 @@ function StudentTasks({
   initialPlan?: StudentPlan
   isStarOfWeek?: boolean
   isStarOfMonth?: boolean
+  todayStr?: string
 }) {
   const supabase = createClient()
-  const todayStr = new Date().toISOString().split("T")[0]
+  const todayStr = propTodayStr || getTodayDateStr()
 
   // State
   const [selectedDate, setSelectedDate] = useState(todayStr)
@@ -616,7 +619,7 @@ function StudentTasks({
             task_id: "template_lesson",
             assigned_date: selectedDate,
             completed: false,
-            tasks: { id: "template_lesson", name: "الدرس", points: 10, emoji: "📖", created_by: "", created_at: "" },
+            tasks: { id: "template_lesson", name: "الدرس", points: 5, emoji: "📖", created_by: "", created_at: "" },
           },
           {
             id: `template_adjacent_${selectedDate}`,
@@ -640,7 +643,7 @@ function StudentTasks({
             task_id: "template_revision",
             assigned_date: selectedDate,
             completed: false,
-            tasks: { id: "template_revision", name: "المراجعة", points: 10, emoji: "🔄", created_by: "", created_at: "" },
+            tasks: { id: "template_revision", name: "المراجعة", points: 5, emoji: "🔄", created_by: "", created_at: "" },
           },
           {
             id: `template_night_${selectedDate}`,
@@ -672,6 +675,39 @@ function StudentTasks({
         .order("completed", { ascending: true })
 
       if (isCurrent && data) {
+        if (data.length === 0 && selectedDate === todayStr) {
+          // Auto-generate daily assignments for today if missing
+          const { data: allTasks } = await supabase
+            .from("tasks")
+            .select("id, name")
+            .neq("name", "المهمة البديلة")
+            .neq("name", "المهمة الأسبوعية المفاجئة")
+          if (allTasks && allTasks.length > 0) {
+            const toInsert = allTasks.map(t => ({
+              student_id: studentId,
+              task_id: t.id,
+              assigned_date: todayStr,
+              completed: false,
+            }))
+            await supabase
+              .from("daily_assignments")
+              .upsert(toInsert, { onConflict: "student_id,task_id,assigned_date", ignoreDuplicates: true })
+
+            const { data: fresh } = await supabase
+              .from("daily_assignments")
+              .select("*, tasks(*)")
+              .eq("student_id", studentId)
+              .eq("assigned_date", todayStr)
+              .order("completed", { ascending: true })
+
+            if (isCurrent && fresh && fresh.length > 0) {
+              setAssignments(fresh)
+              setAssignmentsCache(prev => ({ ...prev, [selectedDate]: fresh }))
+              setFetchingDate(false)
+              return
+            }
+          }
+        }
         setAssignments(data)
         setAssignmentsCache(prev => ({ ...prev, [selectedDate]: data }))
         setFetchingDate(false)
@@ -734,10 +770,10 @@ function StudentTasks({
     }
     return [
       { id: "future_listening", name: "السماع", emoji: "🎧", points: 5, detail: planDetails.tasks.listening },
-      { id: "future_lesson", name: "الدرس", emoji: "📖", points: 10, detail: planDetails.tasks.lesson },
+      { id: "future_lesson", name: "الدرس", emoji: "📖", points: 5, detail: planDetails.tasks.lesson },
       { id: "future_adjacent", name: "جنب الدرس", emoji: "🔁", points: 5, detail: planDetails.tasks.adjacentLesson },
       { id: "future_tafsir", name: "التفسير", emoji: "💡", points: 5, detail: planDetails.tasks.tafsir },
-      { id: "future_revision", name: "المراجعة", emoji: "🔄", points: 10, detail: planDetails.tasks.revision },
+      { id: "future_revision", name: "المراجعة", emoji: "🔄", points: 5, detail: planDetails.tasks.revision },
       { id: "future_night", name: "قيام الليل", emoji: "🌙", points: 5, detail: planDetails.tasks.nightPrayer },
     ]
   }, [isFuture, activePlan.is_in_consolidation, planDetails])

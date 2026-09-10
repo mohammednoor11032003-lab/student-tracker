@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import Leaderboard from "@/components/Leaderboard"
+import { getTodayDateStr, getWeekAndMonthInfo, formatDateStr } from "@/lib/date-utils"
+
 export default async function ParentDashboard() {
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -9,11 +11,11 @@ export default async function ParentDashboard() {
   }
   const { data: parentProfile } = await supabase.from("profiles").select("*").eq("id", session!.user.id).single()
   const studentId = parentProfile?.student_id
-  const today = new Date().toISOString().split("T")[0]
-  const now = new Date()
-  const month = now.getMonth() + 1; const year = now.getFullYear()
-  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay())
-  const weekStartStr = weekStart.toISOString().split("T")[0]
+  const today = getTodayDateStr()
+  const weekInfo = getWeekAndMonthInfo(today)
+  const month = weekInfo.month
+  const year = weekInfo.year
+  const weekStartStr = formatDateStr(weekInfo.weekStart)
   const [studentRes, assignmentsRes, weeklyRes, monthlyRes, lbWeekly, lbMonthly] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", studentId).single(),
     supabase.from("daily_assignments").select("*, tasks(*)").eq("student_id", studentId).eq("assigned_date", today),
