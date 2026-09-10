@@ -26,6 +26,13 @@ import {
   AlternativeTaskState,
   generateMysteryBoxOutcome,
 } from "@/lib/date-utils"
+import {
+  WeeklyQuestSubTask,
+  WeeklyQuestState,
+  getWeeklyQuestDropDate,
+  generateWeeklyQuestTasks,
+  calculateQuestStatus,
+} from "@/lib/weekly-quest-utils"
 import { StudentPlan, DEFAULT_PLAN, getDailyPlanDetails, calculateProjectedPlan, calculateNextPlanState } from "@/lib/plan-utils"
 
 function StudentTasks({
@@ -313,6 +320,199 @@ function StudentTasks({
       })
     } catch (err) {
       console.error("Failed to sync alternative task completion to database:", err)
+    }
+  }
+
+  // ================= GUARANTEED WEEKLY SURPRISE QUEST LOGIC =================
+  const activeWeekInfo = getWeekAndMonthInfo(todayStr)
+  const currentWeekStartStr = formatDateStr(activeWeekInfo.weekStart)
+  const questDropDate = getWeeklyQuestDropDate(currentWeekStartStr)
+  const isQuestDropped = todayStr >= questDropDate
+
+  const [weeklyQuestState, setWeeklyQuestState] = useState<WeeklyQuestState | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`weekly_quest_${studentId}_${currentWeekStartStr}`)
+        if (saved) return JSON.parse(saved)
+      } catch (e) {
+        console.error("Failed to load weeklyQuestState:", e)
+      }
+    }
+    return null
+  })
+
+  const [isWeeklyQuestModalOpen, setIsWeeklyQuestModalOpen] = useState(false)
+  const [isOpeningGoldenChest, setIsOpeningGoldenChest] = useState(false)
+  const [timeLeftStr, setTimeLeftStr] = useState("")
+
+  // Live Countdown Timer to Midnight of Drop Date
+  useEffect(() => {
+    function updateCountdown() {
+      const now = new Date()
+      const midnight = new Date()
+      midnight.setHours(23, 59, 59, 999)
+      const diffMs = midnight.getTime() - now.getTime()
+      if (diffMs <= 0) {
+        setTimeLeftStr("00:00:00")
+        return
+      }
+      const hrs = Math.floor(diffMs / (1000 * 60 * 60))
+      const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+      const secs = Math.floor((diffMs % (1000 * 60)) / 1000)
+      setTimeLeftStr(
+        `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+      )
+    }
+    updateCountdown()
+    const timer = setInterval(updateCountdown, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  // Auto-trigger Weekly Quest Modal when dropped and not yet opened
+  useEffect(() => {
+    if (!isQuestDropped) return
+    if (!weeklyQuestState) {
+      const initial: WeeklyQuestState = {
+        weekStart: currentWeekStartStr,
+        dropDate: questDropDate,
+        active: true,
+        opened: false,
+        tasks: [],
+        completed: false,
+      }
+      saveWeeklyQuestState(initial)
+      setIsWeeklyQuestModalOpen(true)
+    } else if (!weeklyQuestState.opened) {
+      setIsWeeklyQuestModalOpen(true)
+    }
+  }, [isQuestDropped, weeklyQuestState, currentWeekStartStr, questDropDate])
+
+  function saveWeeklyQuestState(state: WeeklyQuestState | null) {
+    setWeeklyQuestState(state)
+    if (typeof window !== "undefined") {
+      try {
+        if (state) {
+          localStorage.setItem(`weekly_quest_${studentId}_${currentWeekStartStr}`, JSON.stringify(state))
+        } else {
+          localStorage.removeItem(`weekly_quest_${studentId}_${currentWeekStartStr}`)
+        }
+      } catch (e) {
+        console.error("Failed to save weeklyQuestState:", e)
+      }
+    }
+  }
+
+  function handleOpenGoldenChest() {
+    if (isOpeningGoldenChest) return
+    setIsOpeningGoldenChest(true)
+    setTimeout(() => {
+      const generatedTasks = generateWeeklyQuestTasks()
+      const updated: WeeklyQuestState = {
+        ...(weeklyQuestState || {
+          weekStart: currentWeekStartStr,
+          dropDate: questDropDate,
+          active: true,
+          completed: false,
+        }),
+        opened: true,
+        tasks: generatedTasks,
+      }
+      saveWeeklyQuestState(updated)
+      setIsOpeningGoldenChest(false)
+      toast.success("🌟 مبارك! تم فتح الصندوق الذهبي وإضافة مهمتك الأسبوعية بنجاح!", {
+        icon: "👑",
+        duration: 5000,
+      })
+    }, 1200)
+  }
+
+  function handleIncrementWeeklyQuestSubTask(subTaskId: string) {
+    if (!weeklyQuestState || weeklyQuestState.completed) return
+    const updatedTasks = weeklyQuestState.tasks.map(t => {
+      if (t.id === subTaskId && t.current < t.target) {
+        return { ...t, current: t.current + 1 }
+      }
+      return t
+    })
+    const updated: WeeklyQuestState = { ...weeklyQuestState, tasks: updatedTasks }
+    saveWeeklyQuestState(updated)
+  }
+
+  async function handleClaimWeeklyQuest() {
+    if (!weeklyQuestState || weeklyQuestState.completed) return
+    const allDone = weeklyQuestState.tasks.every(t => t.current >= t.target)
+    if (!allDone) {
+      toast.error("يجب إكمال جميع أهداف المهمة الأسبوعية أولاً!", { icon: "⚠️" })
+      return
+    }
+
+    const questStatus = calculateQuestStatus(weeklyQuestState, todayStr)
+    const pointsDelta = questStatus.pointsDelta
+    const summaryText = weeklyQuestState.tasks.map(t => `${t.title} (${t.target})`).join(" + ")
+
+    const completedState: WeeklyQuestState = {
+      ...weeklyQuestState,
+      completed: true,
+      completedAt: new Date().toISOString(),
+      completionDate: todayStr,
+      claimedPoints: pointsDelta,
+      totalDelayedDays: questStatus.delayDays,
+    }
+    saveWeeklyQuestState(completedState)
+
+    // Optimistic UI
+    setWeeklyPoints(prev => prev + pointsDelta)
+
+    const questAssignmentObj: Assignment = {
+      id: `weekly_quest_${Date.now()}`,
+      student_id: studentId,
+      task_id: "29462c7e-2eda-45c4-aa70-eff688efa9c4",
+      assigned_date: todayStr,
+      completed: true,
+      tasks: {
+        id: "29462c7e-2eda-45c4-aa70-eff688efa9c4",
+        name: "المهمة الأسبوعية المفاجئة",
+        description: `تم إنجاز: ${summaryText}`,
+        points: pointsDelta,
+        emoji: "👑",
+        created_by: "",
+        created_at: new Date().toISOString(),
+      },
+    }
+
+    if (selectedDate === todayStr) {
+      const updatedList = [...assignments.filter(x => x.tasks?.name !== "المهمة الأسبوعية المفاجئة"), questAssignmentObj]
+      setAssignments(updatedList)
+      setAssignmentsCache(prev => ({ ...prev, [todayStr]: updatedList }))
+    }
+
+    setIsWeeklyQuestModalOpen(false)
+
+    if (pointsDelta > 0) {
+      toast.success(`🎉 أحسنت صنعاً! أكملت المهمة الأسبوعية في وقتها وحصدت +${pointsDelta} نقطة! 🏆`, {
+        duration: 5000,
+      })
+    } else {
+      toast(`تم إنجاز المهمة الأسبوعية المتأخرة وإيقاف تراكم الخصم اليومي (${pointsDelta} نقطة) بنجاح!`, {
+        icon: "🛑",
+        duration: 5000,
+      })
+    }
+
+    try {
+      await fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "29462c7e-2eda-45c4-aa70-eff688efa9c4",
+          points: pointsDelta,
+          completed: true,
+          assignedDate: todayStr,
+        }),
+      })
+    } catch (err) {
+      console.error("Failed to sync weekly quest to database:", err)
     }
   }
 
@@ -1238,6 +1438,309 @@ function StudentTasks({
             </span>
           </Link>
 
+          {/* ================= GUARANTEED WEEKLY SURPRISE QUEST ================= */}
+          {isQuestDropped && weeklyQuestState && weeklyQuestState.active && (() => {
+            const questStatus = calculateQuestStatus(weeklyQuestState, selectedDate)
+            const isDone = weeklyQuestState.completed
+            const isUnopened = !weeklyQuestState.opened
+            const isDropDay = questStatus.isDropDay
+            const isDelayed = questStatus.isDelayed
+            const delayDays = questStatus.delayDays
+            const pointsDelta = questStatus.pointsDelta
+
+            return (
+              <div
+                className="fade-in-down"
+                style={{
+                  marginBottom: "0.75rem",
+                  position: "relative",
+                }}
+              >
+                <div
+                  style={{
+                    background: isDone
+                      ? "linear-gradient(135deg, #065f46 0%, #047857 50%, #064e3b 100%)"
+                      : isDelayed
+                      ? "linear-gradient(135deg, #7f1d1d 0%, #991b1b 40%, #78350f 100%)"
+                      : "linear-gradient(135deg, #78350f 0%, #b45309 30%, #d97706 70%, #f59e0b 100%)",
+                    borderRadius: "1.25rem",
+                    padding: "1.1rem 1.25rem",
+                    color: "white",
+                    boxShadow: isDone
+                      ? "0 10px 25px rgba(16,185,129,0.3)"
+                      : isDelayed
+                      ? "0 10px 30px rgba(220,38,38,0.4)"
+                      : "0 10px 30px rgba(217,119,6,0.45)",
+                    border: isDone ? "2px solid #86efac" : isDelayed ? "2px solid #fca5a5" : "2px solid #fde68a",
+                    position: "relative",
+                    overflow: "hidden",
+                    transition: "all 0.3s ease",
+                  }}
+                >
+                  {/* Top header line */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: "0.6rem",
+                      flexWrap: "wrap",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <span style={{ fontSize: "1.3rem" }}>{isDone ? "✅" : "👑"}</span>
+                      <span
+                        style={{
+                          background: "rgba(0,0,0,0.3)",
+                          padding: "0.2rem 0.65rem",
+                          borderRadius: "9999px",
+                          fontSize: "0.78rem",
+                          fontWeight: 800,
+                          letterSpacing: "0.5px",
+                          border: "1px solid rgba(255,255,255,0.2)",
+                        }}
+                      >
+                        {isDone ? "المهمة الأسبوعية المفاجئة (مكتملة وموثقة ✓)" : "المهمة الأسبوعية المفاجئة (مضمونة ومُثبتة)"}
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        background: isDone ? "#ffffff" : isDelayed ? "#ef4444" : "#fef08a",
+                        color: isDone ? "#047857" : isDelayed ? "white" : "#78350f",
+                        fontSize: "0.78rem",
+                        fontWeight: 900,
+                        padding: "0.2rem 0.65rem",
+                        borderRadius: "0.5rem",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+                      }}
+                    >
+                      {isDone
+                        ? `تم التوثيق (${pointsDelta > 0 ? "+" + pointsDelta : pointsDelta} نقطة) 🏆`
+                        : isDelayed
+                        ? `خصم متراكم: ${pointsDelta} نقطة ⚠️`
+                        : "+15 نقطة (مكافأة اليوم الأول) 🌟"}
+                    </span>
+                  </div>
+
+                  {/* Countdown timer / delay alert */}
+                  {!isDone && (
+                    <>
+                      {isDropDay ? (
+                        <div
+                          style={{
+                            background: "rgba(0,0,0,0.3)",
+                            borderRadius: "0.75rem",
+                            padding: "0.5rem 0.75rem",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginBottom: "0.75rem",
+                            border: "1px solid rgba(254,240,138,0.35)",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.82rem", fontWeight: 700 }}>
+                            <span>⏰</span>
+                            <span>مهلة اليوم الأول لكسب +15 نقطة:</span>
+                          </div>
+                          <div
+                            style={{
+                              background: "#451a03",
+                              color: "#fef08a",
+                              padding: "0.15rem 0.55rem",
+                              borderRadius: "0.45rem",
+                              fontWeight: 900,
+                              fontSize: "0.92rem",
+                              letterSpacing: "1px",
+                              border: "1px solid #f59e0b",
+                              fontFamily: "monospace",
+                            }}
+                          >
+                            {timeLeftStr || "00:00:00"}
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            background: "rgba(0,0,0,0.4)",
+                            borderRadius: "0.75rem",
+                            padding: "0.5rem 0.75rem",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            marginBottom: "0.75rem",
+                            border: "1px solid #f87171",
+                          }}
+                        >
+                          <span style={{ fontSize: "1.2rem" }}>🚨</span>
+                          <div style={{ fontSize: "0.82rem", fontWeight: 700, color: "#fecaca", lineHeight: 1.4 }}>
+                            انتهت مهلة اليوم الأول! يتراكم خصم <strong>(-5 نقاط عن كل يوم تأخير)</strong>. أنجز المهمة الآن لوقف تراكم الخصم!
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Unopened state vs Opened subtasks */}
+                  {isUnopened ? (
+                    <div
+                      onClick={() => setIsWeeklyQuestModalOpen(true)}
+                      style={{
+                        cursor: "pointer",
+                        background: "rgba(255,255,255,0.15)",
+                        borderRadius: "1rem",
+                        padding: "1rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.75rem",
+                        border: "1px dashed rgba(255,255,255,0.4)",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                        <div style={{ fontSize: "2.5rem" }}>👑</div>
+                        <div>
+                          <div style={{ fontWeight: 900, fontSize: "1.05rem" }}>صندوق المهمة الأسبوعية بانتظارك!</div>
+                          <div style={{ fontSize: "0.8rem", opacity: 0.9 }}>اضغط هنا لفتح الصندوق الذهبي واكتشاف مهمتك المفاجئة 🎁</div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        style={{
+                          background: "#fef08a",
+                          color: "#78350f",
+                          border: "none",
+                          padding: "0.5rem 0.9rem",
+                          borderRadius: "0.6rem",
+                          fontWeight: 900,
+                          fontSize: "0.85rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        افتح الآن ◀
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+                      {/* List of subtasks */}
+                      {weeklyQuestState.tasks.map(subTask => {
+                        const isSubDone = subTask.current >= subTask.target
+                        const pct = Math.min(100, Math.round((subTask.current / subTask.target) * 100))
+
+                        return (
+                          <div
+                            key={subTask.id}
+                            style={{
+                              background: isDone ? "rgba(255,255,255,0.15)" : "white",
+                              color: isDone ? "white" : "#1f2937",
+                              borderRadius: "0.85rem",
+                              padding: "0.75rem 0.9rem",
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isDone ? 0 : "0.4rem" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                <span style={{ fontSize: "1.3rem" }}>{isSubDone || isDone ? "✅" : subTask.emoji}</span>
+                                <div>
+                                  <span style={{ fontWeight: 800, fontSize: "0.95rem", display: "block", color: isDone ? "white" : "#1f2937" }}>
+                                    {subTask.title}
+                                  </span>
+                                  {subTask.details && !isDone && (
+                                    <span style={{ fontSize: "0.78rem", color: "#6b7280", display: "block" }}>
+                                      {subTask.details}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: "0.85rem",
+                                  fontWeight: 900,
+                                  color: isDone ? "white" : isSubDone ? "#16a34a" : "#d97706",
+                                  background: isDone ? "rgba(255,255,255,0.2)" : isSubDone ? "#dcfce7" : "#fef3c7",
+                                  padding: "0.2rem 0.5rem",
+                                  borderRadius: "0.4rem",
+                                }}
+                              >
+                                {isDone ? `${subTask.target} / ${subTask.target}` : `${subTask.current} / ${subTask.target}`}
+                              </span>
+                            </div>
+
+                            {/* Subtask Clicker Button */}
+                            {!isDone && (
+                              <button
+                                type="button"
+                                onClick={() => handleIncrementWeeklyQuestSubTask(subTask.id)}
+                                disabled={isSubDone}
+                                style={{
+                                  width: "100%",
+                                  marginTop: "0.35rem",
+                                  padding: "0.55rem",
+                                  borderRadius: "0.6rem",
+                                  border: "none",
+                                  background: isSubDone
+                                    ? "#10b981"
+                                    : "linear-gradient(135deg, #d97706, #b45309)",
+                                  color: "white",
+                                  fontWeight: 800,
+                                  fontSize: "0.85rem",
+                                  cursor: isSubDone ? "default" : "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: "0.4rem",
+                                  boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+                                }}
+                              >
+                                <span>{isSubDone ? "✓ اكتمل الهدف!" : "انقر لاحتساب كل تكرار"}</span>
+                                <span>({pct}%)</span>
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      {/* Claim Action Button */}
+                      {!isDone && weeklyQuestState.tasks.every(t => t.current >= t.target) && (
+                        <button
+                          type="button"
+                          onClick={handleClaimWeeklyQuest}
+                          style={{
+                            width: "100%",
+                            padding: "0.85rem",
+                            borderRadius: "0.85rem",
+                            border: "none",
+                            background: isDropDay
+                              ? "linear-gradient(135deg, #fef08a, #facc15)"
+                              : "linear-gradient(135deg, #10b981, #059669)",
+                            color: isDropDay ? "#78350f" : "white",
+                            fontWeight: 900,
+                            fontSize: "1.05rem",
+                            cursor: "pointer",
+                            boxShadow: "0 4px 15px rgba(0,0,0,0.25)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "0.5rem",
+                            marginTop: "0.35rem",
+                          }}
+                        >
+                          <span>🏆</span>
+                          <span>
+                            {isDropDay
+                              ? "اعتماد إنجاز المهمة الأسبوعية وحصد +15 نقطة!"
+                              : `اعتماد الإنجاز وإيقاف الخصم المتراكم (${pointsDelta} نقطة)`}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* ================= MANDATORY PINNED ALTERNATIVE TASK ================= */}
           {altTaskState && altTaskState.active && (assignments.some(a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed) || assignments.some(a => a.tasks?.name === "المهمة البديلة" && a.completed)) && (
             <div
@@ -2021,6 +2524,227 @@ function StudentTasks({
             >
               إلغاء
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 0.05 GUARANTEED WEEKLY SURPRISE QUEST MODAL */}
+      {isWeeklyQuestModalOpen && weeklyQuestState && (
+        <div
+          onClick={() => setIsWeeklyQuestModalOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 99999,
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="card"
+            style={{
+              width: "100%",
+              maxWidth: "480px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: "1.75rem 1.5rem",
+              borderRadius: "1.5rem",
+              background: "linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
+              border: "2px solid #fde68a",
+              animation: "popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span style={{ fontSize: "1.8rem" }}>👑</span>
+                <div>
+                  <h3 style={{ margin: 0, fontWeight: 900, color: "#78350f", fontSize: "1.25rem" }}>
+                    صندوق المهمة الأسبوعية المضمونة
+                  </h3>
+                  <span style={{ fontSize: "0.75rem", color: "#b45309", fontWeight: 700 }}>
+                    مهمة إجبارية أسبوعية لجميع الطلاب
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsWeeklyQuestModalOpen(false)}
+                style={{ border: "none", background: "none", fontSize: "1.4rem", cursor: "pointer", color: "#9ca3af" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* STAGE 1: UNOPENED GOLDEN CHEST */}
+            {!weeklyQuestState.opened && (
+              <div style={{ textAlign: "center", padding: "1.5rem 0.5rem" }}>
+                <p style={{ color: "#4b5563", fontSize: "0.95rem", lineHeight: 1.6, margin: "0 0 1.5rem" }}>
+                  حان موعد <strong>المهمة الأسبوعية المفاجئة</strong>! افتح الصندوق الذهبي الفاخر واكتشف مهمتك المقررة لهذا الأسبوع.
+                </p>
+
+                {/* Animated Interactive Golden Chest */}
+                <div
+                  onClick={handleOpenGoldenChest}
+                  style={{
+                    cursor: isOpeningGoldenChest ? "wait" : "pointer",
+                    padding: "1.75rem",
+                    background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #f59e0b 100%)",
+                    borderRadius: "1.75rem",
+                    border: "3px solid #d97706",
+                    boxShadow: "0 0 35px rgba(245,158,11,0.5), inset 0 0 20px rgba(255,255,255,0.6)",
+                    display: "inline-block",
+                    marginBottom: "1.5rem",
+                    transition: "transform 0.2s",
+                  }}
+                  className={isOpeningGoldenChest ? "chest-opening" : "chest-wobble"}
+                >
+                  <div style={{ fontSize: "5.5rem", filter: "drop-shadow(0 4px 10px rgba(180,83,9,0.4))" }}>
+                    {isOpeningGoldenChest ? "✨" : "👑"}
+                  </div>
+                  <div style={{ fontWeight: 900, color: "#78350f", fontSize: "1.15rem", marginTop: "0.5rem" }}>
+                    {isOpeningGoldenChest ? "جاري فتح الصندوق الذهبي..." : "اضغط لفتح الصندوق الذهبي!"}
+                  </div>
+                </div>
+
+                <div style={{ background: "#fef3c7", border: "1px solid #fde68a", padding: "0.6rem 0.85rem", borderRadius: "0.75rem", color: "#92400e", fontSize: "0.82rem", fontWeight: 700, lineHeight: 1.5 }}>
+                  🌟 مكافأة الإنجاز اليوم: <strong>+15 نقطة كاملة</strong> قبل الساعة 12:00 منتصف الليل!
+                </div>
+              </div>
+            )}
+
+            {/* STAGE 2: OPENED GOLDEN CHEST & CLICKER TASKS */}
+            {weeklyQuestState.opened && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ background: "#fef3c7", border: "1px solid #fde68a", padding: "0.75rem 1rem", borderRadius: "0.85rem", color: "#92400e", fontSize: "0.85rem", fontWeight: 700, lineHeight: 1.5 }}>
+                  🎯 تم توليد مهمتك الأسبوعية! أنجز التكرارات المطلوبة واضغط على العداد:
+                </div>
+
+                {/* Sub-tasks clicker list */}
+                {weeklyQuestState.tasks.map(subTask => {
+                  const isFinished = subTask.current >= subTask.target
+                  const progressPct = Math.min(100, Math.round((subTask.current / subTask.target) * 100))
+
+                  return (
+                    <div
+                      key={subTask.id}
+                      style={{
+                        padding: "1rem",
+                        borderRadius: "1rem",
+                        border: isFinished ? "2px solid #22c55e" : "2px solid #fed7aa",
+                        background: isFinished ? "#f0fdf4" : "#ffffff",
+                        boxShadow: isFinished ? "0 4px 15px rgba(34,197,94,0.15)" : "0 2px 8px rgba(0,0,0,0.05)",
+                        transition: "all 0.25s ease",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                        <span style={{ fontSize: "2rem" }}>{isFinished ? "✅" : subTask.emoji}</span>
+                        <div style={{ flex: 1 }}>
+                          <h4 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 800, color: isFinished ? "#16a34a" : "#1f2937" }}>
+                            {subTask.title}
+                          </h4>
+                          {subTask.details && (
+                            <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", color: "#6b7280", lineHeight: 1.4 }}>
+                              {subTask.details}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Clicker Counter Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleIncrementWeeklyQuestSubTask(subTask.id)}
+                        disabled={isFinished || weeklyQuestState.completed}
+                        style={{
+                          width: "100%",
+                          padding: "0.85rem",
+                          borderRadius: "0.85rem",
+                          border: "none",
+                          background: isFinished
+                            ? "linear-gradient(135deg, #10b981, #059669)"
+                            : "linear-gradient(135deg, #d97706, #b45309)",
+                          color: "white",
+                          fontWeight: 900,
+                          fontSize: "1.05rem",
+                          cursor: isFinished || weeklyQuestState.completed ? "default" : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          boxShadow: isFinished ? "0 4px 12px rgba(16,185,129,0.3)" : "0 4px 14px rgba(217,119,6,0.3)",
+                          position: "relative",
+                          overflow: "hidden",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: `${progressPct}%`,
+                            background: "rgba(255,255,255,0.25)",
+                            pointerEvents: "none",
+                            transition: "width 0.2s ease",
+                          }}
+                        />
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", zIndex: 1 }}>
+                          <span style={{ fontSize: "1.3rem" }}>{isFinished ? "🎉" : "📿"}</span>
+                          <span>{isFinished ? "اكتمل هذا الهدف!" : "انقر لاحتساب كل تكرار"}</span>
+                        </div>
+                        <div
+                          style={{
+                            zIndex: 1,
+                            background: "rgba(0,0,0,0.2)",
+                            padding: "0.25rem 0.6rem",
+                            borderRadius: "0.5rem",
+                            fontSize: "1rem",
+                            fontWeight: 900,
+                          }}
+                        >
+                          {subTask.current} / {subTask.target}
+                        </div>
+                      </button>
+                    </div>
+                  )
+                })}
+
+                {/* Final Claim Button inside Modal */}
+                {!weeklyQuestState.completed && weeklyQuestState.tasks.every(t => t.current >= t.target) && (
+                  <button
+                    type="button"
+                    onClick={handleClaimWeeklyQuest}
+                    style={{
+                      width: "100%",
+                      padding: "1rem",
+                      borderRadius: "1rem",
+                      border: "none",
+                      background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                      color: "white",
+                      fontWeight: 900,
+                      fontSize: "1.15rem",
+                      cursor: "pointer",
+                      boxShadow: "0 6px 20px rgba(217,119,6,0.4)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.5rem",
+                      marginTop: "0.5rem",
+                    }}
+                  >
+                    <span>🏆</span>
+                    <span>اعتماد إنجاز المهمة الأسبوعية الآن!</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

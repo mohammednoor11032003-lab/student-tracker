@@ -38,7 +38,11 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
 
   // 2. If no assignments exist for today, automatically create them for the student!
   if (!assignments || assignments.length === 0) {
-    const { data: allTasks } = await supabase.from("tasks").select("id, name").neq("name", "المهمة البديلة")
+    const { data: allTasks } = await supabase
+      .from("tasks")
+      .select("id, name")
+      .neq("name", "المهمة البديلة")
+      .neq("name", "المهمة الأسبوعية المفاجئة")
     if (allTasks && allTasks.length > 0) {
       const toInsert = allTasks.map(t => ({
         student_id: session.user.id,
