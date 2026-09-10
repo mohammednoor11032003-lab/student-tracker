@@ -66,9 +66,22 @@ export default function HeroView({
 }: HeroViewProps) {
   const [gems, setGems] = useState(initialGems)
   const [inventory, setInventory] = useState<StudentInventoryItem[]>(initialInventory)
+  const [shopCatalog, setShopCatalog] = useState<ShopItem[]>(INITIAL_SHOP_CATALOG)
   const [activeTab, setActiveTab] = useState<"shop" | "inventory">("shop")
   const [categoryFilter, setCategoryFilter] = useState<GearCategory | "all">("all")
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
+
+  // Fetch current shop catalog from API
+  React.useEffect(() => {
+    fetch("/api/hero")
+      .then(res => res.json())
+      .then(data => {
+        if (data.catalog && Array.isArray(data.catalog) && data.catalog.length > 0) {
+          setShopCatalog(data.catalog)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Sync state when props change
   React.useEffect(() => {
@@ -103,7 +116,7 @@ export default function HeroView({
 
   inventory.forEach(inv => {
     if (inv.is_equipped) {
-      const itemObj = inv.item || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
+      const itemObj = inv.item || shopCatalog.find(i => i.id === inv.item_id) || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
       if (itemObj) {
         equippedMap[itemObj.category] = itemObj
       }
@@ -192,13 +205,13 @@ export default function HeroView({
   }
 
   // Filtered Shop Items
-  const filteredShopItems = INITIAL_SHOP_CATALOG.filter(
+  const filteredShopItems = shopCatalog.filter(
     item => categoryFilter === "all" || item.category === categoryFilter
   )
 
   // Filtered Inventory Items
   const filteredInventoryItems = inventory.filter(inv => {
-    const itemObj = inv.item || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
+    const itemObj = inv.item || shopCatalog.find(i => i.id === inv.item_id) || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
     return categoryFilter === "all" || itemObj?.category === categoryFilter
   })
 
@@ -489,7 +502,7 @@ export default function HeroView({
               }}
             >
               <ShoppingBag size={18} />
-              <span>متجر العتاد ({INITIAL_SHOP_CATALOG.length}) 🛒</span>
+              <span>متجر العتاد ({shopCatalog.length}) 🛒</span>
             </button>
 
             <button
@@ -725,7 +738,7 @@ export default function HeroView({
                 </div>
               ) : (
                 filteredInventoryItems.map(inv => {
-                  const itemObj = inv.item || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
+                  const itemObj = inv.item || shopCatalog.find(i => i.id === inv.item_id) || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
                   if (!itemObj) return null
                   const isEquipped = inv.is_equipped
 

@@ -22,6 +22,7 @@ export default function TeacherNav({ teacherName }: { teacherName: string }) {
     { href: "/teacher/challenges", label: "التحديات", icon: "⚔️" },
     { href: "/teacher/assign", label: "تعيين", icon: "📅" },
     { href: "/teacher/students", label: "الطلاب", icon: "👨‍🎓" },
+    { href: "/teacher/shop", label: "المتجر", icon: "🛡️" },
     { href: "/teacher/leaderboard", label: "الترتيب", icon: "🏆" },
   ]
 

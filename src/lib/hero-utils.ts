@@ -34,6 +34,46 @@ export interface HeroState {
   }
 }
 
+// ================= VISUAL LAYER PRESETS (FOR ADMIN DRESSING ROOM) =================
+export const VISUAL_PRESETS: Record<GearCategory, { id: string; label: string; icon: string }[]> = {
+  head: [
+    { id: "starter_cap", label: "طاقية البداية", icon: "🧢" },
+    { id: "courier_keffiyeh", label: "كوفية الساعي", icon: "🧣" },
+    { id: "murabit_turban", label: "عمامة المرابط", icon: "🧕" },
+    { id: "knight_helmet", label: "خوذة الفرسان", icon: "🪖" },
+    { id: "hijaz_turban", label: "عمامة الحجاز", icon: "👳" },
+    { id: "ayyubid_helmet", label: "خوذة الأيوبيين", icon: "👑" },
+    { id: "crown_of_dignity", label: "تاج الوقار", icon: "✨👑" },
+  ],
+  body: [
+    { id: "starter_thobe", label: "ثوب المبتدئ", icon: "🥋" },
+    { id: "courier_cloak", label: "عباءة الساعي", icon: "🧥" },
+    { id: "guard_vest", label: "سترة الحرس", icon: "🦺" },
+    { id: "light_knight_armor", label: "درع الفرسان الخفيف", icon: "🛡️" },
+    { id: "andalus_cloak", label: "عباءة الأندلس", icon: "👘" },
+    { id: "mamluk_steel_armor", label: "درع المماليك الفولاذي", icon: "⚔️" },
+    { id: "robe_of_honor", label: "حُلة الكرامة", icon: "🌟" },
+  ],
+  weapon: [
+    { id: "traveler_staff", label: "عصا الترحال", icon: "🦯" },
+    { id: "dagger_of_certainty", label: "خنجر اليقين", icon: "🗡️" },
+    { id: "bow_of_insight", label: "قوس البصيرة", icon: "🏹" },
+    { id: "sword_of_resolve", label: "سيف العزيمة", icon: "⚔️" },
+    { id: "spear_of_steadfastness", label: "رمح الثبات", icon: "🔱" },
+    { id: "blade_of_yarmouk", label: "نصل اليرموك", icon: "⚡" },
+    { id: "sword_of_conquest", label: "سيف الفتح المبين", icon: "✨⚔️" },
+  ],
+  feet: [
+    { id: "starter_sandals", label: "صندل البداية", icon: "👡" },
+    { id: "courier_boots", label: "خف الساعي", icon: "🥿" },
+    { id: "murabit_boots", label: "حذاء المرابط", icon: "🥾" },
+    { id: "desert_boots", label: "خف الصحراء", icon: "👞" },
+    { id: "knight_boots", label: "حذاء الفرسان", icon: "👢" },
+    { id: "armored_cavalry_boots", label: "حذاء الخيل المدرع", icon: "🛡️" },
+    { id: "shoes_of_confidence", label: "خف الواثق", icon: "🌟" },
+  ],
+}
+
 // ================= INITIAL SHOP CATALOG (28 HISTORIC ITEMS) =================
 export const INITIAL_SHOP_CATALOG: ShopItem[] = [
   // 1. HEAD (الرأس - 7 عناصر)

@@ -120,7 +120,13 @@ export default function HeroAvatar({
                 <circle cx="101" cy="268" r="2.5" fill="#fbbf24" />
                 <circle cx="139" cy="268" r="2.5" fill="#fbbf24" />
               </g>
-            ) : null}
+            ) : (
+              /* Fallback Feet Visual */
+              <g>
+                <path d="M 88 272 Q 101 268 114 278 L 88 278 Z" fill="#92400e" />
+                <path d="M 126 272 Q 139 268 152 278 L 126 278 Z" fill="#92400e" />
+              </g>
+            )}
           </g>
         )}
 
@@ -254,7 +260,18 @@ export default function HeroAvatar({
                 <rect x="86" y="158" width="68" height="8" rx="2" fill="#f59e0b" stroke="#78350f" strokeWidth="1" />
                 <circle cx="120" cy="162" r="3" fill="#ffffff" />
               </g>
-            ) : null}
+            ) : (
+              /* Fallback Body Vest */
+              <g>
+                <path
+                  d="M 112 100 L 76 114 L 80 162 Q 120 168 160 162 L 164 114 L 128 100 Z"
+                  fill="#78350f"
+                  stroke="#451a03"
+                  strokeWidth="1.5"
+                />
+                <circle cx="120" cy="132" r="4" fill="#f59e0b" />
+              </g>
+            )}
           </g>
         )}
 
@@ -326,7 +343,15 @@ export default function HeroAvatar({
                 {/* Star glints */}
                 <path d="M 192 26 L 193 30 L 197 31 L 193 32 L 192 36 L 191 32 L 187 31 L 191 30 Z" fill="#ffffff" />
               </g>
-            ) : null}
+            ) : (
+              /* Fallback Weapon (Sword of Resolve) */
+              <g>
+                <path d="M 172 174 L 188 55 L 191 42 L 194 55 L 178 174 Z" fill="#cbd5e1" stroke="#334155" strokeWidth="1.2" />
+                <line x1="175" y1="170" x2="191" y2="55" stroke="#ffffff" strokeWidth="1" />
+                <rect x="163" y="173" width="22" height="5" rx="1.5" fill="#f59e0b" stroke="#78350f" strokeWidth="1" />
+                <circle cx="174" cy="188" r="3" fill="#f59e0b" />
+              </g>
+            )}
           </g>
         )}
 
@@ -449,9 +474,14 @@ export default function HeroAvatar({
                 <circle cx="120" cy="30" r="3.2" fill="#ef4444" stroke="#ffffff" strokeWidth="0.8" />
                 <circle cx="104" cy="38" r="2.2" fill="#38bdf8" stroke="#ffffff" strokeWidth="0.6" />
                 <circle cx="136" cy="38" r="2.2" fill="#38bdf8" stroke="#ffffff" strokeWidth="0.6" />
-                <circle cx="120" cy="52" r="2" fill="#ef4444" />
               </g>
-            ) : null}
+            ) : (
+              /* Fallback Head (Starter Cap) */
+              <g>
+                <ellipse cx="120" cy="46" rx="19" ry="11" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1.5" />
+                <circle cx="120" cy="35" r="2" fill="#94a3b8" />
+              </g>
+            )}
           </g>
         )}
       </svg>

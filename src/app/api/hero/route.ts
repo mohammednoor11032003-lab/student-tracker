@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getStudentHeroState, updateStudentHeroState, INITIAL_SHOP_CATALOG, ShopItem } from "@/lib/hero-utils"
+import { getShopCatalog } from "@/lib/hero-server-utils"
+
+export async function GET() {
+  try {
+    const catalog = await getShopCatalog()
+    return NextResponse.json({ success: true, catalog })
+  } catch (err: any) {
+    return NextResponse.json({ success: true, catalog: INITIAL_SHOP_CATALOG })
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,7 +48,8 @@ export async function POST(req: NextRequest) {
 
     // 3. ACTION: BUY ITEM FROM SHOP
     if (action === "buy") {
-      const targetItem = INITIAL_SHOP_CATALOG.find(i => i.id === itemId)
+      const catalog = await getShopCatalog()
+      const targetItem = catalog.find(i => i.id === itemId) || INITIAL_SHOP_CATALOG.find(i => i.id === itemId)
       if (!targetItem) {
         return NextResponse.json({ error: "Item not found in catalog" }, { status: 404 })
       }
