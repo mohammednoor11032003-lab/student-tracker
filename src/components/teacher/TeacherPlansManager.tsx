@@ -123,7 +123,9 @@ export default function TeacherPlansManager({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          studentId: student.id,
           student_id: student.id,
+          updates: student.plan,
           ...student.plan,
         }),
       })

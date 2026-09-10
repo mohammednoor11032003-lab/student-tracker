@@ -26,7 +26,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { studentId, updates, dateStr } = body
+    const studentId = body.studentId || body.student_id
+    const updates = body.updates || body
+    const dateStr = body.dateStr || body.date_str
 
     if (!studentId) {
       return NextResponse.json({ error: "studentId is required" }, { status: 400 })
