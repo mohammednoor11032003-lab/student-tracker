@@ -4,6 +4,7 @@ import StudentPortal from "@/components/student/StudentPortal"
 import { getWeekAndMonthInfo, formatDateStr, getTodayDateStr } from "@/lib/date-utils"
 import { getStudentPlan } from "@/lib/student-plan"
 import { getStudentStarBadges } from "@/lib/badge-utils"
+import { isBountyTask, parseBountyTask } from "@/lib/bounty-utils"
 
 interface PageProps {
   searchParams: Promise<{ tab?: string }>
@@ -39,11 +40,12 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   if (!assignments || assignments.length === 0) {
     const { data: allTasks } = await supabase
       .from("tasks")
-      .select("id, name")
+      .select("id, name, description")
       .neq("name", "المهمة البديلة")
       .neq("name", "المهمة الأسبوعية المفاجئة")
-    if (allTasks && allTasks.length > 0) {
-      const toInsert = allTasks.map(t => ({
+    const routineTasks = (allTasks || []).filter(t => !isBountyTask(t))
+    if (routineTasks.length > 0) {
+      const toInsert = routineTasks.map(t => ({
         student_id: session.user.id,
         task_id: t.id,
         assigned_date: today,
@@ -62,7 +64,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     }
   }
 
-  const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes, starBadges] = await Promise.all([
+  const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes, starBadges, allTasksRes] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
     supabase.from("weekly_summaries").select("total_points").eq("student_id", session.user.id).eq("week_start", weekStartStr).single(),
     supabase.from("daily_assignments").select("completed, tasks(points)").eq("student_id", session.user.id).gte("assigned_date", weekStartStr).lte("assigned_date", weekEndStr).eq("completed", true),
@@ -70,7 +72,21 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     supabase.from("weekly_summaries").select("*, profiles(full_name)").eq("week_start", weekStartStr).order("total_points", { ascending: false }),
     supabase.from("monthly_summaries").select("*, profiles(full_name)").eq("month", month).eq("year", year).order("total_points", { ascending: false }),
     getStudentStarBadges(supabase, session.user.id),
+    supabase.from("tasks").select("*"),
   ])
+
+  // Extract optional bounty challenges
+  const bounties = (allTasksRes.data || []).filter(isBountyTask).map(parseBountyTask)
+
+  // Fetch completed bounties for this student in current week
+  const { data: completedBounties } = await supabase
+    .from("daily_assignments")
+    .select("task_id")
+    .eq("student_id", session.user.id)
+    .gte("assigned_date", weekStartStr)
+    .lte("assigned_date", weekEndStr)
+    .eq("completed", true)
+  const completedBountyTaskIds = (completedBounties || []).map(b => b.task_id)
 
   // Compute live weekly points from actual completed tasks of this week as primary truth
   const liveWeeklyPoints = weekAssignmentsRes.data && weekAssignmentsRes.data.length > 0
@@ -90,6 +106,8 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
       initialTab={initialTab}
       isStarOfWeek={starBadges.isStarOfWeek}
       isStarOfMonth={starBadges.isStarOfMonth}
+      bounties={bounties}
+      completedBountyTaskIds={completedBountyTaskIds}
     />
   )
 }

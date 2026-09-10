@@ -6,6 +6,7 @@ import StudentTasks from "@/components/student/StudentTasks"
 import Leaderboard from "@/components/Leaderboard"
 import { StudentPlan, DEFAULT_PLAN } from "@/lib/plan-utils"
 import { Task } from "@/lib/types"
+import { BountyTask } from "@/lib/bounty-utils"
 
 interface Assignment {
   id: string
@@ -35,6 +36,8 @@ interface StudentPortalProps {
   initialTab?: "plan" | "tasks" | "leaderboard"
   isStarOfWeek?: boolean
   isStarOfMonth?: boolean
+  bounties?: BountyTask[]
+  completedBountyTaskIds?: string[]
 }
 
 export default function StudentPortal({
@@ -49,6 +52,8 @@ export default function StudentPortal({
   initialTab = "plan",
   isStarOfWeek = false,
   isStarOfMonth = false,
+  bounties = [],
+  completedBountyTaskIds = [],
 }: StudentPortalProps) {
   const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "leaderboard">(initialTab)
 
@@ -188,6 +193,8 @@ export default function StudentPortal({
           isStarOfWeek={isStarOfWeek}
           isStarOfMonth={isStarOfMonth}
           todayStr={todayStr}
+          bounties={bounties}
+          completedBountyTaskIds={completedBountyTaskIds}
         />
       </div>
 

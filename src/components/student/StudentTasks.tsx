@@ -35,6 +35,8 @@ import {
   calculateQuestStatus,
 } from "@/lib/weekly-quest-utils"
 import { StudentPlan, DEFAULT_PLAN, getDailyPlanDetails, calculateProjectedPlan, calculateNextPlanState } from "@/lib/plan-utils"
+import BountyBoard from "./BountyBoard"
+import { BountyTask, getWeeklyBounties } from "@/lib/bounty-utils"
 
 function StudentTasks({
   assignments: initAssignments,
@@ -45,6 +47,8 @@ function StudentTasks({
   isStarOfWeek = false,
   isStarOfMonth = false,
   todayStr: propTodayStr,
+  bounties = [],
+  completedBountyTaskIds = [],
 }: {
   assignments: Assignment[]
   studentId: string
@@ -54,6 +58,8 @@ function StudentTasks({
   isStarOfWeek?: boolean
   isStarOfMonth?: boolean
   todayStr?: string
+  bounties?: BountyTask[]
+  completedBountyTaskIds?: string[]
 }) {
   const supabase = createClient()
   const todayStr = propTodayStr || getTodayDateStr()
@@ -516,6 +522,36 @@ function StudentTasks({
       })
     } catch (err) {
       console.error("Failed to sync weekly quest to database:", err)
+    }
+  }
+
+  // ================= OPTIONAL BOUNTY BOARD LOGIC =================
+  const weeklyBounties = useMemo(
+    () => getWeeklyBounties(currentWeekStartStr, bounties),
+    [currentWeekStartStr, bounties]
+  )
+
+  async function handleClaimBounty(bounty: BountyTask) {
+    try {
+      const res = await fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: bounty.id,
+          points: bounty.points,
+          completed: true,
+          assignedDate: todayStr,
+        }),
+      })
+      if (!res.ok) {
+        throw new Error("Failed to claim bounty")
+      }
+      setWeeklyPoints(prev => prev + bounty.points)
+      toast.success(`مبروك! تم استلام مكافأة التحدي (+${bounty.points} نقطة) 🏆🎉`)
+    } catch (err) {
+      console.error("Failed to claim bounty:", err)
+      toast.error("حدث خطأ أثناء تسجيل نقاط التحدي")
     }
   }
 
@@ -2433,6 +2469,16 @@ function StudentTasks({
           )}
         </>
       )}
+
+      {/* 🏆 لوحة التحديات الاختيارية (Bounty Board) */}
+      <BountyBoard
+        studentId={studentId}
+        weekStartStr={currentWeekStartStr}
+        todayStr={todayStr}
+        bounties={weeklyBounties}
+        completedBountyTaskIds={completedBountyTaskIds}
+        onClaimBounty={handleClaimBounty}
+      />
 
       {/* ================= MODALS ================= */}
 
