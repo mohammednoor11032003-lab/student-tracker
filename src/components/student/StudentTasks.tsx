@@ -56,6 +56,7 @@ function StudentTasks({
   todayStr: propTodayStr,
   bounties = [],
   completedBountyTaskIds = [],
+  initialManualConsolidations = [],
   initialManualConsolidation = null,
 }: {
   assignments: Assignment[]
@@ -68,6 +69,7 @@ function StudentTasks({
   todayStr?: string
   bounties?: BountyTask[]
   completedBountyTaskIds?: string[]
+  initialManualConsolidations?: ManualConsolidation[]
   initialManualConsolidation?: ManualConsolidation | null
 }) {
   const supabase = createClient()
@@ -77,8 +79,19 @@ function StudentTasks({
   const [selectedDate, setSelectedDate] = useState(todayStr)
   const [studentPlan, setStudentPlan] = useState<StudentPlan>(initialPlan || DEFAULT_PLAN)
   const [allManualConsolidations, setAllManualConsolidations] = useState<ManualConsolidation[]>(
-    initialManualConsolidation ? [initialManualConsolidation] : []
+    initialManualConsolidations && initialManualConsolidations.length > 0
+      ? initialManualConsolidations
+      : initialManualConsolidation
+      ? [initialManualConsolidation]
+      : []
   )
+
+  useEffect(() => {
+    if (initialManualConsolidations && initialManualConsolidations.length > 0) {
+      setAllManualConsolidations(initialManualConsolidations)
+    }
+  }, [initialManualConsolidations])
+
   const [manualRepetitionsCount, setManualRepetitionsCount] = useState<number>(0)
   const [isSavingManualConsolidation, setIsSavingManualConsolidation] = useState(false)
 
@@ -89,7 +102,7 @@ function StudentTasks({
     fetch(`/api/manual-consolidation?studentId=${studentId}`)
       .then(res => res.json())
       .then(data => {
-        if (isMounted && data.success && data.consolidations) {
+        if (isMounted && data.success && Array.isArray(data.consolidations)) {
           setAllManualConsolidations(data.consolidations)
         }
       })
@@ -853,6 +866,13 @@ function StudentTasks({
   const isEffectiveFriday = activeManualForDate
     ? (!activeManualForDate.include_fridays && planDetails.isFriday)
     : planDetails.isFriday
+
+  // All active and upcoming manual consolidations (sorted ascending by start_date)
+  const upcomingAndActiveConsolidations = useMemo(() => {
+    return allManualConsolidations
+      .filter(c => c.is_active && c.end_date >= todayStr)
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))
+  }, [allManualConsolidations, todayStr])
 
   // Future simulated tasks list
   const futureSimulatedTasks = useMemo(() => {
@@ -2326,6 +2346,151 @@ function StudentTasks({
                 })()}
               </div>
             )}
+
+          {/* ================= 🛡️ CONSOLIDATION SYSTEMS LIST (أنظمة التثبيت اليدوي المخصصة) ================= */}
+          {upcomingAndActiveConsolidations.length > 0 && (
+            <div
+              className="card"
+              style={{
+                borderRadius: "1.5rem",
+                padding: "1.25rem 1.5rem",
+                background: "linear-gradient(135deg, #1e1b4b 0%, #2e1065 50%, #3b0764 100%)",
+                border: "2px solid #8b5cf6",
+                boxShadow: "0 10px 30px rgba(139, 92, 246, 0.25)",
+                color: "white",
+                marginBottom: "1.25rem",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                  <span style={{ fontSize: "1.6rem" }}>🛡️</span>
+                  <div>
+                    <h3 style={{ margin: 0, fontWeight: 900, fontSize: "1.2rem", color: "#fff" }}>
+                      أنظمة التثبيت المخصصة للطالب ({upcomingAndActiveConsolidations.length})
+                    </h3>
+                    <span style={{ fontSize: "0.8rem", color: "#c4b5fd" }}>
+                      خطط التثبيت والمراجعة المعتمدة من المعلم
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Map over all active and upcoming consolidation plans */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {upcomingAndActiveConsolidations.map((c, idx) => {
+                  const isCurrentlyActiveToday = todayStr >= c.start_date && todayStr <= c.end_date
+                  const isUpcoming = todayStr < c.start_date
+                  const isSelected = selectedDate >= c.start_date && selectedDate <= c.end_date
+
+                  return (
+                    <div
+                      key={c.id || idx}
+                      style={{
+                        background: isSelected
+                          ? "rgba(255, 255, 255, 0.15)"
+                          : "rgba(255, 255, 255, 0.07)",
+                        borderRadius: "1rem",
+                        padding: "1rem 1.15rem",
+                        border: isSelected
+                          ? "1.5px solid #c084fc"
+                          : "1px solid rgba(255, 255, 255, 0.12)",
+                        transition: "all 0.2s",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.6rem" }}>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                            <span style={{ fontWeight: 900, fontSize: "1.1rem", color: "#fff" }}>
+                              {c.pages_description || `من ص ${c.start_page} إلى ص ${c.end_page}`}
+                            </span>
+
+                            {/* Status Badges: نشطة الآن vs مجدولة قريباً */}
+                            {isCurrentlyActiveToday ? (
+                              <span
+                                style={{
+                                  background: "linear-gradient(135deg, #10b981, #059669)",
+                                  color: "white",
+                                  padding: "0.25rem 0.75rem",
+                                  borderRadius: "9999px",
+                                  fontWeight: 900,
+                                  fontSize: "0.8rem",
+                                  boxShadow: "0 0 12px rgba(16,185,129,0.5)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.35rem",
+                                }}
+                              >
+                                <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#fff", display: "inline-block" }} />
+                                نشطة الآن
+                              </span>
+                            ) : isUpcoming ? (
+                              <span
+                                style={{
+                                  background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+                                  color: "white",
+                                  padding: "0.25rem 0.75rem",
+                                  borderRadius: "9999px",
+                                  fontWeight: 900,
+                                  fontSize: "0.8rem",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.35rem",
+                                }}
+                              >
+                                ⏳ مجدولة قريباً
+                              </span>
+                            ) : null}
+
+                            {c.has_harvest_day && (
+                              <span style={{ background: "rgba(245, 158, 11, 0.25)", border: "1px solid #f59e0b", color: "#fef3c7", padding: "0.2rem 0.55rem", borderRadius: "9999px", fontWeight: 800, fontSize: "0.75rem" }}>
+                                🌾 يوم حصاد شامل
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.5rem", flexWrap: "wrap", fontSize: "0.85rem", color: "#e2e8f0" }}>
+                            <span>📅 <strong>{formatDisplayDate(c.start_date, false)}</strong> إلى <strong>{formatDisplayDate(c.end_date, false)}</strong></span>
+                            <span>📖 ص {c.start_page}..{c.end_page} ({c.end_page - c.start_page + 1} ص)</span>
+                            <span>⚡ {c.daily_pages_count} ص/يوم</span>
+                            <span>📿 {c.repetitions_count} تكرارات</span>
+                            <span>{c.include_fridays ? "🕌 العمل مستمر الجمعة" : "🕌 الجمعة إجازة"}</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          {isSelected ? (
+                            <span style={{ fontSize: "0.85rem", color: "#a7f3d0", fontWeight: 800, background: "rgba(16, 185, 129, 0.2)", padding: "0.35rem 0.85rem", borderRadius: "0.6rem", border: "1px solid #10b981", display: "inline-block" }}>
+                              ✓ الخطة المعروضة حالياً
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDate(isCurrentlyActiveToday ? todayStr : c.start_date)}
+                              style={{
+                                background: "rgba(255, 255, 255, 0.18)",
+                                border: "1px solid rgba(255, 255, 255, 0.35)",
+                                color: "white",
+                                padding: "0.4rem 0.95rem",
+                                borderRadius: "0.65rem",
+                                fontSize: "0.85rem",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                transition: "all 0.2s",
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)")}
+                              onMouseLeave={e => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.18)")}
+                            >
+                              الانتقال لاستعراض هذه الخطة 👈
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* ================= 🛡️ MANUAL CONSOLIDATION CARD (نظام التثبيت اليدوي المخصص & يوم الحصاد) ================= */}
           {activeManualForDate && manualDetails && (

@@ -47,6 +47,7 @@ interface StudentPortalProps {
   completedBountyTaskIds?: string[]
   initialGems?: number
   initialInventory?: StudentInventoryItem[]
+  initialManualConsolidations?: ManualConsolidation[]
   initialManualConsolidation?: ManualConsolidation | null
 }
 
@@ -66,14 +67,25 @@ export default function StudentPortal({
   completedBountyTaskIds = [],
   initialGems = 0,
   initialInventory = [],
+  initialManualConsolidations = [],
   initialManualConsolidation = null,
 }: StudentPortalProps) {
   const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "hero" | "arena" | "leaderboard">(initialTab)
   const [gems, setGems] = useState<number>(initialGems)
   const [dailyGemsOpen, setDailyGemsOpen] = useState(false)
   const [allConsolidations, setAllConsolidations] = useState<ManualConsolidation[]>(
-    initialManualConsolidation ? [initialManualConsolidation] : []
+    initialManualConsolidations && initialManualConsolidations.length > 0
+      ? initialManualConsolidations
+      : initialManualConsolidation
+      ? [initialManualConsolidation]
+      : []
   )
+
+  useEffect(() => {
+    if (initialManualConsolidations && initialManualConsolidations.length > 0) {
+      setAllConsolidations(initialManualConsolidations)
+    }
+  }, [initialManualConsolidations])
 
   // Fetch all consolidations for this student to support plan & calendar navigation
   useEffect(() => {
@@ -341,7 +353,7 @@ export default function StudentPortal({
           todayStr={todayStr}
           bounties={bounties}
           completedBountyTaskIds={completedBountyTaskIds}
-          initialManualConsolidation={initialManualConsolidation}
+          initialManualConsolidations={allConsolidations}
         />
       </div>
 

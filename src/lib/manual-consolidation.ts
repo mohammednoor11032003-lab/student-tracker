@@ -44,12 +44,13 @@ function writeLocalConsolidations(items: ManualConsolidation[]) {
 }
 
 /**
- * Checks if a student has an active manual consolidation covering the target date.
+ * Fetch all active and upcoming manual consolidations for a student (where end_date >= currentDateStr),
+ * ordered ascending by start_date so the student sees their active and future scheduled plans.
  */
-export async function getActiveManualConsolidation(
+export async function getStudentActiveAndUpcomingConsolidations(
   studentId: string,
-  dateStr: string
-): Promise<ManualConsolidation | null> {
+  currentDateStr: string
+): Promise<ManualConsolidation[]> {
   const supabase = getAdminClient()
 
   try {
@@ -58,28 +59,34 @@ export async function getActiveManualConsolidation(
       .select("*")
       .eq("student_id", studentId)
       .eq("is_active", true)
-      .lte("start_date", dateStr)
-      .gte("end_date", dateStr)
-      .order("created_at", { ascending: false })
-      .limit(1)
+      .gte("end_date", currentDateStr)
+      .order("start_date", { ascending: true })
 
-    if (!error && data && data.length > 0) {
-      return normalizeConsolidation(data[0])
+    if (!error && data) {
+      return data.map(normalizeConsolidation)
     }
   } catch {
     // Fallback to local store
   }
 
-  // Fallback to local storage
   const localList = readLocalConsolidations()
-  const match = localList.find(
-    c =>
-      c.student_id === studentId &&
-      c.is_active &&
-      c.start_date <= dateStr &&
-      c.end_date >= dateStr
-  )
-  return match ? normalizeConsolidation(match) : null
+  return localList
+    .filter(c => c.student_id === studentId && c.is_active && c.end_date >= currentDateStr)
+    .map(normalizeConsolidation)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date))
+}
+
+/**
+ * Checks if a student has an active manual consolidation covering the target date.
+ * Searches across the full student consolidations array using .find().
+ */
+export async function getActiveManualConsolidation(
+  studentId: string,
+  dateStr: string
+): Promise<ManualConsolidation | null> {
+  const list = await getStudentActiveAndUpcomingConsolidations(studentId, dateStr)
+  const match = list.find(c => c.is_active && dateStr >= c.start_date && dateStr <= c.end_date)
+  return match || null
 }
 
 /**

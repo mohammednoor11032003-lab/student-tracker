@@ -6,7 +6,7 @@ import { getStudentPlan } from "@/lib/student-plan"
 import { getStudentStarBadges } from "@/lib/badge-utils"
 import { isBountyTask, parseBountyTask } from "@/lib/bounty-utils"
 import { getStudentHeroState } from "@/lib/hero-utils"
-import { getActiveManualConsolidation } from "@/lib/manual-consolidation"
+import { getStudentActiveAndUpcomingConsolidations } from "@/lib/manual-consolidation"
 
 interface PageProps {
   searchParams: Promise<{ tab?: string }>
@@ -35,8 +35,11 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   const { enforceStudentResumePointer } = await import("@/lib/manual-consolidation")
   await enforceStudentResumePointer(user.id, today)
 
-  // Check active manual consolidation for today
-  const activeManualConsolidation = await getActiveManualConsolidation(user.id, today)
+  // Fetch all active and upcoming manual consolidations for the student
+  const manualConsolidations = await getStudentActiveAndUpcomingConsolidations(user.id, today)
+  const isConsolidatingToday = manualConsolidations.some(
+    c => c.is_active && today >= c.start_date && today <= c.end_date
+  )
 
   // 1. Fetch current assignments for today
   let { data: assignments } = await supabase
@@ -47,7 +50,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     .order("completed", { ascending: true })
 
   // 2. If no assignments exist for today, automatically create them for the student (only if not under manual consolidation)
-  if ((!assignments || assignments.length === 0) && !activeManualConsolidation) {
+  if ((!assignments || assignments.length === 0) && !isConsolidatingToday) {
     const { data: allTasks } = await supabase
       .from("tasks")
       .select("id, name, description")
@@ -121,7 +124,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
       completedBountyTaskIds={completedBountyTaskIds}
       initialGems={heroState.gems_balance}
       initialInventory={heroState.inventory}
-      initialManualConsolidation={activeManualConsolidation}
+      initialManualConsolidations={manualConsolidations}
     />
   )
 }

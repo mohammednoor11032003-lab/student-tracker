@@ -2,28 +2,36 @@ import { NextRequest, NextResponse } from "next/server"
 import {
   getActiveManualConsolidation,
   getStudentManualConsolidations,
+  getStudentActiveAndUpcomingConsolidations,
   saveManualConsolidation,
   cancelManualConsolidation,
   deleteManualConsolidation,
 } from "@/lib/manual-consolidation"
+import { getTodayDateStr } from "@/lib/date-utils"
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const studentId = searchParams.get("studentId")
     const dateStr = searchParams.get("date")
+    const all = searchParams.get("all") === "true"
 
     if (!studentId) {
       return NextResponse.json({ error: "studentId is required" }, { status: 400 })
     }
 
-    if (dateStr) {
-      const active = await getActiveManualConsolidation(studentId, dateStr)
-      return NextResponse.json({ success: true, active })
+    if (all) {
+      const consolidations = await getStudentManualConsolidations(studentId)
+      return NextResponse.json({ success: true, consolidations })
     }
 
-    const consolidations = await getStudentManualConsolidations(studentId)
-    return NextResponse.json({ success: true, consolidations })
+    const currentDate = dateStr || getTodayDateStr()
+    const consolidations = await getStudentActiveAndUpcomingConsolidations(studentId, currentDate)
+    const active = consolidations.find(
+      c => c.is_active && currentDate >= c.start_date && currentDate <= c.end_date
+    ) || null
+
+    return NextResponse.json({ success: true, consolidations, active })
   } catch (err: any) {
     console.error("GET /api/manual-consolidation error:", err)
     return NextResponse.json({ error: err.message || "Server error" }, { status: 500 })
