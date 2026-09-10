@@ -498,7 +498,7 @@ function StudentTasks({
     setIsWeeklyQuestModalOpen(false)
 
     if (pointsDelta > 0) {
-      toast.success(`🎉 أحسنت صنعاً! أكملت المهمة الأسبوعية في وقتها وحصدت +${pointsDelta} نقطة! 🏆`, {
+      toast.success(`🎉 أحسنت صنعاً! أكملت المهمة الأسبوعية في وقتها وحصدت +${pointsDelta} نقطة و+10 جواهر 💎! 🏆`, {
         duration: 5000,
       })
     } else {
@@ -507,6 +507,22 @@ function StudentTasks({
         duration: 5000,
       })
     }
+
+    // Award bonus gems for weekly surprise quest (+10 gems)
+    try {
+      fetch("/api/hero", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "award_gems",
+          studentId,
+          amount: 10,
+        }),
+      }).catch(err => console.error("Failed to award quest gems:", err))
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: 10 } }))
+      }
+    } catch {}
 
     try {
       await fetch("/api/complete-task", {
@@ -548,7 +564,23 @@ function StudentTasks({
         throw new Error("Failed to claim bounty")
       }
       setWeeklyPoints(prev => prev + bounty.points)
-      toast.success(`مبروك! تم استلام مكافأة التحدي (+${bounty.points} نقطة) 🏆🎉`)
+      toast.success(`مبروك! تم استلام مكافأة التحدي (+${bounty.points} نقطة و+10 جواهر 💎) 🏆🎉`)
+
+      // Award bonus gems for bounty challenge (+10 gems)
+      try {
+        fetch("/api/hero", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "award_gems",
+            studentId,
+            amount: 10,
+          }),
+        }).catch(err => console.error("Failed to award bounty gems:", err))
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: 10 } }))
+        }
+      } catch {}
     } catch (err) {
       console.error("Failed to claim bounty:", err)
       toast.error("حدث خطأ أثناء تسجيل نقاط التحدي")
@@ -1003,6 +1035,31 @@ function StudentTasks({
           toast.success(`🎉 أحسنت! أكملت المراجعة المضاعفة بنجاح وكسبت +${pts} نقاط!`, { duration: 4000 })
         } else {
           toast.success(`🎉 أحسنت! كسبت +${pts} نقاط!`, { duration: 3500 })
+        }
+
+        // Award +10 gems if all positive tasks for today are 100% complete!
+        if (isToday) {
+          const positiveRemaining = updated.filter(x => (x.tasks?.points ?? 0) >= 0)
+          const isAllDone = positiveRemaining.length > 0 && positiveRemaining.every(x => x.completed)
+          if (isAllDone) {
+            const rewardKey = `completion_gems_${studentId}_${todayStr}`
+            if (typeof window !== "undefined" && !localStorage.getItem(rewardKey)) {
+              localStorage.setItem(rewardKey, "1")
+              window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: 10 } }))
+              toast.success("💎 مبارك! أتممت جميع مهام اليوم بنسبة 100% وحصلت على +10 جواهر للمتجر!", {
+                icon: "💎",
+                duration: 5500,
+              })
+              fetch("/api/hero", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "claim_completion_gems",
+                  studentId,
+                }),
+              }).catch(err => console.error("Failed to claim completion gems:", err))
+            }
+          }
         }
       }
     } else {

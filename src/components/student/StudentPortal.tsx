@@ -1,12 +1,15 @@
 "use client"
 import React, { useState, useEffect } from "react"
-import { BookOpen, ClipboardList, Trophy } from "lucide-react"
+import { BookOpen, ClipboardList, Trophy, Shield } from "lucide-react"
 import StudentPlanView from "@/components/student/StudentPlanView"
 import StudentTasks from "@/components/student/StudentTasks"
 import Leaderboard from "@/components/Leaderboard"
+import HeroView from "@/components/student/hero/HeroView"
+import DailyGemsModal from "@/components/student/hero/DailyGemsModal"
 import { StudentPlan, DEFAULT_PLAN } from "@/lib/plan-utils"
 import { Task } from "@/lib/types"
 import { BountyTask } from "@/lib/bounty-utils"
+import { StudentInventoryItem } from "@/lib/hero-utils"
 
 interface Assignment {
   id: string
@@ -33,11 +36,13 @@ interface StudentPortalProps {
   weeklyPoints: number
   leaderboardWeekly: LeaderboardEntry[]
   leaderboardMonthly: LeaderboardEntry[]
-  initialTab?: "plan" | "tasks" | "leaderboard"
+  initialTab?: "plan" | "tasks" | "hero" | "leaderboard"
   isStarOfWeek?: boolean
   isStarOfMonth?: boolean
   bounties?: BountyTask[]
   completedBountyTaskIds?: string[]
+  initialGems?: number
+  initialInventory?: StudentInventoryItem[]
 }
 
 export default function StudentPortal({
@@ -54,21 +59,79 @@ export default function StudentPortal({
   isStarOfMonth = false,
   bounties = [],
   completedBountyTaskIds = [],
+  initialGems = 0,
+  initialInventory = [],
 }: StudentPortalProps) {
-  const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "leaderboard">(initialTab)
+  const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "hero" | "leaderboard">(initialTab)
+  const [gems, setGems] = useState<number>(initialGems)
+  const [dailyGemsOpen, setDailyGemsOpen] = useState(false)
+
+  // Sync gems when prop updates
+  useEffect(() => {
+    setGems(initialGems)
+  }, [initialGems])
+
+  // Listen to external gems updates (e.g. 100% daily tasks completion, bounties, surprise quest)
+  useEffect(() => {
+    function handleGemsEvent(e: Event) {
+      const customEvent = e as CustomEvent<{ gems_balance?: number; added?: number }>
+      if (customEvent.detail?.gems_balance !== undefined) {
+        setGems(customEvent.detail.gems_balance)
+      } else if (customEvent.detail?.added !== undefined) {
+        setGems(prev => prev + (customEvent.detail.added || 0))
+      }
+    }
+    window.addEventListener("hero_gems_updated", handleGemsEvent)
+    return () => window.removeEventListener("hero_gems_updated", handleGemsEvent)
+  }, [])
+
+  // Check Daily Login Gems Modal (appears once per day)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const key = `daily_gems_${studentId}_${todayStr}`
+      if (!localStorage.getItem(key)) {
+        const timer = setTimeout(() => setDailyGemsOpen(true), 700)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [studentId, todayStr])
+
+  async function handleClaimDailyGems(amount: number) {
+    try {
+      const res = await fetch("/api/hero", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "claim_daily_gems",
+          studentId,
+          amount,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setGems(data.gems_balance)
+        if (typeof window !== "undefined") {
+          localStorage.setItem(`daily_gems_${studentId}_${todayStr}`, "claimed")
+        }
+        window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { gems_balance: data.gems_balance } }))
+      }
+    } catch (e) {
+      console.error("Failed to claim daily gems:", e)
+    }
+  }
 
   // Sync tab with URL search parameter on mount and changes
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search)
       const tabParam = params.get("tab")
-      if (tabParam === "tasks" || tabParam === "plan" || tabParam === "leaderboard") {
+      if (tabParam === "tasks" || tabParam === "plan" || tabParam === "leaderboard" || tabParam === "hero") {
         setActiveTab(tabParam)
       }
     }
   }, [])
 
-  function switchTab(tab: "plan" | "tasks" | "leaderboard") {
+  function switchTab(tab: "plan" | "tasks" | "hero" | "leaderboard") {
     setActiveTab(tab)
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href)
@@ -83,7 +146,7 @@ export default function StudentPortal({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
+          gridTemplateColumns: "1fr 1fr 1fr 1fr",
           gap: "0.5rem",
           background: "rgba(255,255,255,0.15)",
           backdropFilter: "blur(12px)",
@@ -93,7 +156,7 @@ export default function StudentPortal({
           boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
         }}
       >
-        {/* 1. خطة الحفظ (الأول افتراضياً) */}
+        {/* 1. خطة الحفظ */}
         <button
           type="button"
           onClick={() => switchTab("plan")}
@@ -101,13 +164,13 @@ export default function StudentPortal({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "0.45rem",
-            padding: "0.75rem 0.5rem",
+            gap: "0.35rem",
+            padding: "0.75rem 0.25rem",
             borderRadius: "0.95rem",
             border: "none",
             cursor: "pointer",
             fontWeight: 800,
-            fontSize: "0.95rem",
+            fontSize: "0.9rem",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             background: activeTab === "plan" ? "white" : "transparent",
             color: activeTab === "plan" ? "#7c3aed" : "white",
@@ -115,11 +178,11 @@ export default function StudentPortal({
             transform: activeTab === "plan" ? "scale(1.02)" : "scale(1)",
           }}
         >
-          <BookOpen size={18} strokeWidth={activeTab === "plan" ? 2.5 : 2} />
-          <span>خطة الحفظ</span>
+          <BookOpen size={17} strokeWidth={activeTab === "plan" ? 2.5 : 2} />
+          <span>الخطة</span>
         </button>
 
-        {/* 2. مهامي (الثاني) */}
+        {/* 2. مهامي */}
         <button
           type="button"
           onClick={() => switchTab("tasks")}
@@ -127,13 +190,13 @@ export default function StudentPortal({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "0.45rem",
-            padding: "0.75rem 0.5rem",
+            gap: "0.35rem",
+            padding: "0.75rem 0.25rem",
             borderRadius: "0.95rem",
             border: "none",
             cursor: "pointer",
             fontWeight: 800,
-            fontSize: "0.95rem",
+            fontSize: "0.9rem",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             background: activeTab === "tasks" ? "white" : "transparent",
             color: activeTab === "tasks" ? "#7c3aed" : "white",
@@ -141,11 +204,37 @@ export default function StudentPortal({
             transform: activeTab === "tasks" ? "scale(1.02)" : "scale(1)",
           }}
         >
-          <ClipboardList size={18} strokeWidth={activeTab === "tasks" ? 2.5 : 2} />
+          <ClipboardList size={17} strokeWidth={activeTab === "tasks" ? 2.5 : 2} />
           <span>مهامي</span>
         </button>
 
-        {/* 3. الترتيب (الثالث) */}
+        {/* 3. بطلي (Hero RPG System) */}
+        <button
+          type="button"
+          onClick={() => switchTab("hero")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.35rem",
+            padding: "0.75rem 0.25rem",
+            borderRadius: "0.95rem",
+            border: "none",
+            cursor: "pointer",
+            fontWeight: 800,
+            fontSize: "0.9rem",
+            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            background: activeTab === "hero" ? "white" : "transparent",
+            color: activeTab === "hero" ? "#f59e0b" : "white",
+            boxShadow: activeTab === "hero" ? "0 4px 15px rgba(0,0,0,0.12)" : "none",
+            transform: activeTab === "hero" ? "scale(1.02)" : "scale(1)",
+          }}
+        >
+          <Shield size={17} strokeWidth={activeTab === "hero" ? 2.5 : 2} />
+          <span>بطلي 🛡️</span>
+        </button>
+
+        {/* 4. الترتيب */}
         <button
           type="button"
           onClick={() => switchTab("leaderboard")}
@@ -153,13 +242,13 @@ export default function StudentPortal({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "0.45rem",
-            padding: "0.75rem 0.5rem",
+            gap: "0.35rem",
+            padding: "0.75rem 0.25rem",
             borderRadius: "0.95rem",
             border: "none",
             cursor: "pointer",
             fontWeight: 800,
-            fontSize: "0.95rem",
+            fontSize: "0.9rem",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             background: activeTab === "leaderboard" ? "white" : "transparent",
             color: activeTab === "leaderboard" ? "#7c3aed" : "white",
@@ -167,7 +256,7 @@ export default function StudentPortal({
             transform: activeTab === "leaderboard" ? "scale(1.02)" : "scale(1)",
           }}
         >
-          <Trophy size={18} strokeWidth={activeTab === "leaderboard" ? 2.5 : 2} />
+          <Trophy size={17} strokeWidth={activeTab === "leaderboard" ? 2.5 : 2} />
           <span>الترتيب</span>
         </button>
       </div>
@@ -198,6 +287,15 @@ export default function StudentPortal({
         />
       </div>
 
+      <div style={{ display: activeTab === "hero" ? "block" : "none" }}>
+        <HeroView
+          studentId={studentId}
+          studentName={studentName}
+          initialGems={gems}
+          initialInventory={initialInventory}
+        />
+      </div>
+
       <div style={{ display: activeTab === "leaderboard" ? "block" : "none" }}>
         <div style={{ textAlign: "center", marginBottom: "1rem" }}>
           <h1 style={{ color: "white", fontSize: "2rem", fontWeight: 900, margin: 0, textShadow: "0 2px 15px rgba(0,0,0,0.2)" }}>
@@ -209,6 +307,13 @@ export default function StudentPortal({
         </div>
         <Leaderboard weekly={leaderboardWeekly} monthly={leaderboardMonthly} />
       </div>
+
+      {/* Daily Login Chest Modal (Awards 5-20 gems) */}
+      <DailyGemsModal
+        isOpen={dailyGemsOpen}
+        onClose={() => setDailyGemsOpen(false)}
+        onClaimGems={handleClaimDailyGems}
+      />
     </div>
   )
 }

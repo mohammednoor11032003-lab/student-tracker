@@ -5,6 +5,7 @@ import { getWeekAndMonthInfo, formatDateStr, getTodayDateStr } from "@/lib/date-
 import { getStudentPlan } from "@/lib/student-plan"
 import { getStudentStarBadges } from "@/lib/badge-utils"
 import { isBountyTask, parseBountyTask } from "@/lib/bounty-utils"
+import { getStudentHeroState } from "@/lib/hero-utils"
 
 interface PageProps {
   searchParams: Promise<{ tab?: string }>
@@ -18,7 +19,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   }
 
   const { tab } = await searchParams
-  const initialTab = tab === "tasks" || tab === "leaderboard" ? tab : "plan"
+  const initialTab = tab === "tasks" || tab === "leaderboard" || tab === "hero" ? tab : "plan"
 
   const today = getTodayDateStr()
   const weekInfo = getWeekAndMonthInfo(today)
@@ -64,7 +65,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     }
   }
 
-  const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes, starBadges, allTasksRes] = await Promise.all([
+  const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes, starBadges, allTasksRes, heroState] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", session.user.id).single(),
     supabase.from("weekly_summaries").select("total_points").eq("student_id", session.user.id).eq("week_start", weekStartStr).single(),
     supabase.from("daily_assignments").select("completed, tasks(points)").eq("student_id", session.user.id).gte("assigned_date", weekStartStr).lte("assigned_date", weekEndStr).eq("completed", true),
@@ -73,6 +74,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     supabase.from("monthly_summaries").select("*, profiles(full_name)").eq("month", month).eq("year", year).order("total_points", { ascending: false }),
     getStudentStarBadges(supabase, session.user.id),
     supabase.from("tasks").select("*"),
+    getStudentHeroState(session.user.id),
   ])
 
   // Extract optional bounty challenges
@@ -108,6 +110,8 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
       isStarOfMonth={starBadges.isStarOfMonth}
       bounties={bounties}
       completedBountyTaskIds={completedBountyTaskIds}
+      initialGems={heroState.gems_balance}
+      initialInventory={heroState.inventory}
     />
   )
 }
