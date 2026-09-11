@@ -62,6 +62,14 @@ export default function LoginPage() {
           "يحيي": "yahya@tracker.app",
           "يحييجمعه": "yahya@tracker.app",
           "يحييالرواشده": "yahya@tracker.app",
+
+          // Teacher Aliases
+          "معلم": "mohammednoor11032003@gmail.com",
+          "المعلم": "mohammednoor11032003@gmail.com",
+          "مدرس": "mohammednoor11032003@gmail.com",
+          "المدرس": "mohammednoor11032003@gmail.com",
+          "teacher": "mohammednoor11032003@gmail.com",
+          "admin": "mohammednoor11032003@gmail.com",
         }
 
         email = map[norm] || `${clean}@tracker.app`
@@ -104,9 +112,9 @@ export default function LoginPage() {
       <div style={{ width: "100%", maxWidth: "440px", position: "relative", zIndex: 1 }}>
         <div className="fade-in-down" style={{ textAlign: "center", marginBottom: "2rem" }}>
           <div className="bounce" style={{ fontSize: "5rem", marginBottom: "1rem", display: "inline-block" }}>🏆</div>
-          <h1 style={{ fontSize: "2.5rem", fontWeight: 900, color: "white", margin: 0, textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}>منصة الطلاب</h1>
+          <h1 style={{ fontSize: "2.5rem", fontWeight: 900, color: "white", margin: 0, textShadow: "0 2px 20px rgba(0,0,0,0.3)" }}>منصة التحفيظ والمهام</h1>
           <p style={{ color: "rgba(255,255,255,0.85)", marginTop: "0.5rem", fontSize: "1.1rem" }}>
-            أكمل مهامك واكسب النقاط! 🌟
+            بوابة المعلم والطلاب 🌟
           </p>
         </div>
 
@@ -124,7 +132,7 @@ export default function LoginPage() {
                 value={identifier}
                 onChange={e => setIdentifier(e.target.value)}
                 className="input"
-                placeholder="مثال: anas أو أنس"
+                placeholder="معلم أو anas أو أنس"
                 required
                 dir="auto"
               />
@@ -151,10 +159,15 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-          <div style={{ marginTop: "1.5rem", padding: "1rem", background: "linear-gradient(to right, #f3e8ff, #fce7f3)", borderRadius: "0.75rem", textAlign: "center" }}>
-            <p style={{ color: "#7c3aed", fontSize: "0.875rem", fontWeight: 600, margin: 0 }}>
-              💡 كلمة السر الافتراضية للطلاب: <strong>123456</strong>
-            </p>
+
+          {/* Quick Credential Hints */}
+          <div style={{ marginTop: "1.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <div style={{ padding: "0.75rem", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "0.75rem", fontSize: "0.85rem", color: "#166534" }}>
+              👨‍🏫 <strong>دخول المعلم:</strong> اسم المستخدم: <code>معلم</code> | السر: <code>123456</code>
+            </div>
+            <div style={{ padding: "0.75rem", background: "#f3e8ff", border: "1px solid #e9d5ff", borderRadius: "0.75rem", fontSize: "0.85rem", color: "#6b21a8" }}>
+              👨‍🎓 <strong>دخول الطلاب:</strong> اسم الطالب (مثال: <code>anas</code>) | السر: <code>123456</code>
+            </div>
           </div>
         </div>
       </div>
