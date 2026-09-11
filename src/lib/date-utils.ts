@@ -121,7 +121,13 @@ export function getTodayDateStr(d: Date = new Date()): string {
       day: "2-digit",
     }).format(d)
   } catch {
-    return formatDateStr(d)
+    // Robust UTC+3 offset fallback if Intl / timeZone is unsupported
+    const offsetMs = 3 * 60 * 60 * 1000
+    const jordanDate = new Date(d.getTime() + offsetMs)
+    const y = jordanDate.getUTCFullYear()
+    const m = String(jordanDate.getUTCMonth() + 1).padStart(2, "0")
+    const day = String(jordanDate.getUTCDate()).padStart(2, "0")
+    return `${y}-${m}-${day}`
   }
 }
 

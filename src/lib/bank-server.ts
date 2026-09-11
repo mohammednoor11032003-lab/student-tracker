@@ -158,11 +158,20 @@ export async function addBankTransaction(txData: {
   return newTx
 }
 
+// In-memory throttle for star rewards check (5 minutes cooldown)
+let lastStarRewardsCheck = 0
+
 /**
  * Automatically check and award Dinars for completed Star of the Week and Star of the Month
  * Idempotent: uses unique reference_id so rewards are never duplicated.
  */
-export async function checkAndAwardStarRewards(): Promise<number> {
+export async function checkAndAwardStarRewards(force = false): Promise<number> {
+  const now = Date.now()
+  if (!force && now - lastStarRewardsCheck < 5 * 60 * 1000) {
+    return 0
+  }
+  lastStarRewardsCheck = now
+
   const supabase = getAdminClient()
   let awardsCount = 0
 

@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import toast from "react-hot-toast"
 import { StudentPlan, getDailyPlanDetails, DEFAULT_PLAN, getReviewCycle } from "@/lib/plan-utils"
 import ManualConsolidationModal from "@/components/teacher/ManualConsolidationModal"
@@ -164,9 +164,11 @@ export default function TeacherPlansManager({
     }
   }
 
-  const filtered = students.filter(s =>
-    s.full_name.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = React.useMemo(() => {
+    const q = search.toLowerCase().trim()
+    if (!q) return students
+    return students.filter(s => s.full_name.toLowerCase().includes(q))
+  }, [students, search])
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", direction: "rtl" }}>

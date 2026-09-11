@@ -120,3 +120,68 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
     throw err
   }
 }
+
+/**
+ * Bulk fetches plans for all students in 2 parallel requests (profiles + listUsers)
+ * completely eliminating N+1 queries (18 queries -> 2 queries).
+ */
+export async function getAllStudentsPlans(studentIds?: string[]): Promise<Map<string, StudentPlan>> {
+  const supabase = getAdminClient()
+  const plansMap = new Map<string, StudentPlan>()
+
+  try {
+    let profilesQuery = supabase.from("profiles").select("*").eq("role", "student")
+    if (studentIds && studentIds.length > 0) {
+      profilesQuery = profilesQuery.in("id", studentIds)
+    }
+
+    const [profilesRes, authRes] = await Promise.all([
+      profilesQuery,
+      supabase.auth.admin.listUsers(),
+    ])
+
+    const authMetaMap = new Map<string, any>()
+    for (const u of authRes.data?.users || []) {
+      authMetaMap.set(u.id, u.user_metadata || {})
+    }
+
+    const profiles = profilesRes.data || []
+    for (const profile of profiles) {
+      const meta = authMetaMap.get(profile.id) || {}
+
+      let memorizedAjza: number[] = [1]
+      if (Array.isArray(profile.memorized_ajza)) {
+        memorizedAjza = profile.memorized_ajza
+      } else if (Array.isArray(meta.memorized_ajza)) {
+        memorizedAjza = meta.memorized_ajza
+      } else if (typeof profile.current_review_hizb === "number" || typeof meta.current_review_hizb === "number") {
+        const h = Number(profile.current_review_hizb ?? meta.current_review_hizb)
+        const j = Math.max(1, Math.min(30, Math.ceil(h / 2)))
+        memorizedAjza = [j]
+      }
+
+      const reviewIndex = Number(profile.current_review_index ?? meta.current_review_index ?? 0)
+
+      const plan: StudentPlan = {
+        current_page: profile.current_page ?? meta.current_page ?? DEFAULT_PLAN.current_page,
+        page_part: (profile.page_part ?? meta.page_part ?? DEFAULT_PLAN.page_part) as "top" | "bottom",
+        current_review_hizb: profile.current_review_hizb ?? meta.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb,
+        memorized_ajza: memorizedAjza,
+        current_review_index: isNaN(reviewIndex) ? 0 : Math.max(0, reviewIndex),
+        is_in_consolidation: Boolean(profile.is_in_consolidation ?? meta.is_in_consolidation ?? false),
+        consolidation_day: Number(profile.consolidation_day ?? meta.consolidation_day ?? 0),
+        consolidation_juz: Number(profile.consolidation_juz ?? meta.consolidation_juz ?? 0),
+        plan_start_date: profile.plan_start_date ?? meta.plan_start_date ?? DEFAULT_PLAN.plan_start_date,
+        plan_end_date: profile.plan_end_date ?? meta.plan_end_date ?? DEFAULT_PLAN.plan_end_date,
+        plan_active: profile.plan_active ?? meta.plan_active ?? DEFAULT_PLAN.plan_active,
+      }
+
+      plansMap.set(profile.id, plan)
+    }
+  } catch (err) {
+    console.error("Error bulk fetching student plans:", err)
+  }
+
+  return plansMap
+}
+

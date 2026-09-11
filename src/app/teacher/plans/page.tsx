@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
-import { getStudentPlan } from "@/lib/student-plan"
+import { getAllStudentsPlans } from "@/lib/student-plan"
+import { DEFAULT_PLAN } from "@/lib/plan-utils"
 import TeacherPlansManager from "@/components/teacher/TeacherPlansManager"
 import { getTodayDateStr } from "@/lib/date-utils"
 
@@ -13,16 +14,14 @@ export default async function TeacherPlansPage() {
     .eq("role", "student")
     .order("full_name")
 
-  const studentsWithPlans = await Promise.all(
-    (students || []).map(async s => {
-      const plan = await getStudentPlan(s.id)
-      return {
-        id: s.id,
-        full_name: s.full_name,
-        plan,
-      }
-    })
-  )
+  const studentIds = (students || []).map(s => s.id)
+  const plansMap = await getAllStudentsPlans(studentIds)
+
+  const studentsWithPlans = (students || []).map(s => ({
+    id: s.id,
+    full_name: s.full_name,
+    plan: plansMap.get(s.id) || DEFAULT_PLAN,
+  }))
 
   return <TeacherPlansManager initialStudents={studentsWithPlans} todayStr={todayStr} />
 }

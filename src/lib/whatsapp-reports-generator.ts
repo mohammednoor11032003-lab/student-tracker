@@ -203,67 +203,70 @@ export async function generateAllStudentsDailyReports(
     }
   }
 
-  // 3. Process each student
-  const reports: StudentDailyReportData[] = []
+  // 3. Process students in parallel
+  const reports: StudentDailyReportData[] = await Promise.all(
+    students.map(async s => {
+      const studentId = s.id
+      const studentName = s.full_name
+      const parentPhone = phonesMap[studentId] || (s as any).parent_phone || s.phone || ""
+      const studentAssignments = assignmentsByStudent[studentId] || []
 
-  for (const s of students) {
-    const studentId = s.id
-    const studentName = s.full_name
-    const parentPhone = phonesMap[studentId] || (s as any).parent_phone || s.phone || ""
-    const studentAssignments = assignmentsByStudent[studentId] || []
+      // Check active consolidation and Friday state in parallel
+      const [activeConsolidation, fridayState] = await Promise.all([
+        getActiveManualConsolidation(studentId, dateStr),
+        isFriday ? getFridayTafsirState(studentId, dateStr) : Promise.resolve(undefined),
+      ])
 
-    // Check active consolidation
-    const activeConsolidation = await getActiveManualConsolidation(studentId, dateStr)
-    const hasConsolidation = Boolean(
-      activeConsolidation && (activeConsolidation.include_fridays || !isFriday)
-    )
+      const hasConsolidation = Boolean(
+        activeConsolidation && (activeConsolidation.include_fridays || !isFriday)
+      )
 
-    // Consolidation task status
-    const repDone = studentAssignments.some(a => a.name === "الدرس" && a.completed)
-    const adjDone = studentAssignments.some(a => a.name === "جنب الدرس" && a.completed)
-    const nightDone = studentAssignments.some(a => a.name === "قيام الليل" && a.completed)
-    const target = activeConsolidation?.repetitions_count || 10
+      // Consolidation task status
+      const repDone = studentAssignments.some(a => a.name === "الدرس" && a.completed)
+      const adjDone = studentAssignments.some(a => a.name === "جنب الدرس" && a.completed)
+      const nightDone = studentAssignments.some(a => a.name === "قيام الليل" && a.completed)
+      const target = activeConsolidation?.repetitions_count || 10
 
-    // Friday state if Friday
-    let fridayState = undefined
-    if (isFriday) {
-      fridayState = await getFridayTafsirState(studentId, dateStr)
-    }
+      const { text, status } = buildStudentReportText({
+        studentName,
+        dateStr,
+        isFriday,
+        hasConsolidation,
+        consolidationTarget: target,
+        consolidationCompleted: repDone,
+        consolidationAdjCompleted: adjDone,
+        consolidationNightCompleted: nightDone,
+        assignments: studentAssignments,
+        fridayState,
+      })
 
-    const { text, status } = buildStudentReportText({
-      studentName,
-      dateStr,
-      isFriday,
-      hasConsolidation,
-      consolidationTarget: target,
-      consolidationCompleted: repDone,
-      consolidationAdjCompleted: adjDone,
-      consolidationNightCompleted: nightDone,
-      assignments: studentAssignments,
-      fridayState,
+      // Prepare WhatsApp URL
+      const cleanPhone = parentPhone.replace(/\D/g, "")
+      const encodedText = encodeURIComponent(text)
+      const whatsappUrl = cleanPhone
+        ? `https://wa.me/${cleanPhone}?text=${encodedText}`
+        : `https://wa.me/?text=${encodedText}`
+
+      return {
+        studentId,
+        studentName,
+        parentPhone: cleanPhone,
+        dateStr,
+        formattedDate,
+        isFriday,
+        hasConsolidation,
+        consolidationDetails: activeConsolidation
+          ? {
+              pagesDescription: activeConsolidation.pages_description,
+              repetitionsCount: target,
+            }
+          : undefined,
+        status,
+        generatedText: text,
+        whatsappUrl,
+      }
     })
-
-    // Prepare WhatsApp URL
-    const cleanPhone = parentPhone.replace(/\D/g, "")
-    const encodedText = encodeURIComponent(text)
-    const whatsappUrl = cleanPhone
-      ? `https://wa.me/${cleanPhone}?text=${encodedText}`
-      : `https://wa.me/?text=${encodedText}`
-
-    reports.push({
-      studentId,
-      studentName,
-      parentPhone: cleanPhone,
-      dateStr,
-      formattedDate,
-      isFriday,
-      hasConsolidation,
-      consolidationDetails: activeConsolidation,
-      status,
-      generatedText: text,
-      whatsappUrl,
-    })
-  }
+  )
 
   return reports
 }

@@ -81,10 +81,12 @@ export default function StudentsManager({
   }
 
   // Count ready numbers
-  const readyCount = students.filter(s => {
-    const p = parentPhones[s.id]
-    return p && p.length >= 10 && p.length <= 15
-  }).length
+  const readyCount = React.useMemo(() => {
+    return students.filter(s => {
+      const p = parentPhones[s.id]
+      return p && p.length >= 10 && p.length <= 15
+    }).length
+  }, [students, parentPhones])
 
   // Save All Numbers (Bulk Save)
   const handleSaveAllPhones = async () => {

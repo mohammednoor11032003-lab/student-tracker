@@ -16,14 +16,21 @@ export default function WhatsAppReportsManager({
   todayStr,
 }: WhatsAppReportsManagerProps) {
   const [selectedDate, setSelectedDate] = useState<string>(initialDate)
+  const [reportsCache, setReportsCache] = useState<Record<string, StudentDailyReportData[]>>({
+    [initialDate]: initialReports,
+  })
   const [reports, setReports] = useState<StudentDailyReportData[]>(initialReports)
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
-  // Fetch reports on date change
+  // Fetch reports on date change with client-side cache
   useEffect(() => {
-    if (selectedDate === initialDate && initialReports.length > 0) return
+    if (reportsCache[selectedDate]) {
+      setReports(reportsCache[selectedDate])
+      return
+    }
+
     let isCurrent = true
     setLoading(true)
 
@@ -32,6 +39,7 @@ export default function WhatsAppReportsManager({
       .then(data => {
         if (isCurrent && data.success && data.reports) {
           setReports(data.reports)
+          setReportsCache(prev => ({ ...prev, [selectedDate]: data.reports }))
         }
       })
       .catch(err => {
@@ -45,7 +53,7 @@ export default function WhatsAppReportsManager({
     return () => {
       isCurrent = false
     }
-  }, [selectedDate, initialDate, initialReports])
+  }, [selectedDate, reportsCache])
 
   function handleCopy(text: string, studentId: string) {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -69,9 +77,11 @@ export default function WhatsAppReportsManager({
     return `${yyyy}-${mm}-${dd}`
   }
 
-  const filteredReports = reports.filter(r =>
-    r.studentName.toLowerCase().includes(searchQuery.toLowerCase().trim())
-  )
+  const filteredReports = React.useMemo(() => {
+    const q = searchQuery.toLowerCase().trim()
+    if (!q) return reports
+    return reports.filter(r => r.studentName.toLowerCase().includes(q))
+  }, [reports, searchQuery])
 
   const isSelectedDateToday = selectedDate === todayStr
   const isSelectedDateYesterday = selectedDate === getYesterdayDateStr()

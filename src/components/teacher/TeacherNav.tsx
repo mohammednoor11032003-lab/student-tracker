@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import toast from "react-hot-toast"
 
 import { useAuth } from "@/contexts/AuthContext"
+import ForceGenerateTasksButton from "./ForceGenerateTasksButton"
 
 export default function TeacherNav({ teacherName }: { teacherName: string }) {
   const pathname = usePathname()
@@ -50,6 +51,7 @@ export default function TeacherNav({ teacherName }: { teacherName: string }) {
                 <span>{link.label}</span>
               </Link>
             ))}
+            <ForceGenerateTasksButton compact={true} />
             <button onClick={logout} style={{
               padding: "0.4rem 0.75rem", borderRadius: "0.75rem", fontSize: "0.85rem",
               fontWeight: 700, background: "transparent", color: "white", border: "none", cursor: "pointer"

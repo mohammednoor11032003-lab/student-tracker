@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { getTodayDateStr } from "@/lib/date-utils"
+import ForceGenerateTasksButton from "@/components/teacher/ForceGenerateTasksButton"
 
 export default async function TeacherDashboard() {
   const supabase = await createClient()
@@ -42,7 +43,10 @@ export default async function TeacherDashboard() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      <h1 style={{ color: "white", fontSize: "2rem", fontWeight: 900, margin: 0 }}>لوحة المدرس 👨‍🏫</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+        <h1 style={{ color: "white", fontSize: "2rem", fontWeight: 900, margin: 0 }}>لوحة المدرس 👨‍🏫</h1>
+        <ForceGenerateTasksButton />
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem" }}>
         {stats.map(s => (
