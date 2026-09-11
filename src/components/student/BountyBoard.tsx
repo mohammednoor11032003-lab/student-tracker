@@ -223,19 +223,6 @@ export default function BountyBoard({
               }}
             >
               <span>🏆 تحديات الأسبوع الاختيارية</span>
-              <span
-                style={{
-                  fontSize: "0.75rem",
-                  background: "rgba(245, 158, 11, 0.2)",
-                  color: "#fbbf24",
-                  padding: "0.2rem 0.55rem",
-                  borderRadius: "9999px",
-                  border: "1px solid rgba(245, 158, 11, 0.4)",
-                  fontWeight: 800,
-                }}
-              >
-                Bounty Board
-              </span>
             </h3>
             <p style={{ margin: "0.25rem 0 0", color: "#94a3b8", fontSize: "0.85rem" }}>
               مهام إضافية اختيارية ذات مكافآت نقاط عالية لزيادة رصيدك دون أي مخاطرة أو خصم عند عدم إكمالها!
@@ -338,8 +325,8 @@ export default function BountyBoard({
                         minWidth: "55px",
                       }}
                     >
-                      <span style={{ color: "#ffffff", fontSize: "1.1rem", fontWeight: 900, lineHeight: 1 }}>
-                        +{bounty.points}
+                      <span style={{ color: "#ffffff", fontSize: "1.1rem", fontWeight: 900, lineHeight: 1, display: "flex", alignItems: "center", gap: "0.2rem" }}>
+                        +{bounty.points} ⚡
                       </span>
                       <span style={{ color: "#fef3c7", fontSize: "0.65rem", fontWeight: 700 }}>
                         نقطة
@@ -453,7 +440,7 @@ export default function BountyBoard({
                     }}
                   >
                     <CheckCircle2 size={18} />
-                    <span>تم إنجاز التحدي (+{bounty.points} نقطة و+{bounty.gems || Math.max(10, Math.round(bounty.points * 0.4))} 💎) ✓</span>
+                    <span>تم إنجاز التحدي (+{bounty.points} ⚡ +{bounty.gems || Math.max(10, Math.round(bounty.points * 0.4))} 💎) ✓</span>
                   </div>
                 ) : (
                   /* State 3: In Progress with Interactive Clicker Counters */
@@ -571,7 +558,7 @@ export default function BountyBoard({
                         }}
                       >
                         <Sparkles size={18} />
-                        <span>{claimingId === bounty.id ? "جارٍ التوثيق..." : `🎉 استلام المكافأة (+${bounty.points} نقطة)`}</span>
+                        <span>{claimingId === bounty.id ? "جارٍ التوثيق..." : `🎉 استلام المكافأة (+${bounty.points} ⚡ +${bounty.gems || Math.max(10, Math.round(bounty.points * 0.4))} 💎)`}</span>
                       </button>
                     ) : (
                       <div

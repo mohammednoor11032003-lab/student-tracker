@@ -131,6 +131,44 @@ function StudentTasks({
     return isNaN(y) ? 2026 : y
   })
 
+  // Live countdown to midnight in Jordan (Asia/Amman - UTC+3)
+  const [jordanCountdown, setJordanCountdown] = useState<string>("")
+  useEffect(() => {
+    function calculateJordanMidnightCountdown(): string {
+      try {
+        const now = new Date()
+        const formatter = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Amman",
+          hour12: false,
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+        const parts = formatter.formatToParts(now)
+        let h = 0, m = 0, s = 0
+        for (const p of parts) {
+          if (p.type === "hour") h = parseInt(p.value, 10)
+          if (p.type === "minute") m = parseInt(p.value, 10)
+          if (p.type === "second") s = parseInt(p.value, 10)
+        }
+        const passedSeconds = (h % 24) * 3600 + m * 60 + s
+        let remaining = 86400 - passedSeconds
+        if (remaining < 0) remaining = 0
+        const remH = Math.floor(remaining / 3600)
+        const remM = Math.floor((remaining % 3600) / 60)
+        const remS = remaining % 60
+        return `${String(remH).padStart(2, "0")}:${String(remM).padStart(2, "0")}:${String(remS).padStart(2, "0")}`
+      } catch {
+        return ""
+      }
+    }
+    setJordanCountdown(calculateJordanMidnightCountdown())
+    const timer = setInterval(() => {
+      setJordanCountdown(calculateJordanMidnightCountdown())
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
   // Revision Test Modal state
   const [pendingRevisionAssignment, setPendingRevisionAssignment] = useState<Assignment | null>(null)
   // Track tasks that require double revision (keyed by assignment id)
@@ -1638,6 +1676,32 @@ function StudentTasks({
     return includeYear ? `${dd}-${mm}-${y}` : `${dd}-${mm}`
   }
 
+  // RTL Date Formatter: Day strictly on right, Month on left (DD-MM)
+  function renderDateRtl(dateStr: string) {
+    if (!dateStr) return null
+    const parts = dateStr.split("-")
+    if (parts.length < 3) return <span>{dateStr}</span>
+    const [, m, d] = parts
+    const dd = String(d).padStart(2, "0")
+    const mm = String(m).padStart(2, "0")
+    return (
+      <span
+        dir="rtl"
+        style={{
+          display: "inline-flex",
+          flexDirection: "row",
+          alignItems: "center",
+          direction: "rtl",
+          unicodeBidi: "isolate",
+        }}
+      >
+        <span>{dd}</span>
+        <span style={{ margin: "0 1px", opacity: 0.8 }}>-</span>
+        <span>{mm}</span>
+      </span>
+    )
+  }
+
   const selectedDayName = ARABIC_DAYS[dateObj.getDay()]
   const selectedDayDateFormatted = formatTaskDate(selectedDate, true)
 
@@ -1734,6 +1798,7 @@ function StudentTasks({
             backdropFilter: "blur(10px)",
             borderRadius: "1rem",
             transition: "all 0.2s",
+            fontFamily: "'Tajawal', 'Cairo', sans-serif",
           }}
         >
           <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 700 }}>الشهر ▾</span>
@@ -1760,6 +1825,7 @@ function StudentTasks({
             backdropFilter: "blur(10px)",
             borderRadius: "1rem",
             transition: "all 0.2s",
+            fontFamily: "'Tajawal', 'Cairo', sans-serif",
           }}
         >
           <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 700 }}>الأسبوع ▾</span>
@@ -1786,6 +1852,7 @@ function StudentTasks({
             backdropFilter: "blur(10px)",
             borderRadius: "1rem",
             transition: "all 0.2s",
+            fontFamily: "'Tajawal', 'Cairo', sans-serif",
           }}
         >
           <span style={{ fontSize: "0.75rem", color: "#6b7280", fontWeight: 700 }}>{selectedDayName} (اليوم والتاريخ) ▾</span>
@@ -1800,18 +1867,18 @@ function StudentTasks({
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
           <button
             onClick={() => navigateWeek(-1)}
-            style={{ border: "none", background: "#f3e8ff", color: "#7c3aed", padding: "0.4rem 0.75rem", borderRadius: "0.5rem", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem" }}
+            style={{ border: "none", background: "#f3e8ff", color: "#7c3aed", padding: "0.4rem 0.75rem", borderRadius: "0.5rem", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
           >
-            ◀ الأسبوع السابق
+            ▶ الأسبوع السابق
           </button>
-          <span style={{ fontWeight: 800, color: "#4b5563", fontSize: "0.95rem" }}>
+          <span style={{ fontWeight: 800, color: "#4b5563", fontSize: "0.95rem", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
             شهر {activeMonth} - الأسبوع {WEEK_NAMES[activeWeekNum - 1]}
           </span>
           <button
             onClick={() => navigateWeek(1)}
-            style={{ border: "none", background: "#f3e8ff", color: "#7c3aed", padding: "0.4rem 0.75rem", borderRadius: "0.5rem", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem" }}
+            style={{ border: "none", background: "#f3e8ff", color: "#7c3aed", padding: "0.4rem 0.75rem", borderRadius: "0.5rem", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}
           >
-            الأسبوع التالي ▶
+            الأسبوع التالي ◀
           </button>
         </div>
 
@@ -1873,14 +1940,40 @@ function StudentTasks({
       )}
 
       {isToday && (
-        <div style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.4)", color: "white", padding: "0.75rem 1rem", borderRadius: "1rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.4)", color: "white", padding: "0.75rem 1rem", borderRadius: "1rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <span style={{ fontSize: "1.3rem" }}>⏰</span>
-            <span style={{ fontWeight: 700, fontSize: "0.9rem" }}>التسجيل مفتوح اليوم حتى 12:00 منتصف الليل</span>
+            <span style={{ fontWeight: 700, fontSize: "0.9rem", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>التسجيل مفتوح اليوم حتى 12:00 منتصف الليل</span>
           </div>
-          <span style={{ background: "#22c55e", color: "white", padding: "0.2rem 0.6rem", borderRadius: "9999px", fontSize: "0.75rem", fontWeight: 800 }}>
-            متاح الآن
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {jordanCountdown && (
+              <span
+                dir="ltr"
+                style={{
+                  background: "rgba(0, 0, 0, 0.45)",
+                  color: "#fef08a",
+                  padding: "0.2rem 0.6rem",
+                  borderRadius: "0.55rem",
+                  fontSize: "0.85rem",
+                  fontWeight: 900,
+                  fontFamily: "monospace",
+                  letterSpacing: "1px",
+                  border: "1px solid rgba(254, 240, 138, 0.35)",
+                  boxShadow: "0 0 10px rgba(250, 204, 21, 0.2)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+                title="الوقت المتبقي حتى 12:00 منتصف الليل بتوقيت الأردن"
+              >
+                <span>⏳</span>
+                <span>{jordanCountdown}</span>
+              </span>
+            )}
+            <span style={{ background: "#22c55e", color: "white", padding: "0.2rem 0.6rem", borderRadius: "9999px", fontSize: "0.75rem", fontWeight: 800, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+              متاح الآن
+            </span>
+          </div>
         </div>
       )}
 
@@ -1960,7 +2053,7 @@ function StudentTasks({
                   أنظمة التثبيت المخصصة للطالب ({upcomingAndActiveConsolidations.length})
                 </h3>
                 <span style={{ fontSize: "0.8rem", color: "#c4b5fd" }}>
-                  خطط التثبيت والمراجعة المعتمدة من المعلم
+                  خطط التثبيت المعتمدة من المعلم
                 </span>
               </div>
             </div>
@@ -2040,7 +2133,7 @@ function StudentTasks({
                       </div>
 
                       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.5rem", flexWrap: "wrap", fontSize: "0.85rem", color: "#e2e8f0" }}>
-                        <span>📅 <strong>{formatDisplayDate(c.start_date, false)}</strong> إلى <strong>{formatDisplayDate(c.end_date, false)}</strong></span>
+                        <span>📅 <strong>{renderDateRtl(c.start_date)}</strong> إلى <strong>{renderDateRtl(c.end_date)}</strong></span>
                         <span>📖 ص {c.start_page}..{c.end_page} ({c.end_page - c.start_page + 1} ص)</span>
                         <span>⚡ {c.daily_pages_count} ص/يوم</span>
                         <span>📿 {c.repetitions_count} تكرارات</span>
@@ -2050,7 +2143,7 @@ function StudentTasks({
 
                     <div>
                       {isSelected ? (
-                        <span style={{ fontSize: "0.85rem", color: "#a7f3d0", fontWeight: 800, background: "rgba(16, 185, 129, 0.2)", padding: "0.35rem 0.85rem", borderRadius: "0.6rem", border: "1px solid #10b981", display: "inline-block" }}>
+                        <span style={{ fontSize: "0.85rem", color: "#a7f3d0", fontWeight: 800, background: "rgba(16, 185, 129, 0.2)", padding: "0.35rem 0.85rem", borderRadius: "0.6rem", border: "1px solid #10b981", display: "inline-block", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
                           ✓ الخطة المعروضة حالياً
                         </span>
                       ) : (
@@ -2067,6 +2160,7 @@ function StudentTasks({
                             fontWeight: 800,
                             cursor: "pointer",
                             transition: "all 0.2s",
+                            fontFamily: "'Tajawal', 'Cairo', sans-serif",
                           }}
                           onMouseEnter={e => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)")}
                           onMouseLeave={e => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.18)")}
@@ -2855,14 +2949,14 @@ function StudentTasks({
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
                           <span style={{ fontSize: "0.75rem", background: "#ffedd5", color: "#c2410c", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
-                            المهمة الثانية: جنب الدرس (التثبيت التراكمي)
+                            المهمة الثانية: جنب الدرس التثبيتي
                           </span>
                           <span style={{ fontSize: "0.75rem", background: adjPts === 0 ? "#f1f5f9" : "#fef3c7", color: adjPts === 0 ? "#64748b" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
                             {adjPts === 0 ? "0 نقطة (جمعة)" : `+${adjPts} نقاط`}
                           </span>
                         </div>
                         <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#1f2937" }}>
-                          📚 {c?.task2.title || "مهمة جنب الدرس (التثبيت التراكمي)"}
+                          📚 {c?.task2.title || "جنب الدرس التثبيتي"}
                         </div>
                         {c?.task2.pagesText && (
                           <div style={{ fontSize: "0.85rem", color: "#ea580c", fontWeight: 800, marginTop: "0.2rem" }}>
@@ -2897,6 +2991,7 @@ function StudentTasks({
                         alignItems: "center",
                         justifyContent: "space-between",
                         boxShadow: hasAbsencePenalty ? "none" : isAutoAdjCompleted ? "0 4px 12px rgba(5,150,105,0.3)" : "0 4px 12px rgba(249,115,22,0.3)",
+                        fontFamily: "'Tajawal', 'Cairo', sans-serif",
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -2936,14 +3031,14 @@ function StudentTasks({
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
                           <span style={{ fontSize: "0.75rem", background: "#ede9fe", color: "#6d28d9", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
-                            المهمة الثالثة: قيام الليل بالتثبيت
+                            المهمة الثالثة: قيام الليل التثبيتي
                           </span>
                           <span style={{ fontSize: "0.75rem", background: nightPts === 0 ? "#f1f5f9" : "#fef3c7", color: nightPts === 0 ? "#64748b" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
                             {nightPts === 0 ? "0 نقطة (جمعة)" : `+${nightPts} نقاط`}
                           </span>
                         </div>
                         <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#1f2937" }}>
-                          🌙 {c?.task3.title || "صلاة قيام الليل بالتثبيت"}
+                          🌙 {c?.task3.title || "قيام الليل التثبيتي"}
                         </div>
                         {c?.task3.pagesText && (
                           <div style={{ fontSize: "0.85rem", color: "#7c3aed", fontWeight: 800, marginTop: "0.2rem" }}>
@@ -2978,6 +3073,7 @@ function StudentTasks({
                         alignItems: "center",
                         justifyContent: "space-between",
                         boxShadow: hasAbsencePenalty ? "none" : isAutoNightCompleted ? "0 4px 12px rgba(5,150,105,0.3)" : "0 4px 12px rgba(124,58,237,0.3)",
+                        fontFamily: "'Tajawal', 'Cairo', sans-serif",
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -3061,7 +3157,7 @@ function StudentTasks({
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontWeight: 900, fontSize: "1.3rem", color: "#fff" }}>
-                      {manualDetails.isHarvestDay ? "يوم حصاد التثبيت الشامل 🌾" : "نظام التثبيت اليدوي المكثف"}
+                      {manualDetails.isHarvestDay ? "يوم حصاد التثبيت الشامل 🌾" : "نظام التثبيت"}
                     </h3>
                     <span
                       style={{
@@ -3080,19 +3176,6 @@ function StudentTasks({
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                   <span
                     style={{
-                      background: manualDetails.isHarvestDay ? "rgba(245, 158, 11, 0.25)" : "rgba(244, 63, 94, 0.2)",
-                      border: manualDetails.isHarvestDay ? "1px solid #f59e0b" : "1px solid #f43f5e",
-                      color: manualDetails.isHarvestDay ? "#fef3c7" : "#fecdd3",
-                      padding: "0.35rem 0.85rem",
-                      borderRadius: "9999px",
-                      fontWeight: 900,
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    الهدف: {activeManualForDate.repetitions_count} تكرارات
-                  </span>
-                  <span
-                    style={{
                       background: manualDetails.isFridayZeroReward ? "#475569" : "linear-gradient(135deg, #f59e0b 0%, #b45309 100%)",
                       color: "white",
                       padding: "0.35rem 0.85rem",
@@ -3100,9 +3183,10 @@ function StudentTasks({
                       fontWeight: 900,
                       fontSize: "0.85rem",
                       boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
+                      fontFamily: "'Tajawal', 'Cairo', sans-serif",
                     }}
                   >
-                    {manualDetails.isFridayZeroReward ? "0 نقطة و0 💎 (جمعة)" : "30 نقطة و+10 💎"}
+                    {manualDetails.isFridayZeroReward ? "0 ⚡ + 0 💎 (جمعة)" : "30 ⚡ + 10 💎"}
                   </span>
                 </div>
               </div>
@@ -3226,6 +3310,7 @@ function StudentTasks({
                               overflow: "hidden",
                               transition: "all 0.15s",
                               opacity: hasAbsencePenalty ? 0.6 : 1,
+                              fontFamily: "'Tajawal', 'Cairo', sans-serif",
                             }}
                             onMouseDown={e => {
                               if (!isTargetReached && isToday && !hasAbsencePenalty && !isManualCompleted) e.currentTarget.style.transform = "scale(0.97)"
@@ -3304,6 +3389,7 @@ function StudentTasks({
                                 alignItems: "center",
                                 justifyContent: "center",
                                 gap: "0.5rem",
+                                fontFamily: "'Tajawal', 'Cairo', sans-serif",
                               }}
                             >
                               <span>✓</span>
@@ -3338,7 +3424,7 @@ function StudentTasks({
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
                           <span style={{ fontSize: "0.75rem", background: "rgba(255,255,255,0.2)", color: "#fff", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
-                            المهمة الثانية: جنب الدرس (التثبيت التراكمي)
+                            المهمة الثانية: جنب الدرس التثبيتي
                           </span>
                           <span style={{ fontSize: "0.75rem", background: manualDetails.adjacentPoints === 0 ? "rgba(255,255,255,0.2)" : "#fef3c7", color: manualDetails.adjacentPoints === 0 ? "#cbd5e1" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
                             {manualDetails.adjacentPoints === 0 ? "0 نقطة (جمعة)" : `+${manualDetails.adjacentPoints} نقاط`}
@@ -3380,6 +3466,7 @@ function StudentTasks({
                         alignItems: "center",
                         justifyContent: "space-between",
                         boxShadow: hasAbsencePenalty ? "none" : isManualAdjCompleted ? "0 4px 15px rgba(5,150,105,0.4)" : "0 4px 15px rgba(249,115,22,0.35)",
+                        fontFamily: "'Tajawal', 'Cairo', sans-serif",
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -3413,7 +3500,7 @@ function StudentTasks({
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
                           <span style={{ fontSize: "0.75rem", background: "rgba(255,255,255,0.2)", color: "#fff", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
-                            المهمة الثالثة: قيام الليل بالتثبيت
+                            المهمة الثالثة: قيام الليل التثبيتي
                           </span>
                           <span style={{ fontSize: "0.75rem", background: manualDetails.nightPrayerPoints === 0 ? "rgba(255,255,255,0.2)" : "#fef3c7", color: manualDetails.nightPrayerPoints === 0 ? "#cbd5e1" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
                             {manualDetails.nightPrayerPoints === 0 ? "0 نقطة (جمعة)" : `+${manualDetails.nightPrayerPoints} نقاط`}
@@ -3455,6 +3542,7 @@ function StudentTasks({
                         alignItems: "center",
                         justifyContent: "space-between",
                         boxShadow: hasAbsencePenalty ? "none" : isManualNightCompleted ? "0 4px 15px rgba(5,150,105,0.4)" : "0 4px 15px rgba(124,58,237,0.35)",
+                        fontFamily: "'Tajawal', 'Cairo', sans-serif",
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>

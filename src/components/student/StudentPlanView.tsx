@@ -26,6 +26,31 @@ function StudentPlanView({
 
   const isProjected = selectedDate > todayStr
 
+  function renderDateRtl(dateStr: string) {
+    if (!dateStr) return null
+    const parts = dateStr.split("-")
+    if (parts.length < 3) return <span>{dateStr}</span>
+    const [, m, d] = parts
+    const dd = String(d).padStart(2, "0")
+    const mm = String(m).padStart(2, "0")
+    return (
+      <span
+        dir="rtl"
+        style={{
+          display: "inline-flex",
+          flexDirection: "row",
+          alignItems: "center",
+          direction: "rtl",
+          unicodeBidi: "isolate",
+        }}
+      >
+        <span>{dd}</span>
+        <span style={{ margin: "0 1px", opacity: 0.8 }}>-</span>
+        <span>{mm}</span>
+      </span>
+    )
+  }
+
   const { activePlan, planDetails, diffDays } = useMemo(() => {
     const res = calculateProjectedPlan(plan, selectedDate, todayStr, manualConsolidations)
     return {
@@ -488,7 +513,7 @@ function StudentPlanView({
                   أنظمة التثبيت المخصصة للطالب ({upcomingAndActiveConsolidations.length})
                 </h3>
                 <span style={{ fontSize: "0.8rem", color: "#c4b5fd" }}>
-                  خطط التثبيت والمراجعة المعتمدة من المعلم
+                  خطط التثبيت المعتمدة من المعلم
                 </span>
               </div>
             </div>
@@ -566,7 +591,7 @@ function StudentPlanView({
                       </div>
 
                       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.5rem", flexWrap: "wrap", fontSize: "0.85rem", color: "#e2e8f0" }}>
-                        <span>📅 <strong>{formatDisplayDate(c.start_date, false)}</strong> إلى <strong>{formatDisplayDate(c.end_date, false)}</strong></span>
+                        <span>📅 <strong>{renderDateRtl(c.start_date)}</strong> إلى <strong>{renderDateRtl(c.end_date)}</strong></span>
                         <span>📖 ص {c.start_page}..{c.end_page} ({c.end_page - c.start_page + 1} ص)</span>
                         <span>⚡ {c.daily_pages_count} ص/يوم</span>
                         <span>📿 {c.repetitions_count} تكرارات</span>
@@ -576,7 +601,7 @@ function StudentPlanView({
 
                     <div>
                       {isSelected ? (
-                        <span style={{ fontSize: "0.85rem", color: "#a7f3d0", fontWeight: 800, background: "rgba(16, 185, 129, 0.2)", padding: "0.35rem 0.85rem", borderRadius: "0.6rem", border: "1px solid #10b981", display: "inline-block" }}>
+                        <span style={{ fontSize: "0.85rem", color: "#a7f3d0", fontWeight: 800, background: "rgba(16, 185, 129, 0.2)", padding: "0.35rem 0.85rem", borderRadius: "0.6rem", border: "1px solid #10b981", display: "inline-block", fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
                           ✓ الخطة المعروضة حالياً
                         </span>
                       ) : (
@@ -593,6 +618,7 @@ function StudentPlanView({
                             fontWeight: 800,
                             cursor: "pointer",
                             transition: "all 0.2s",
+                            fontFamily: "'Tajawal', 'Cairo', sans-serif",
                           }}
                           onMouseEnter={e => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.3)")}
                           onMouseLeave={e => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.18)")}
