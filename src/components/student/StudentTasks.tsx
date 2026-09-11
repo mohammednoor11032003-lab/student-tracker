@@ -43,7 +43,9 @@ import {
   ManualConsolidation,
   getWorkingDayIndex,
   getManualConsolidationDailyTaskDetails,
+  isFridayDate,
 } from "@/lib/manual-consolidation-utils"
+import FridayTafsirSection from "./FridayTafsirSection"
 
 function StudentTasks({
   assignments: initAssignments,
@@ -2549,6 +2551,17 @@ function StudentTasks({
               </div>
             )
           })()}
+
+          {/* ================= 🕌 FRIDAY TAFSIR DAY TASKS (مهام يوم التفسير الأسبوعي) ================= */}
+          {isFridayDate(selectedDate) && (
+            <FridayTafsirSection
+              studentId={studentId}
+              selectedDate={selectedDate}
+              todayStr={todayStr}
+              isToday={isToday}
+              onPointsDelta={(delta) => setWeeklyPoints((prev) => prev + delta)}
+            />
+          )}
 
           {/* ================= MANDATORY PINNED ALTERNATIVE TASK ================= */}
           {altTaskState && altTaskState.active && (assignments.some(a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed) || assignments.some(a => a.tasks?.name === "المهمة البديلة" && a.completed)) && (
