@@ -128,6 +128,8 @@ export function getWorkingDayIndex(
 export interface ManualConsolidationDailyDetails {
   workingDayIndex: number
   isFridayOffDay: boolean
+  isFriday: boolean
+  isFridayZeroReward: boolean
   totalPages: number
   totalWorkingDays: number
   availableReviewDays: number
@@ -135,15 +137,32 @@ export interface ManualConsolidationDailyDetails {
   isHarvestDay: boolean
   todayStart: number
   todayEnd: number
+  // Task 1: Repetition Task (20 pts / 0 on Friday)
   taskTitle: string
   detailsDescription: string
+  repetitionPoints: number
+  // Task 2: Adjacent / Cumulative Task (5 pts / 0 on Friday)
+  adjacentTitle: string
+  adjacentDescription: string
+  adjacentPagesText: string
+  adjacentStartPage: number
+  adjacentEndPage: number
+  adjacentPoints: number
+  // Task 3: Night Prayer Task (5 pts / 0 on Friday)
+  nightPrayerTitle: string
+  nightPrayerDescription: string
+  nightPrayerPagesText: string
+  nightPrayerPoints: number
 }
 
 /**
  * Calculates daily chunking and harvest day details for a specific date within an active manual consolidation.
  * - If date is Friday and include_fridays is false -> returns isFridayOffDay: true
- * - If has_harvest_day is true -> reserves final day for Harvest Task (covers start_page to end_page),
- *   and chunks remaining pages strictly across availableReviewDays (totalWorkingDays - 1).
+ * - If date is Friday and include_fridays is true -> returns tasks with 0 points (Friday Zero-Reward Rule)
+ * - Returns 3 distinct daily tasks:
+ *   1. Repetition Task (20 pts, or 0 on Friday)
+ *   2. Adjacent / Cumulative Task (5 pts, or 0 on Friday)
+ *   3. Night Prayer Task (5 pts, or 0 on Friday)
  */
 export function getManualConsolidationDailyTaskDetails(
   consolidation: ManualConsolidation,
@@ -155,6 +174,7 @@ export function getManualConsolidationDailyTaskDetails(
   }
 
   const includeFridays = Boolean(consolidation.include_fridays)
+  const isFriday = isFridayDate(selectedDateStr)
   const { workingDayIndex, isOffDay } = getWorkingDayIndex(
     consolidation.start_date,
     selectedDateStr,
@@ -171,6 +191,8 @@ export function getManualConsolidationDailyTaskDetails(
     return {
       workingDayIndex: -1,
       isFridayOffDay: true,
+      isFriday: true,
+      isFridayZeroReward: false,
       totalPages,
       totalWorkingDays,
       availableReviewDays,
@@ -181,8 +203,26 @@ export function getManualConsolidationDailyTaskDetails(
       taskTitle: "يوم الجمعة إجازة رسمية 🕌 (لا توجد مهام تثبيت)",
       detailsDescription:
         "يوم الجمعة إجازة رسمية مستثناة من خطة التثبيت. لا توجد مهام تسميع أو تكرار لهذا اليوم، استمتع بيوم الراحة أو راجع ما سبق حفظه.",
+      repetitionPoints: 0,
+      adjacentTitle: "جنب الدرس",
+      adjacentDescription: "معلّق خلال إجازة الجمعة",
+      adjacentPagesText: "",
+      adjacentStartPage: 0,
+      adjacentEndPage: 0,
+      adjacentPoints: 0,
+      nightPrayerTitle: "قيام الليل",
+      nightPrayerDescription: "معلّق خلال إجازة الجمعة",
+      nightPrayerPagesText: "",
+      nightPrayerPoints: 0,
     }
   }
+
+  // 🛡️ Friday Zero-Reward Rule:
+  // If date is Friday because include_fridays is true, all 3 tasks generate with 0 points and 0 gems!
+  const isFridayZeroReward = isFriday && includeFridays
+  const repetitionPoints = isFridayZeroReward ? 0 : 20
+  const adjacentPoints = isFridayZeroReward ? 0 : 5
+  const nightPrayerPoints = isFridayZeroReward ? 0 : 5
 
   // Harvest Day Check:
   // When has_harvest_day is enabled, the final day (end_date) or any day beyond availableReviewDays is the Harvest Day
@@ -190,19 +230,34 @@ export function getManualConsolidationDailyTaskDetails(
     hasHarvest && (selectedDateStr === consolidation.end_date || workingDayIndex >= availableReviewDays)
 
   if (isHarvestDay) {
+    const todayStart = consolidation.start_page
+    const todayEnd = consolidation.end_page
     return {
       workingDayIndex,
       isFridayOffDay: false,
+      isFriday,
+      isFridayZeroReward,
       totalPages,
       totalWorkingDays,
       availableReviewDays,
       dailyCount: totalPages,
       isHarvestDay: true,
-      todayStart: consolidation.start_page,
-      todayEnd: consolidation.end_page,
-      taskTitle: `يوم حصاد التثبيت الشامل: تسميع من ص ${consolidation.start_page} إلى ص ${consolidation.end_page}`,
+      todayStart,
+      todayEnd,
+      taskTitle: `يوم حصاد التثبيت الشامل: تسميع من ص ${todayStart} إلى ص ${todayEnd}`,
       detailsDescription:
-        "🌾 هذا هو يوم الحصاد الأكبر! المطلوب تسميع كل ما سبق دفعة واحدة لترسيخ الحفظ ونيل وسام الحصاد الذهبي! انقر على العداد بعد كل قراءة.",
+        "🌾 هذا هو يوم الحصاد الأكبر! المطلوب تسميع كل ما سبق دفعة واحدة لترسيخ الحفظ ونيل وسام الحصاد! انقر على العداد بعد كل قراءة.",
+      repetitionPoints,
+      adjacentTitle: "جنب الدرس (المراجعة التراكمية للتثبيت)",
+      adjacentDescription: "تسميع ومراجعة جميع الصفحات التي تم أخذها منذ بداية خطة التثبيت الحالية وحتى اليوم",
+      adjacentPagesText: `من صفحة ${todayStart} إلى صفحة ${todayEnd} (كامل خطة التثبيت)`,
+      adjacentStartPage: todayStart,
+      adjacentEndPage: todayEnd,
+      adjacentPoints,
+      nightPrayerTitle: "قيام الليل بالورد التثبيتي",
+      nightPrayerDescription: "صلاة قيام الليل بالصفحات التي تم تكرارها اليوم فقط في خطة التثبيت",
+      nightPrayerPagesText: `صفحات حصاد اليوم: من صفحة ${todayStart} إلى صفحة ${todayEnd}`,
+      nightPrayerPoints,
     }
   }
 
@@ -222,6 +277,8 @@ export function getManualConsolidationDailyTaskDetails(
   return {
     workingDayIndex,
     isFridayOffDay: false,
+    isFriday,
+    isFridayZeroReward,
     totalPages,
     totalWorkingDays,
     availableReviewDays,
@@ -230,6 +287,17 @@ export function getManualConsolidationDailyTaskDetails(
     todayStart: safeStart,
     todayEnd: safeEnd,
     taskTitle: `مهمة التثبيت: تسميع من ص ${safeStart} إلى ص ${safeEnd}`,
-    detailsDescription: `اليوم ${workingDayIndex + 1} من أصل ${availableReviewDays} أيام تثبيت (المقدار: ${Math.max(1, safeEnd - safeStart + 1)} صفحات بـ ${consolidation.repetitions_count || 5} تكرارات). خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار.`,
+    detailsDescription: `اليوم ${workingDayIndex + 1} من أصل ${availableReviewDays} أيام تثبيت (المقدار: ${Math.max(1, safeEnd - safeStart + 1)} صفحات بـ ${consolidation.repetitions_count || 5} تكرارات).`,
+    repetitionPoints,
+    adjacentTitle: "جنب الدرس (المراجعة التراكمية للتثبيت)",
+    adjacentDescription: "تسميع ومراجعة جميع الصفحات التي تم أخذها منذ بداية خطة التثبيت الحالية وحتى اليوم",
+    adjacentPagesText: `من صفحة ${consolidation.start_page} إلى صفحة ${safeEnd}`,
+    adjacentStartPage: consolidation.start_page,
+    adjacentEndPage: safeEnd,
+    adjacentPoints,
+    nightPrayerTitle: "قيام الليل بالورد التثبيتي",
+    nightPrayerDescription: "صلاة قيام الليل بالصفحات التي تم تكرارها اليوم فقط في خطة التثبيت",
+    nightPrayerPagesText: `صفحات اليوم: من صفحة ${safeStart} إلى صفحة ${safeEnd}`,
+    nightPrayerPoints,
   }
 }

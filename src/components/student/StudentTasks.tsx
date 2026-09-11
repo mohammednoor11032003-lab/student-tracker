@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Task } from "@/lib/types"
 import toast from "react-hot-toast"
@@ -877,16 +877,56 @@ function StudentTasks({
   // Future simulated tasks list
   const futureSimulatedTasks = useMemo(() => {
     if (!isFuture) return []
-    // If future date is covered by an active manual consolidation, hide routine simulated tasks!
-    if (activeManualForDate) return []
-    if (activePlan.is_in_consolidation) {
+    // If future date is covered by an active manual consolidation, manual card will render
+    if (activeManualForDate && manualDetails) {
+      if (manualDetails.isFridayOffDay) return []
       return [
         {
-          id: "future_consolidation",
-          name: "أسبوع التثبيت",
-          emoji: "🛡️",
-          points: 10,
-          detail: planDetails.tasks.lesson,
+          id: "future_manual_rep",
+          name: manualDetails.taskTitle,
+          emoji: manualDetails.isHarvestDay ? "🌾" : "🔁",
+          points: manualDetails.repetitionPoints,
+          detail: manualDetails.detailsDescription,
+        },
+        {
+          id: "future_manual_adj",
+          name: manualDetails.adjacentTitle,
+          emoji: "📚",
+          points: manualDetails.adjacentPoints,
+          detail: manualDetails.adjacentDescription,
+        },
+        {
+          id: "future_manual_night",
+          name: manualDetails.nightPrayerTitle,
+          emoji: "🌙",
+          points: manualDetails.nightPrayerPoints,
+          detail: manualDetails.nightPrayerDescription,
+        },
+      ]
+    }
+    if (activePlan.is_in_consolidation && planDetails.consolidationTasksInfo) {
+      const c = planDetails.consolidationTasksInfo
+      return [
+        {
+          id: "future_auto_rep",
+          name: c.task1.title,
+          emoji: "🔁",
+          points: c.task1.points,
+          detail: c.task1.pagesText,
+        },
+        {
+          id: "future_auto_adj",
+          name: c.task2.title,
+          emoji: "📚",
+          points: c.task2.points,
+          detail: c.task2.description,
+        },
+        {
+          id: "future_auto_night",
+          name: c.task3.title,
+          emoji: "🌙",
+          points: c.task3.points,
+          detail: c.task3.description,
         },
       ]
     }
@@ -898,7 +938,7 @@ function StudentTasks({
       { id: "future_revision", name: "المراجعة", emoji: "🔄", points: 5, detail: planDetails.tasks.revision },
       { id: "future_night", name: "قيام الليل", emoji: "🌙", points: 5, detail: planDetails.tasks.nightPrayer },
     ]
-  }, [isFuture, activeManualForDate, activePlan.is_in_consolidation, planDetails])
+  }, [isFuture, activeManualForDate, manualDetails, activePlan.is_in_consolidation, planDetails])
 
   const TASK_ORDER = [
     "السماع",
@@ -953,7 +993,39 @@ function StudentTasks({
       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99)
     })
 
-  // Manual Consolidation Persistence & Clicker Handlers
+  // ================= CONSOLIDATION (3 TASKS & REWARDS PARITY) =================
+  // Consolidation Completion Bonus Checker (awards +10 gems when all 3 tasks are complete)
+  const checkConsolidationBonus = useCallback((t1Done: boolean, t2Done: boolean, t3Done: boolean, isFridayZero: boolean) => {
+    if (!isToday) return
+    if (t1Done && t2Done && t3Done) {
+      if (isFridayZero) {
+        toast("🕌 أتممت جميع مهام التثبيت لليوم (3/3) بنجاح! تقبل الله طاعتكم 🌟 (تذكير: يوم الجمعة إجازة رسمية بدون نقاط أو جواهر)", {
+          icon: "🕌",
+          duration: 5500,
+        })
+        return
+      }
+      const rewardKey = `completion_gems_${studentId}_${todayStr}`
+      if (typeof window !== "undefined" && !localStorage.getItem(rewardKey)) {
+        localStorage.setItem(rewardKey, "1")
+        window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: 10 } }))
+        toast.success("💎 مبارك! أتممت جميع مهام التثبيت لليوم (3/3) بنسبة 100% وحصلت على مكافأة الاكتمال: +10 جواهر للمتجر!", {
+          icon: "💎",
+          duration: 6000,
+        })
+        fetch("/api/hero", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "claim_completion_gems",
+            studentId,
+          }),
+        }).catch(err => console.error("Failed to claim completion gems:", err))
+      }
+    }
+  }, [isToday, studentId, todayStr])
+
+  // 1. Manual Consolidation State (3 Tasks)
   const manualConsolidationKey = `manual_consolidation_count_${studentId}_${selectedDate}`
   const manualCompletedKey = `manual_consolidation_done_${studentId}_${selectedDate}`
   const [isManualCompleted, setIsManualCompleted] = useState<boolean>(() => {
@@ -962,16 +1034,75 @@ function StudentTasks({
     }
     return false
   })
+  const [isManualAdjCompleted, setIsManualAdjCompleted] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(`manual_adj_done_${studentId}_${todayStr}`) === "true"
+    }
+    return false
+  })
+  const [isManualNightCompleted, setIsManualNightCompleted] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(`manual_night_done_${studentId}_${todayStr}`) === "true"
+    }
+    return false
+  })
 
+  // 2. Auto-Consolidation State (3 Tasks)
+  const consolidationDay = studentPlan?.consolidation_day || 1
+  const [consolidationCount, setConsolidationCount] = useState<number>(0)
+  const [isSavingConsolidation, setIsSavingConsolidation] = useState(false)
+  const [isAutoCompleted, setIsAutoCompleted] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(`auto_consolidation_done_${studentId}_${todayStr}`) === "true"
+    }
+    return false
+  })
+  const [isAutoAdjCompleted, setIsAutoAdjCompleted] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(`auto_adj_done_${studentId}_${todayStr}`) === "true"
+    }
+    return false
+  })
+  const [isAutoNightCompleted, setIsAutoNightCompleted] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(`auto_night_done_${studentId}_${todayStr}`) === "true"
+    }
+    return false
+  })
+
+  // Synchronize completion states across dates and database records
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Manual
       const savedCount = localStorage.getItem(`manual_consolidation_count_${studentId}_${selectedDate}`)
       setManualRepetitionsCount(savedCount ? Number(savedCount) : 0)
-      const savedDone = localStorage.getItem(`manual_consolidation_done_${studentId}_${selectedDate}`)
-      setIsManualCompleted(savedDone === "true")
-    }
-  }, [studentId, selectedDate])
+      const savedManualDone = localStorage.getItem(`manual_consolidation_done_${studentId}_${selectedDate}`)
+      const savedManualAdj = localStorage.getItem(`manual_adj_done_${studentId}_${selectedDate}`)
+      const savedManualNight = localStorage.getItem(`manual_night_done_${studentId}_${selectedDate}`)
 
+      // DB check
+      const dbRepDone = assignments.some(a => a.tasks?.name === "الدرس" && a.completed)
+      const dbAdjDone = assignments.some(a => a.tasks?.name === "جنب الدرس" && a.completed)
+      const dbNightDone = assignments.some(a => a.tasks?.name === "قيام الليل" && a.completed)
+
+      setIsManualCompleted(savedManualDone === "true" || dbRepDone)
+      setIsManualAdjCompleted(savedManualAdj === "true" || dbAdjDone)
+      setIsManualNightCompleted(savedManualNight === "true" || dbNightDone)
+
+      // Auto
+      const savedAutoCount = localStorage.getItem(`consolidation_count_${studentId}_d${consolidationDay}`)
+      setConsolidationCount(savedAutoCount ? Number(savedAutoCount) : 0)
+      const savedAutoDone = localStorage.getItem(`auto_consolidation_done_${studentId}_${selectedDate}`)
+      const savedAutoAdj = localStorage.getItem(`auto_adj_done_${studentId}_${selectedDate}`)
+      const savedAutoNight = localStorage.getItem(`auto_night_done_${studentId}_${selectedDate}`)
+
+      setIsAutoCompleted(savedAutoDone === "true" || dbRepDone)
+      setIsAutoAdjCompleted(savedAutoAdj === "true" || dbAdjDone)
+      setIsAutoNightCompleted(savedAutoNight === "true" || dbNightDone)
+    }
+  }, [studentId, selectedDate, consolidationDay, assignments])
+
+  // --- Manual Consolidation Handlers ---
   function handleIncrementManualRepetition() {
     if (!isToday) {
       toast.error("🔒 لا يمكن التفاعل مع مهام الأيام السابقة", { icon: "🔒" })
@@ -1002,54 +1133,42 @@ function StudentTasks({
 
     setIsSavingManualConsolidation(true)
     const isHarvest = manualDetails.isHarvestDay
-    const awardedPoints = isHarvest ? 40 : 30
-    const awardedGems = isHarvest ? 20 : 15
+    const awardedPoints = manualDetails.repetitionPoints // 20 pts (or 0 on Friday)
 
     try {
-      // 1. Mark as completed in localStorage
       if (typeof window !== "undefined") {
         localStorage.setItem(manualCompletedKey, "true")
       }
       setIsManualCompleted(true)
+      setWeeklyPoints(prev => prev + awardedPoints)
 
-      // 2. Award points and record via /api/complete-task
       await fetch("/api/complete-task", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentId,
-          taskId: isHarvest ? "manual_harvest_task" : "manual_consolidation_task",
+          taskId: "5962c81e-5ddd-49e8-93f8-73cc842db073", // الدرس (التكرار)
           points: awardedPoints,
           completed: true,
           assignedDate: todayStr,
         }),
       })
 
-      // 3. Award bonus gems
-      fetch("/api/hero", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "award_gems",
-          studentId,
-          amount: awardedGems,
-        }),
-      }).catch(err => console.error("Failed to award manual consolidation gems:", err))
-
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("hero_gems_updated", { detail: { added: awardedGems } }))
-      }
-
-      setWeeklyPoints(prev => prev + awardedPoints)
-      if (isHarvest) {
-        toast.success(`🌾 مبارك! أتممت يوم حصاد التثبيت بنجاح وحصلت على +${awardedPoints} نقطة و+${awardedGems} جوهرة 💎!`, {
-          duration: 6000,
-        })
+      if (awardedPoints > 0) {
+        toast.success(
+          isHarvest
+            ? `🌾 مبارك! أتممت تكرار يوم حصاد التثبيت وحصلت على +${awardedPoints} نقطة!`
+            : `🛡️ مبارك! أتممت مهمة تكرار التثبيت بنجاح وحصلت على +${awardedPoints} نقطة!`,
+          { duration: 5000 }
+        )
       } else {
-        toast.success(`🛡️ مبارك! أتممت مهمة التثبيت اليومية بنجاح وحصلت على +${awardedPoints} نقطة و+${awardedGems} جوهرة 💎!`, {
-          duration: 5500,
-        })
+        toast.success(
+          `✓ أتممت مهمة التكرار ليوم الجمعة بنجاح (إجازة رسمية: 0 نقطة)`,
+          { duration: 4000 }
+        )
       }
+
+      checkConsolidationBonus(true, isManualAdjCompleted, isManualNightCompleted, manualDetails.isFridayZeroReward)
     } catch (err) {
       console.error("Error completing manual consolidation:", err)
       toast.error("حدث خطأ أثناء اعتماد مهمة التثبيت")
@@ -1058,18 +1177,79 @@ function StudentTasks({
     }
   }
 
-  // Auto-Consolidation Clicker Counter & Handlers
-  const consolidationDay = studentPlan?.consolidation_day || 1
-  const [consolidationCount, setConsolidationCount] = useState<number>(0)
-  const [isSavingConsolidation, setIsSavingConsolidation] = useState(false)
+  async function handleToggleManualAdj() {
+    if (!isToday || hasAbsencePenalty || !activeManualForDate || !manualDetails) return
+    const nextCompleted = !isManualAdjCompleted
+    const pts = manualDetails.adjacentPoints // 5 or 0 on Friday
+    const deltaPoints = nextCompleted ? pts : -pts
 
-  useEffect(() => {
+    setIsManualAdjCompleted(nextCompleted)
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(`consolidation_count_${studentId}_d${consolidationDay}`)
-      setConsolidationCount(saved ? Number(saved) : 0)
+      localStorage.setItem(`manual_adj_done_${studentId}_${selectedDate}`, String(nextCompleted))
     }
-  }, [studentId, consolidationDay])
+    setWeeklyPoints(prev => prev + deltaPoints)
 
+    if (nextCompleted) {
+      toast.success(pts > 0 ? `🎉 أحسنت! أنجزت مهمة جنب الدرس التراكمي وكسبت +${pts} نقاط!` : "✓ تم إنجاز مهمة جنب الدرس (إجازة الجمعة: 0 نقطة)")
+      checkConsolidationBonus(isManualCompleted, true, isManualNightCompleted, manualDetails.isFridayZeroReward)
+    } else {
+      toast(`تم التراجع عن إكمال جنب الدرس (-${pts} نقاط) ↩️`, { icon: "↩️" })
+    }
+
+    try {
+      await fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "a6567c0e-d4de-494c-80f5-8daab2e90f93", // جنب الدرس
+          points: pts,
+          completed: nextCompleted,
+          assignedDate: todayStr,
+        }),
+      })
+    } catch (err) {
+      console.error("Error toggling manual adj:", err)
+    }
+  }
+
+  async function handleToggleManualNight() {
+    if (!isToday || hasAbsencePenalty || !activeManualForDate || !manualDetails) return
+    const nextCompleted = !isManualNightCompleted
+    const pts = manualDetails.nightPrayerPoints // 5 or 0 on Friday
+    const deltaPoints = nextCompleted ? pts : -pts
+
+    setIsManualNightCompleted(nextCompleted)
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`manual_night_done_${studentId}_${selectedDate}`, String(nextCompleted))
+    }
+    setWeeklyPoints(prev => prev + deltaPoints)
+
+    if (nextCompleted) {
+      toast.success(pts > 0 ? `🎉 أحسنت! أنجزت صلاة قيام الليل بالتثبيت وكسبت +${pts} نقاط!` : "✓ تم إنجاز صلاة قيام الليل (إجازة الجمعة: 0 نقطة)")
+      checkConsolidationBonus(isManualCompleted, isManualAdjCompleted, true, manualDetails.isFridayZeroReward)
+    } else {
+      toast(`تم التراجع عن إكمال قيام الليل (-${pts} نقاط) ↩️`, { icon: "↩️" })
+    }
+
+    try {
+      await fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "e2e191fe-782f-4727-a712-d22a1171c28d", // قيام الليل
+          points: pts,
+          completed: nextCompleted,
+          assignedDate: todayStr,
+        }),
+      })
+    } catch (err) {
+      console.error("Error toggling manual night:", err)
+    }
+  }
+
+  // --- Auto-Consolidation Handlers ---
   function handleIncrementConsolidation() {
     if (!isToday) {
       toast.error("🔒 لا يمكن التفاعل مع مهام الأيام السابقة", { icon: "🔒" })
@@ -1097,16 +1277,31 @@ function StudentTasks({
       return
     }
 
+    const repPoints = planDetails.consolidationTasksInfo?.task1.points ?? (planDetails.isFriday ? 0 : 20)
+    const isFridayZero = planDetails.consolidationTasksInfo?.isFridayZeroReward ?? planDetails.isFriday
+
     setIsSavingConsolidation(true)
     try {
       const nextPlan = calculateNextPlanState(studentPlan, "التثبيت", true)
       setStudentPlan(nextPlan)
 
-      // Complete "الدرس" assignment if found to award points
-      const lessonAssignment = assignments.find(a => a.tasks?.name === "الدرس" && !a.completed)
-      if (lessonAssignment) {
-        await completeTask(lessonAssignment)
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`auto_consolidation_done_${studentId}_${selectedDate}`, "true")
       }
+      setIsAutoCompleted(true)
+      setWeeklyPoints(prev => prev + repPoints)
+
+      await fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "5962c81e-5ddd-49e8-93f8-73cc842db073", // الدرس
+          points: repPoints,
+          completed: true,
+          assignedDate: todayStr,
+        }),
+      })
 
       await fetch("/api/student-plan", {
         method: "POST",
@@ -1118,16 +1313,92 @@ function StudentTasks({
         }),
       })
 
-      if (nextPlan.is_in_consolidation) {
-        toast.success(`✓ تم إنجاز تثبيت اليوم ${consolidationDay} بنجاح! بارك الله فيك 🌟`, { duration: 4500 })
+      if (repPoints > 0) {
+        toast.success(`✓ تم إنجاز تكرار تثبيت اليوم ${consolidationDay} بنجاح (+${repPoints} نقطة)! بارك الله فيك 🌟`, { duration: 4500 })
       } else {
-        toast.success("🎉 مبارك! أتممت أسبوع التثبيت كاملاً بنجاح وسيبدأ الجزء الجديد!", { duration: 6000 })
+        toast.success(`✓ تم إنجاز تكرار تثبيت اليوم ${consolidationDay} بنجاح (إجازة الجمعة: 0 نقطة)!`, { duration: 4500 })
       }
+
+      checkConsolidationBonus(true, isAutoAdjCompleted, isAutoNightCompleted, isFridayZero)
     } catch (err) {
       console.error(err)
       toast.error("حدث خطأ أثناء حفظ تقدم التثبيت")
     } finally {
       setIsSavingConsolidation(false)
+    }
+  }
+
+  async function handleToggleAutoAdj() {
+    if (!isToday || hasAbsencePenalty) return
+    const isFridayZero = planDetails.consolidationTasksInfo?.isFridayZeroReward ?? planDetails.isFriday
+    const pts = planDetails.consolidationTasksInfo?.task2.points ?? (isFridayZero ? 0 : 5)
+    const nextCompleted = !isAutoAdjCompleted
+    const deltaPoints = nextCompleted ? pts : -pts
+
+    setIsAutoAdjCompleted(nextCompleted)
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`auto_adj_done_${studentId}_${selectedDate}`, String(nextCompleted))
+    }
+    setWeeklyPoints(prev => prev + deltaPoints)
+
+    if (nextCompleted) {
+      toast.success(pts > 0 ? `🎉 أحسنت! أنجزت مهمة جنب الدرس التراكمي وكسبت +${pts} نقاط!` : "✓ تم إنجاز مهمة جنب الدرس (إجازة الجمعة: 0 نقطة)")
+      checkConsolidationBonus(isAutoCompleted, true, isAutoNightCompleted, isFridayZero)
+    } else {
+      toast(`تم التراجع عن إكمال جنب الدرس (-${pts} نقاط) ↩️`, { icon: "↩️" })
+    }
+
+    try {
+      await fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "a6567c0e-d4de-494c-80f5-8daab2e90f93", // جنب الدرس
+          points: pts,
+          completed: nextCompleted,
+          assignedDate: todayStr,
+        }),
+      })
+    } catch (err) {
+      console.error("Error toggling auto adj:", err)
+    }
+  }
+
+  async function handleToggleAutoNight() {
+    if (!isToday || hasAbsencePenalty) return
+    const isFridayZero = planDetails.consolidationTasksInfo?.isFridayZeroReward ?? planDetails.isFriday
+    const pts = planDetails.consolidationTasksInfo?.task3.points ?? (isFridayZero ? 0 : 5)
+    const nextCompleted = !isAutoNightCompleted
+    const deltaPoints = nextCompleted ? pts : -pts
+
+    setIsAutoNightCompleted(nextCompleted)
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`auto_night_done_${studentId}_${selectedDate}`, String(nextCompleted))
+    }
+    setWeeklyPoints(prev => prev + deltaPoints)
+
+    if (nextCompleted) {
+      toast.success(pts > 0 ? `🎉 أحسنت! أنجزت صلاة قيام الليل بالتثبيت وكسبت +${pts} نقاط!` : "✓ تم إنجاز صلاة قيام الليل (إجازة الجمعة: 0 نقطة)")
+      checkConsolidationBonus(isAutoCompleted, isAutoAdjCompleted, true, isFridayZero)
+    } else {
+      toast(`تم التراجع عن إكمال قيام الليل (-${pts} نقاط) ↩️`, { icon: "↩️" })
+    }
+
+    try {
+      await fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "e2e191fe-782f-4727-a712-d22a1171c28d", // قيام الليل
+          points: pts,
+          completed: nextCompleted,
+          assignedDate: todayStr,
+        }),
+      })
+    } catch (err) {
+      console.error("Error toggling auto night:", err)
     }
   }
 
@@ -2317,8 +2588,8 @@ function StudentTasks({
             </div>
           )}
 
-          {/* Auto-Consolidation Week Card (when is_in_consolidation is true) */}
-          {studentPlan?.is_in_consolidation && planDetails.consolidationTask && (
+          {/* ================= 🛡️ AUTO-CONSOLIDATION WEEK (أسبوع التثبيت التلقائي - 3 مهام) ================= */}
+          {studentPlan?.is_in_consolidation && (
             <div
               className="card"
               style={{
@@ -2329,72 +2600,135 @@ function StudentTasks({
                 boxShadow: "0 8px 25px rgba(225,29,72,0.15)",
                 display: "flex",
                 flexDirection: "column",
-                gap: "1rem",
+                gap: "1.1rem",
+                marginBottom: "1rem",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                  <span style={{ fontSize: "1.75rem" }}>🛡️</span>
+                  <span style={{ fontSize: "2rem" }}>🛡️</span>
                   <div>
-                    <h3 style={{ margin: 0, fontWeight: 900, fontSize: "1.15rem", color: "#9f1239" }}>
+                    <h3 style={{ margin: 0, fontWeight: 900, fontSize: "1.2rem", color: "#9f1239" }}>
                       أسبوع التثبيت التلقائي - الجزء {studentPlan.consolidation_juz || planDetails.juz}
                     </h3>
-                    <span style={{ fontSize: "0.8rem", color: "#be123c", fontWeight: 700 }}>
-                      اليوم {consolidationDay} من أصل 7 أيام تثبيت مكثف
+                    <span style={{ fontSize: "0.85rem", color: "#be123c", fontWeight: 700 }}>
+                      اليوم {consolidationDay} من أصل 7 أيام تثبيت مكثف (3 مهام يومية)
                     </span>
                   </div>
                 </div>
 
-                <span
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                  <span
+                    style={{
+                      background: planDetails.consolidationTasksInfo?.isFridayZeroReward ? "#64748b" : "#e11d48",
+                      color: "white",
+                      padding: "0.25rem 0.65rem",
+                      borderRadius: "9999px",
+                      fontWeight: 900,
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    {planDetails.consolidationTasksInfo?.isFridayZeroReward ? "0 نقطة (جمعة)" : "30 نقطة يومياً"}
+                  </span>
+                  <span
+                    style={{
+                      background: planDetails.consolidationTasksInfo?.isFridayZeroReward ? "#94a3b8" : "linear-gradient(135deg, #f59e0b, #d97706)",
+                      color: "white",
+                      padding: "0.25rem 0.65rem",
+                      borderRadius: "9999px",
+                      fontWeight: 900,
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    {planDetails.consolidationTasksInfo?.isFridayZeroReward ? "0 جواهر (جمعة)" : "+10 جواهر 💎"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Friday Zero Reward Banner */}
+              {planDetails.consolidationTasksInfo?.isFridayZeroReward && (
+                <div
                   style={{
-                    background: "#f43f5e",
-                    color: "white",
-                    padding: "0.3rem 0.75rem",
-                    borderRadius: "9999px",
-                    fontWeight: 900,
-                    fontSize: "0.8rem",
-                    boxShadow: "0 2px 8px rgba(244,63,94,0.3)",
+                    background: "rgba(245, 158, 11, 0.12)",
+                    border: "1px solid #f59e0b",
+                    borderRadius: "0.85rem",
+                    padding: "0.75rem 1rem",
+                    fontSize: "0.85rem",
+                    color: "#92400e",
+                    fontWeight: 700,
+                    lineHeight: 1.5,
                   }}
                 >
-                  الهدف: {planDetails.consolidationTask.target} تكرارات
-                </span>
-              </div>
-
-              <div style={{ background: "white", borderRadius: "1rem", padding: "1rem", border: "1px solid #fecdd3" }}>
-                <div style={{ fontWeight: 800, fontSize: "1rem", color: "#1f2937", marginBottom: "0.25rem" }}>
-                  📌 {planDetails.consolidationTask.title}
+                  🕌 تنبيه: اليوم الجمعة إجازة قرآنية رسمية. مهام التثبيت متاحة للمراجعة والتسميع مع حجب النقاط والجواهر (0 نقاط و0 جواهر) لضمان تكافؤ الفرص وعدالة المنافسة.
                 </div>
-                <p style={{ margin: 0, fontSize: "0.85rem", color: "#6b7280" }}>
-                  كرر الورد بالتركيز والإتقان، واستخدم العداد أدناه لاحتساب كل تكرار
-                </p>
-              </div>
+              )}
 
-              {/* Clicker Counter Button */}
+              {/* Task 1: Repetition (التكرار) */}
               {(() => {
-                const target = planDetails.consolidationTask.target
+                const c = planDetails.consolidationTasksInfo
+                const target = planDetails.consolidationTask?.target || 10
                 const isTargetReached = consolidationCount >= target
                 const pct = Math.min(100, Math.round((consolidationCount / target) * 100))
+                const repPts = c?.task1.points ?? (planDetails.isFriday ? 0 : 20)
 
                 return (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div
+                    style={{
+                      background: "white",
+                      borderRadius: "1rem",
+                      padding: "1rem",
+                      border: isAutoCompleted ? "2px solid #86efac" : "1.5px solid #fecdd3",
+                      boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                          <span style={{ fontSize: "0.75rem", background: "#ffe4e6", color: "#e11d48", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            المهمة الأولى: التكرار (المقدار اليومي)
+                          </span>
+                          <span style={{ fontSize: "0.75rem", background: repPts === 0 ? "#f1f5f9" : "#fef3c7", color: repPts === 0 ? "#64748b" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            {repPts === 0 ? "0 نقطة (جمعة)" : `+${repPts} نقطة`}
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#1f2937" }}>
+                          🔁 {c?.task1.title || planDetails.consolidationTask?.title}
+                        </div>
+                        <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "#6b7280" }}>
+                          {c?.task1.pagesText || "كرر الورد بالتركيز والإتقان، واستخدم العداد أدناه لاحتساب كل تكرار"}
+                        </p>
+                      </div>
+
+                      <span style={{ fontSize: "0.75rem", background: "#fee2e2", color: "#991b1b", padding: "0.2rem 0.6rem", borderRadius: "0.5rem", fontWeight: 800 }}>
+                        الهدف: {target} تكرارات
+                      </span>
+                    </div>
+
+                    {/* Clicker Counter */}
                     <button
                       type="button"
                       onClick={handleIncrementConsolidation}
-                      disabled={!isToday || isTargetReached || hasAbsencePenalty}
+                      disabled={!isToday || isTargetReached || hasAbsencePenalty || isAutoCompleted}
                       style={{
                         width: "100%",
-                        padding: "1rem",
-                        borderRadius: "1rem",
+                        padding: "0.9rem 1rem",
+                        borderRadius: "0.85rem",
                         border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
                         background: hasAbsencePenalty
                           ? "rgba(241, 245, 249, 0.85)"
+                          : isAutoCompleted
+                          ? "linear-gradient(135deg, #059669, #047857)"
                           : isTargetReached
                           ? "linear-gradient(135deg, #10b981, #059669)"
                           : "linear-gradient(135deg, #e11d48, #be123c)",
                         color: hasAbsencePenalty ? "#64748b" : "white",
                         fontWeight: 900,
-                        fontSize: "1.2rem",
-                        cursor: hasAbsencePenalty ? "not-allowed" : isTargetReached || !isToday ? "default" : "pointer",
+                        fontSize: "1.1rem",
+                        cursor: hasAbsencePenalty || isAutoCompleted ? "default" : isTargetReached || !isToday ? "default" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
@@ -2405,14 +2739,13 @@ function StudentTasks({
                         opacity: hasAbsencePenalty ? 0.6 : 1,
                       }}
                       onMouseDown={e => {
-                        if (!isTargetReached && isToday && !hasAbsencePenalty) e.currentTarget.style.transform = "scale(0.97)"
+                        if (!isTargetReached && isToday && !hasAbsencePenalty && !isAutoCompleted) e.currentTarget.style.transform = "scale(0.97)"
                       }}
                       onMouseUp={e => {
-                        if (!isTargetReached && isToday && !hasAbsencePenalty) e.currentTarget.style.transform = "scale(1)"
+                        if (!isTargetReached && isToday && !hasAbsencePenalty && !isAutoCompleted) e.currentTarget.style.transform = "scale(1)"
                       }}
                     >
-                      {/* Background progress fill */}
-                      {!hasAbsencePenalty && (
+                      {!hasAbsencePenalty && !isAutoCompleted && (
                         <div
                           style={{
                             position: "absolute",
@@ -2428,10 +2761,14 @@ function StudentTasks({
                       )}
 
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", zIndex: 1 }}>
-                        <span style={{ fontSize: "1.4rem" }}>{hasAbsencePenalty ? "🔒" : isTargetReached ? "🎉" : "📿"}</span>
+                        <span style={{ fontSize: "1.3rem" }}>
+                          {hasAbsencePenalty ? "🔒" : isAutoCompleted ? "✅" : isTargetReached ? "🎉" : "📿"}
+                        </span>
                         <span>
                           {hasAbsencePenalty
                             ? "🔒 معطلة بسبب تسجيل الغياب"
+                            : isAutoCompleted
+                            ? "تم اعتماد إنجاز تكرار اليوم بنجاح!"
                             : isTargetReached
                             ? "اكتمل عدد التكرارات المطلوبة!"
                             : "انقر لاحتساب تكرار الورد"}
@@ -2442,11 +2779,11 @@ function StudentTasks({
                         style={{
                           zIndex: 1,
                           background: hasAbsencePenalty ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.2)",
-                          padding: "0.3rem 0.75rem",
-                          borderRadius: "0.6rem",
-                          fontSize: "1.1rem",
+                          padding: "0.25rem 0.65rem",
+                          borderRadius: "0.5rem",
+                          fontSize: "1.05rem",
                           fontWeight: 900,
-                          minWidth: "75px",
+                          minWidth: "70px",
                           textAlign: "center",
                           color: hasAbsencePenalty ? "#64748b" : "white",
                         }}
@@ -2455,8 +2792,8 @@ function StudentTasks({
                       </div>
                     </button>
 
-                    {/* Completion Action Button */}
-                    {isTargetReached && (
+                    {/* Complete Button */}
+                    {isTargetReached && !isAutoCompleted && (
                       <button
                         type="button"
                         onClick={handleCompleteConsolidation}
@@ -2464,7 +2801,7 @@ function StudentTasks({
                         style={{
                           width: "100%",
                           padding: "0.85rem",
-                          borderRadius: "0.85rem",
+                          borderRadius: "0.75rem",
                           border: "none",
                           background: "linear-gradient(135deg, #059669, #047857)",
                           color: "white",
@@ -2482,19 +2819,179 @@ function StudentTasks({
                         <span>
                           {isSavingConsolidation
                             ? "جاري الحفظ..."
-                            : `اعتماد إنجاز تثبيت اليوم (${consolidationDay}/7)`}
+                            : `اعتماد إنجاز مهمة التكرار (+${repPts} نقطة)`}
                         </span>
                       </button>
                     )}
+                  </div>
+                )
+              })()}
+
+              {/* Task 2: Cumulative Adjacent (جنب الدرس - التثبيت التراكمي) */}
+              {(() => {
+                const c = planDetails.consolidationTasksInfo
+                const adjPts = c?.task2.points ?? (planDetails.isFriday ? 0 : 5)
+                return (
+                  <div
+                    style={{
+                      background: "white",
+                      borderRadius: "1rem",
+                      padding: "1rem",
+                      border: isAutoAdjCompleted ? "2px solid #86efac" : "1.5px solid #fed7aa",
+                      boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                          <span style={{ fontSize: "0.75rem", background: "#ffedd5", color: "#c2410c", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            المهمة الثانية: جنب الدرس (التثبيت التراكمي)
+                          </span>
+                          <span style={{ fontSize: "0.75rem", background: adjPts === 0 ? "#f1f5f9" : "#fef3c7", color: adjPts === 0 ? "#64748b" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            {adjPts === 0 ? "0 نقطة (جمعة)" : `+${adjPts} نقاط`}
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#1f2937" }}>
+                          📚 {c?.task2.title || "مهمة جنب الدرس (التثبيت التراكمي)"}
+                        </div>
+                        {c?.task2.pagesText && (
+                          <div style={{ fontSize: "0.85rem", color: "#ea580c", fontWeight: 800, marginTop: "0.2rem" }}>
+                            📖 {c.task2.pagesText}
+                          </div>
+                        )}
+                        <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "#6b7280" }}>
+                          {c?.task2.description || "تسميع ومراجعة جميع الصفحات التي تم أخذها منذ بداية خطة التثبيت الحالية وحتى اليوم"}
+                        </p>
+                      </div>
                     </div>
-                  )
-                })()}
-              </div>
-            )}
 
+                    <button
+                      type="button"
+                      onClick={handleToggleAutoAdj}
+                      disabled={!isToday || hasAbsencePenalty}
+                      style={{
+                        width: "100%",
+                        padding: "0.85rem 1rem",
+                        borderRadius: "0.75rem",
+                        border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
+                        background: hasAbsencePenalty
+                          ? "rgba(241, 245, 249, 0.85)"
+                          : isAutoAdjCompleted
+                          ? "linear-gradient(135deg, #059669, #047857)"
+                          : "linear-gradient(135deg, #f97316, #ea580c)",
+                        color: hasAbsencePenalty ? "#64748b" : "white",
+                        fontWeight: 900,
+                        fontSize: "1rem",
+                        cursor: hasAbsencePenalty || !isToday ? "default" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        boxShadow: hasAbsencePenalty ? "none" : isAutoAdjCompleted ? "0 4px 12px rgba(5,150,105,0.3)" : "0 4px 12px rgba(249,115,22,0.3)",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span>{hasAbsencePenalty ? "🔒" : isAutoAdjCompleted ? "✅" : "📚"}</span>
+                        <span>
+                          {hasAbsencePenalty
+                            ? "🔒 معطلة بسبب تسجيل الغياب"
+                            : isAutoAdjCompleted
+                            ? isToday ? "تم إنجاز جنب الدرس بنجاح ✓ (اضغط للتراجع ↩️)" : "تم الإنجاز بنجاح ✓"
+                            : `اضغط لتأكيد تسميع ومراجعة التراكمي (+${adjPts} نقاط)`}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "1.1rem" }}>{isAutoAdjCompleted ? "✓" : "○"}</span>
+                    </button>
+                  </div>
+                )
+              })()}
 
+              {/* Task 3: Night Prayer (قيام الليل بالتثبيت) */}
+              {(() => {
+                const c = planDetails.consolidationTasksInfo
+                const nightPts = c?.task3.points ?? (planDetails.isFriday ? 0 : 5)
+                return (
+                  <div
+                    style={{
+                      background: "white",
+                      borderRadius: "1rem",
+                      padding: "1rem",
+                      border: isAutoNightCompleted ? "2px solid #86efac" : "1.5px solid #ddd6fe",
+                      boxShadow: "0 2px 10px rgba(0,0,0,0.04)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                          <span style={{ fontSize: "0.75rem", background: "#ede9fe", color: "#6d28d9", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            المهمة الثالثة: قيام الليل بالتثبيت
+                          </span>
+                          <span style={{ fontSize: "0.75rem", background: nightPts === 0 ? "#f1f5f9" : "#fef3c7", color: nightPts === 0 ? "#64748b" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            {nightPts === 0 ? "0 نقطة (جمعة)" : `+${nightPts} نقاط`}
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "#1f2937" }}>
+                          🌙 {c?.task3.title || "صلاة قيام الليل بالتثبيت"}
+                        </div>
+                        {c?.task3.pagesText && (
+                          <div style={{ fontSize: "0.85rem", color: "#7c3aed", fontWeight: 800, marginTop: "0.2rem" }}>
+                            📖 {c.task3.pagesText}
+                          </div>
+                        )}
+                        <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "#6b7280" }}>
+                          {c?.task3.description || "صلاة قيام الليل بالصفحات التي تم تكرارها اليوم فقط في خطة التثبيت"}
+                        </p>
+                      </div>
+                    </div>
 
-          {/* ================= 🛡️ MANUAL CONSOLIDATION CARD (نظام التثبيت اليدوي المخصص & يوم الحصاد) ================= */}
+                    <button
+                      type="button"
+                      onClick={handleToggleAutoNight}
+                      disabled={!isToday || hasAbsencePenalty}
+                      style={{
+                        width: "100%",
+                        padding: "0.85rem 1rem",
+                        borderRadius: "0.75rem",
+                        border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
+                        background: hasAbsencePenalty
+                          ? "rgba(241, 245, 249, 0.85)"
+                          : isAutoNightCompleted
+                          ? "linear-gradient(135deg, #059669, #047857)"
+                          : "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                        color: hasAbsencePenalty ? "#64748b" : "white",
+                        fontWeight: 900,
+                        fontSize: "1rem",
+                        cursor: hasAbsencePenalty || !isToday ? "default" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        boxShadow: hasAbsencePenalty ? "none" : isAutoNightCompleted ? "0 4px 12px rgba(5,150,105,0.3)" : "0 4px 12px rgba(124,58,237,0.3)",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span>{hasAbsencePenalty ? "🔒" : isAutoNightCompleted ? "✅" : "🌙"}</span>
+                        <span>
+                          {hasAbsencePenalty
+                            ? "🔒 معطلة بسبب تسجيل الغياب"
+                            : isAutoNightCompleted
+                            ? isToday ? "تم إنجاز صلاة قيام الليل بنجاح ✓ (اضغط للتراجع ↩️)" : "تم الإنجاز بنجاح ✓"
+                            : `اضغط لتأكيد أداء قيام الليل (+${nightPts} نقاط)`}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "1.1rem" }}>{isAutoNightCompleted ? "✓" : "○"}</span>
+                    </button>
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* ================= 🛡️ MANUAL CONSOLIDATION (نظام التثبيت اليدوي المخصص & يوم الحصاد - 3 مهام) ================= */}
           {activeManualForDate && manualDetails && (
             <div
               className="card"
@@ -2568,12 +3065,12 @@ function StudentTasks({
                     >
                       {manualDetails.isHarvestDay
                         ? "تسميع ومراجعة كافة صفحات دورة التثبيت دفعة واحدة لترسيخ الحفظ ونيل وسام الحصاد! 🌾✨"
-                        : "أنت الآن في فترة تثبيت ومراجعة لتقوية حفظك 🛡️✨"}
+                        : "خطة تثبيت خاصة ومكثفة (3 مهام يومية) لتقوية الحفظ وإتقانه 🛡️✨"}
                     </span>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                   <span
                     style={{
                       background: manualDetails.isHarvestDay ? "rgba(245, 158, 11, 0.25)" : "rgba(244, 63, 94, 0.2)",
@@ -2589,54 +3086,40 @@ function StudentTasks({
                   </span>
                   <span
                     style={{
-                      background: "linear-gradient(135deg, #f59e0b 0%, #b45309 100%)",
+                      background: manualDetails.isFridayZeroReward ? "#475569" : "linear-gradient(135deg, #f59e0b 0%, #b45309 100%)",
                       color: "white",
                       padding: "0.35rem 0.85rem",
                       borderRadius: "9999px",
                       fontWeight: 900,
                       fontSize: "0.85rem",
-                      boxShadow: "0 2px 10px rgba(245, 158, 11, 0.35)",
+                      boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
                     }}
                   >
-                    {manualDetails.isHarvestDay ? "+40 نقطة و+20 💎" : "+30 نقطة و+15 💎"}
+                    {manualDetails.isFridayZeroReward ? "0 نقطة و0 💎 (جمعة)" : "30 نقطة و+10 💎"}
                   </span>
                 </div>
               </div>
 
-              {/* Task Details Box */}
-              <div
-                style={{
-                  background: manualDetails.isHarvestDay ? "rgba(245, 158, 11, 0.12)" : "rgba(255, 255, 255, 0.08)",
-                  backdropFilter: "blur(8px)",
-                  borderRadius: "1rem",
-                  padding: "1.1rem",
-                  border: manualDetails.isHarvestDay ? "1px solid rgba(245, 158, 11, 0.35)" : "1px solid rgba(255, 255, 255, 0.15)",
-                  zIndex: 1,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.4rem" }}>
-                  <div
-                    style={{
-                      fontWeight: 800,
-                      fontSize: "1.1rem",
-                      color: manualDetails.isHarvestDay ? "#fef08a" : "#fecdd3",
-                    }}
-                  >
-                    {manualDetails.isHarvestDay ? "🌾 يوم الحصاد النهائي:" : "📖 المقدار المطلوب لليوم:"}
-                  </div>
-                  <span style={{ fontSize: "0.75rem", color: "#cbd5e1" }}>
-                    من {activeManualForDate.start_date} حتى {activeManualForDate.end_date}
-                  </span>
+              {/* Friday Zero-Reward Alert */}
+              {manualDetails.isFridayZeroReward && (
+                <div
+                  style={{
+                    background: "rgba(245, 158, 11, 0.2)",
+                    border: "1px solid #f59e0b",
+                    borderRadius: "0.85rem",
+                    padding: "0.85rem 1rem",
+                    fontSize: "0.88rem",
+                    color: "#fef3c7",
+                    lineHeight: 1.5,
+                    fontWeight: 700,
+                    zIndex: 1,
+                  }}
+                >
+                  🕌 تنبيه: اليوم الجمعة إجازة قرآنية رسمية. مهام التثبيت الـ 3 متاحة للأداء والتسميع مع حجب النقاط والجواهر (0 نقاط و0 جواهر) حفاظاً على تكافؤ الفرص وعدالة المنافسة مع بقية زملائك.
                 </div>
-                <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "white" }}>
-                  {manualDetails.taskTitle}
-                </div>
-                <p style={{ margin: "0.5rem 0 0", fontSize: "0.85rem", color: "#e2e8f0", lineHeight: 1.5 }}>
-                  {manualDetails.detailsDescription}
-                </p>
-              </div>
+              )}
 
-              {/* Clicker Counter Button or Friday Off Display */}
+              {/* Friday Off Day Banner (if include_fridays is false) */}
               {manualDetails.isFridayOffDay ? (
                 <div
                   style={{
@@ -2660,137 +3143,328 @@ function StudentTasks({
                     تقبل الله طاعتكم وصالح أعمالكم! يوم الجمعة إجازة مستثناة من خطة التثبيت. استمتع بيوم الراحة أو راجع ما تحب دون مهام إلزامية.
                   </p>
                 </div>
-              ) : (() => {
-                const target = activeManualForDate.repetitions_count || 5
-                const isTargetReached = manualRepetitionsCount >= target
-                const pct = Math.min(100, Math.round((manualRepetitionsCount / target) * 100))
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem", zIndex: 1 }}>
+                  {/* Task 1: Repetition (المهمة الأولى: التكرار) */}
+                  <div
+                    style={{
+                      background: "rgba(255, 255, 255, 0.1)",
+                      backdropFilter: "blur(10px)",
+                      borderRadius: "1rem",
+                      padding: "1.1rem",
+                      border: isManualCompleted ? "2px solid #86efac" : "1px solid rgba(255, 255, 255, 0.2)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.85rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
+                          <span style={{ fontSize: "0.75rem", background: "rgba(255,255,255,0.2)", color: "#fff", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            {manualDetails.isHarvestDay ? "المهمة الأولى: تكرار الحصاد الشامل" : "المهمة الأولى: التكرار (المقدار اليومي)"}
+                          </span>
+                          <span style={{ fontSize: "0.75rem", background: manualDetails.repetitionPoints === 0 ? "rgba(255,255,255,0.2)" : "#fef3c7", color: manualDetails.repetitionPoints === 0 ? "#cbd5e1" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            {manualDetails.repetitionPoints === 0 ? "0 نقطة (جمعة)" : `+${manualDetails.repetitionPoints} نقطة`}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "white" }}>
+                          {manualDetails.isHarvestDay ? "🌾" : "🔁"} {manualDetails.taskTitle}
+                        </div>
+                        <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "#f1f5f9", lineHeight: 1.5 }}>
+                          {manualDetails.detailsDescription}
+                        </p>
+                      </div>
 
-                return (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem", zIndex: 1 }}>
+                      <span style={{ fontSize: "0.75rem", color: "#cbd5e1" }}>
+                        من {activeManualForDate.start_date} حتى {activeManualForDate.end_date}
+                      </span>
+                    </div>
+
+                    {/* Clicker Counter */}
+                    {(() => {
+                      const target = activeManualForDate.repetitions_count || 5
+                      const isTargetReached = manualRepetitionsCount >= target
+                      const pct = Math.min(100, Math.round((manualRepetitionsCount / target) * 100))
+
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                          <button
+                            type="button"
+                            onClick={handleIncrementManualRepetition}
+                            disabled={!isToday || isTargetReached || hasAbsencePenalty || isManualCompleted}
+                            style={{
+                              width: "100%",
+                              padding: "1rem 1.15rem",
+                              borderRadius: "0.85rem",
+                              border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
+                              background: hasAbsencePenalty
+                                ? "rgba(241, 245, 249, 0.85)"
+                                : isManualCompleted
+                                ? "linear-gradient(135deg, #059669, #047857)"
+                                : isTargetReached
+                                ? "linear-gradient(135deg, #10b981, #059669)"
+                                : manualDetails.isHarvestDay
+                                ? "linear-gradient(135deg, #d97706, #b45309)"
+                                : "linear-gradient(135deg, #e11d48, #be123c)",
+                              color: hasAbsencePenalty ? "#64748b" : "white",
+                              fontWeight: 900,
+                              fontSize: "1.15rem",
+                              cursor: hasAbsencePenalty || isManualCompleted ? "default" : isTargetReached || !isToday ? "default" : "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              boxShadow: hasAbsencePenalty ? "none" : isTargetReached ? "0 4px 15px rgba(16,185,129,0.3)" : "0 4px 15px rgba(225,29,72,0.35)",
+                              position: "relative",
+                              overflow: "hidden",
+                              transition: "all 0.15s",
+                              opacity: hasAbsencePenalty ? 0.6 : 1,
+                            }}
+                            onMouseDown={e => {
+                              if (!isTargetReached && isToday && !hasAbsencePenalty && !isManualCompleted) e.currentTarget.style.transform = "scale(0.97)"
+                            }}
+                            onMouseUp={e => {
+                              if (!isTargetReached && isToday && !hasAbsencePenalty && !isManualCompleted) e.currentTarget.style.transform = "scale(1)"
+                            }}
+                          >
+                            {!hasAbsencePenalty && !isManualCompleted && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: `${pct}%`,
+                                  background: "rgba(255,255,255,0.22)",
+                                  pointerEvents: "none",
+                                  transition: "width 0.2s ease",
+                                }}
+                              />
+                            )}
+
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", zIndex: 1 }}>
+                              <span style={{ fontSize: "1.3rem" }}>
+                                {hasAbsencePenalty ? "🔒" : isManualCompleted ? "✅" : isTargetReached ? "🎉" : manualDetails.isHarvestDay ? "🌾" : "📿"}
+                              </span>
+                              <span>
+                                {hasAbsencePenalty
+                                  ? "🔒 معطلة بسبب تسجيل الغياب"
+                                  : isManualCompleted
+                                  ? manualDetails.isHarvestDay ? "تم اعتماد إنجاز يوم حصاد التثبيت بنجاح!" : "تم اعتماد إنجاز مهمة التثبيت لليوم!"
+                                  : isTargetReached
+                                  ? "اكتمل عدد التكرارات المطلوبة!"
+                                  : manualDetails.isHarvestDay ? "انقر لاحتساب تكرار يوم الحصاد" : "انقر لاحتساب تكرار التثبيت"}
+                              </span>
+                            </div>
+
+                            <div
+                              style={{
+                                zIndex: 1,
+                                background: hasAbsencePenalty ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.25)",
+                                padding: "0.3rem 0.75rem",
+                                borderRadius: "0.55rem",
+                                fontSize: "1.1rem",
+                                fontWeight: 900,
+                                minWidth: "75px",
+                                textAlign: "center",
+                                color: hasAbsencePenalty ? "#64748b" : "white",
+                              }}
+                            >
+                              {manualRepetitionsCount} / {target}
+                            </div>
+                          </button>
+
+                          {/* Completion Action Button */}
+                          {isTargetReached && !isManualCompleted && (
+                            <button
+                              type="button"
+                              onClick={handleCompleteManualConsolidation}
+                              disabled={!isToday || isSavingManualConsolidation || hasAbsencePenalty}
+                              style={{
+                                width: "100%",
+                                padding: "0.95rem",
+                                borderRadius: "0.85rem",
+                                border: "none",
+                                background: manualDetails.isHarvestDay
+                                  ? "linear-gradient(135deg, #d97706, #b45309)"
+                                  : "linear-gradient(135deg, #059669, #047857)",
+                                color: "white",
+                                fontWeight: 900,
+                                fontSize: "1.1rem",
+                                cursor: isSavingManualConsolidation ? "not-allowed" : "pointer",
+                                boxShadow: "0 4px 15px rgba(5,150,105,0.4)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "0.5rem",
+                              }}
+                            >
+                              <span>✓</span>
+                              <span>
+                                {isSavingManualConsolidation
+                                  ? "جاري الحفظ..."
+                                  : manualDetails.repetitionPoints === 0
+                                  ? "اعتماد إنجاز مهمة التكرار (إجازة الجمعة: 0 نقطة)"
+                                  : `اعتماد إنجاز مهمة التكرار (+${manualDetails.repetitionPoints} نقطة)`}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Task 2: Cumulative Adjacent (المهمة الثانية: جنب الدرس - التثبيت التراكمي) */}
+                  <div
+                    style={{
+                      background: "rgba(255, 255, 255, 0.1)",
+                      backdropFilter: "blur(10px)",
+                      borderRadius: "1rem",
+                      padding: "1.1rem",
+                      border: isManualAdjCompleted ? "2px solid #86efac" : "1px solid rgba(255, 255, 255, 0.2)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.85rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
+                          <span style={{ fontSize: "0.75rem", background: "rgba(255,255,255,0.2)", color: "#fff", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            المهمة الثانية: جنب الدرس (التثبيت التراكمي)
+                          </span>
+                          <span style={{ fontSize: "0.75rem", background: manualDetails.adjacentPoints === 0 ? "rgba(255,255,255,0.2)" : "#fef3c7", color: manualDetails.adjacentPoints === 0 ? "#cbd5e1" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            {manualDetails.adjacentPoints === 0 ? "0 نقطة (جمعة)" : `+${manualDetails.adjacentPoints} نقاط`}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "white" }}>
+                          📚 {manualDetails.adjacentTitle}
+                        </div>
+                        {manualDetails.adjacentPagesText && (
+                          <div style={{ fontSize: "0.85rem", color: "#fde68a", fontWeight: 800, marginTop: "0.2rem" }}>
+                            📖 {manualDetails.adjacentPagesText}
+                          </div>
+                        )}
+                        <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "#f1f5f9", lineHeight: 1.5 }}>
+                          {manualDetails.adjacentDescription}
+                        </p>
+                      </div>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={handleIncrementManualRepetition}
-                      disabled={!isToday || isTargetReached || hasAbsencePenalty || isManualCompleted}
+                      onClick={handleToggleManualAdj}
+                      disabled={!isToday || hasAbsencePenalty}
                       style={{
                         width: "100%",
-                        padding: "1.1rem 1.25rem",
-                        borderRadius: "1rem",
+                        padding: "0.9rem 1.15rem",
+                        borderRadius: "0.85rem",
                         border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
                         background: hasAbsencePenalty
                           ? "rgba(241, 245, 249, 0.85)"
-                          : isManualCompleted
+                          : isManualAdjCompleted
                           ? "linear-gradient(135deg, #059669, #047857)"
-                          : isTargetReached
-                          ? "linear-gradient(135deg, #10b981, #059669)"
-                          : manualDetails.isHarvestDay
-                          ? "linear-gradient(135deg, #d97706, #b45309)"
-                          : "linear-gradient(135deg, #e11d48, #be123c)",
+                          : "linear-gradient(135deg, #f97316, #ea580c)",
                         color: hasAbsencePenalty ? "#64748b" : "white",
                         fontWeight: 900,
-                        fontSize: "1.2rem",
-                        cursor: hasAbsencePenalty || isManualCompleted ? "default" : isTargetReached || !isToday ? "default" : "pointer",
+                        fontSize: "1.05rem",
+                        cursor: hasAbsencePenalty || !isToday ? "default" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        boxShadow: hasAbsencePenalty ? "none" : isTargetReached ? "0 4px 15px rgba(16,185,129,0.3)" : "0 4px 15px rgba(225,29,72,0.35)",
-                        position: "relative",
-                        overflow: "hidden",
-                        transition: "all 0.15s",
-                        opacity: hasAbsencePenalty ? 0.6 : 1,
-                      }}
-                      onMouseDown={e => {
-                        if (!isTargetReached && isToday && !hasAbsencePenalty && !isManualCompleted) e.currentTarget.style.transform = "scale(0.97)"
-                      }}
-                      onMouseUp={e => {
-                        if (!isTargetReached && isToday && !hasAbsencePenalty && !isManualCompleted) e.currentTarget.style.transform = "scale(1)"
+                        boxShadow: hasAbsencePenalty ? "none" : isManualAdjCompleted ? "0 4px 15px rgba(5,150,105,0.4)" : "0 4px 15px rgba(249,115,22,0.35)",
                       }}
                     >
-                      {/* Background progress fill */}
-                      {!hasAbsencePenalty && !isManualCompleted && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: `${pct}%`,
-                            background: "rgba(255,255,255,0.22)",
-                            pointerEvents: "none",
-                            transition: "width 0.2s ease",
-                          }}
-                        />
-                      )}
-
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", zIndex: 1 }}>
-                        <span style={{ fontSize: "1.4rem" }}>
-                          {hasAbsencePenalty ? "🔒" : isManualCompleted ? "✅" : isTargetReached ? "🎉" : manualDetails.isHarvestDay ? "🌾" : "📿"}
-                        </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span>{hasAbsencePenalty ? "🔒" : isManualAdjCompleted ? "✅" : "📚"}</span>
                         <span>
                           {hasAbsencePenalty
                             ? "🔒 معطلة بسبب تسجيل الغياب"
-                            : isManualCompleted
-                            ? manualDetails.isHarvestDay ? "تم اعتماد إنجاز يوم حصاد التثبيت بنجاح!" : "تم اعتماد إنجاز مهمة التثبيت لليوم!"
-                            : isTargetReached
-                            ? "اكتمل عدد التكرارات المطلوبة!"
-                            : manualDetails.isHarvestDay ? "انقر لاحتساب تكرار يوم الحصاد" : "انقر لاحتساب تكرار التثبيت"}
+                            : isManualAdjCompleted
+                            ? isToday ? "تم إنجاز جنب الدرس التراكمي بنجاح ✓ (اضغط للتراجع ↩️)" : "تم الإنجاز بنجاح ✓"
+                            : `اضغط لتأكيد تسميع ومراجعة التراكمي (+${manualDetails.adjacentPoints} نقاط)`}
                         </span>
                       </div>
-
-                      <div
-                        style={{
-                          zIndex: 1,
-                          background: hasAbsencePenalty ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.25)",
-                          padding: "0.35rem 0.85rem",
-                          borderRadius: "0.65rem",
-                          fontSize: "1.15rem",
-                          fontWeight: 900,
-                          minWidth: "80px",
-                          textAlign: "center",
-                          color: hasAbsencePenalty ? "#64748b" : "white",
-                        }}
-                      >
-                        {manualRepetitionsCount} / {target}
-                      </div>
+                      <span style={{ fontSize: "1.1rem" }}>{isManualAdjCompleted ? "✓" : "○"}</span>
                     </button>
-
-                    {/* Completion Action Button */}
-                    {isTargetReached && !isManualCompleted && (
-                      <button
-                        type="button"
-                        onClick={handleCompleteManualConsolidation}
-                        disabled={!isToday || isSavingManualConsolidation || hasAbsencePenalty}
-                        style={{
-                          width: "100%",
-                          padding: "0.95rem",
-                          borderRadius: "0.85rem",
-                          border: "none",
-                          background: manualDetails.isHarvestDay
-                            ? "linear-gradient(135deg, #d97706, #b45309)"
-                            : "linear-gradient(135deg, #059669, #047857)",
-                          color: "white",
-                          fontWeight: 900,
-                          fontSize: "1.1rem",
-                          cursor: isSavingManualConsolidation ? "not-allowed" : "pointer",
-                          boxShadow: "0 4px 15px rgba(5,150,105,0.4)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "0.5rem",
-                        }}
-                      >
-                        <span>✓</span>
-                        <span>
-                          {isSavingManualConsolidation
-                            ? "جاري الحفظ..."
-                            : manualDetails.isHarvestDay
-                            ? "اعتماد إنجاز يوم الحصاد (+40 نقطة و+20 💎) 🌾"
-                            : "اعتماد إنجاز مهمة التثبيت (+30 نقطة و+15 💎)"}
-                        </span>
-                      </button>
-                    )}
                   </div>
-                )
-              })()}
+
+                  {/* Task 3: Night Prayer (المهمة الثالثة: قيام الليل بالتثبيت) */}
+                  <div
+                    style={{
+                      background: "rgba(255, 255, 255, 0.1)",
+                      backdropFilter: "blur(10px)",
+                      borderRadius: "1rem",
+                      padding: "1.1rem",
+                      border: isManualNightCompleted ? "2px solid #86efac" : "1px solid rgba(255, 255, 255, 0.2)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.85rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem" }}>
+                          <span style={{ fontSize: "0.75rem", background: "rgba(255,255,255,0.2)", color: "#fff", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            المهمة الثالثة: قيام الليل بالتثبيت
+                          </span>
+                          <span style={{ fontSize: "0.75rem", background: manualDetails.nightPrayerPoints === 0 ? "rgba(255,255,255,0.2)" : "#fef3c7", color: manualDetails.nightPrayerPoints === 0 ? "#cbd5e1" : "#b45309", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                            {manualDetails.nightPrayerPoints === 0 ? "0 نقطة (جمعة)" : `+${manualDetails.nightPrayerPoints} نقاط`}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "1.2rem", fontWeight: 900, color: "white" }}>
+                          🌙 {manualDetails.nightPrayerTitle}
+                        </div>
+                        {manualDetails.nightPrayerPagesText && (
+                          <div style={{ fontSize: "0.85rem", color: "#c4b5fd", fontWeight: 800, marginTop: "0.2rem" }}>
+                            📖 {manualDetails.nightPrayerPagesText}
+                          </div>
+                        )}
+                        <p style={{ margin: "0.35rem 0 0", fontSize: "0.85rem", color: "#f1f5f9", lineHeight: 1.5 }}>
+                          {manualDetails.nightPrayerDescription}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleToggleManualNight}
+                      disabled={!isToday || hasAbsencePenalty}
+                      style={{
+                        width: "100%",
+                        padding: "0.9rem 1.15rem",
+                        borderRadius: "0.85rem",
+                        border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
+                        background: hasAbsencePenalty
+                          ? "rgba(241, 245, 249, 0.85)"
+                          : isManualNightCompleted
+                          ? "linear-gradient(135deg, #059669, #047857)"
+                          : "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                        color: hasAbsencePenalty ? "#64748b" : "white",
+                        fontWeight: 900,
+                        fontSize: "1.05rem",
+                        cursor: hasAbsencePenalty || !isToday ? "default" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        boxShadow: hasAbsencePenalty ? "none" : isManualNightCompleted ? "0 4px 15px rgba(5,150,105,0.4)" : "0 4px 15px rgba(124,58,237,0.35)",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span>{hasAbsencePenalty ? "🔒" : isManualNightCompleted ? "✅" : "🌙"}</span>
+                        <span>
+                          {hasAbsencePenalty
+                            ? "🔒 معطلة بسبب تسجيل الغياب"
+                            : isManualNightCompleted
+                            ? isToday ? "تم إنجاز صلاة قيام الليل بنجاح ✓ (اضغط للتراجع ↩️)" : "تم الإنجاز بنجاح ✓"
+                            : `اضغط لتأكيد أداء قيام الليل (+${manualDetails.nightPrayerPoints} نقاط)`}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "1.1rem" }}>{isManualNightCompleted ? "✓" : "○"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

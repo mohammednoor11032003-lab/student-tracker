@@ -49,8 +49,8 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     .eq("assigned_date", today)
     .order("completed", { ascending: true })
 
-  // 2. If no assignments exist for today, automatically create them for the student (only if not under manual consolidation)
-  if ((!assignments || assignments.length === 0) && !isConsolidatingToday) {
+  // 2. If no assignments exist for today, automatically create them for the student
+  if (!assignments || assignments.length === 0) {
     const { data: allTasks } = await supabase
       .from("tasks")
       .select("id, name, description")
@@ -102,10 +102,8 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     .eq("completed", true)
   const completedBountyTaskIds = (completedBounties || []).map(b => b.task_id)
 
-  // Compute live weekly points from actual completed tasks of this week as primary truth
-  const liveWeeklyPoints = weekAssignmentsRes.data && weekAssignmentsRes.data.length > 0
-    ? weekAssignmentsRes.data.reduce((sum, a) => sum + ((a.tasks as unknown as { points?: number })?.points ?? 0), 0)
-    : (weeklyRes.data?.total_points ?? 0)
+  // Live weekly points from authoritative weekly_summaries record
+  const liveWeeklyPoints = weeklyRes.data?.total_points ?? 0
 
   return (
     <StudentPortal

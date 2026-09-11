@@ -50,6 +50,15 @@ export interface DailyPlanDetails {
     adjacentLesson: string // جنب الدرس
     revision: string // المراجعة
   }
+  consolidationTasksInfo?: {
+    isFridayZeroReward: boolean
+    repetition: { title: string; target: number; points: number; pagesText: string }
+    adjacent: { title: string; description: string; points: number; pagesText: string }
+    nightPrayer: { title: string; description: string; points: number; pagesText: string }
+    task1: { title: string; target: number; points: number; pagesText: string }
+    task2: { title: string; description: string; points: number; pagesText: string }
+    task3: { title: string; description: string; points: number; pagesText: string }
+  }
 }
 
 // 60 Hizbs Dictionary with official names and Juz mapping
@@ -328,13 +337,78 @@ export function getDailyPlanDetails(plan: StudentPlan | null | undefined, dateSt
   let nightPrayerTaskText = `قيام الليل بـ ${portionDesc}`
   let revisionTaskText = `مراجعة ${reviewHizb.name} (الجزء ${reviewHizb.juz})`
 
+  let consolidationTasksInfo: DailyPlanDetails["consolidationTasksInfo"] = undefined
+
   if (isInConsolidation) {
-    lessonTaskText = `أسبوع التثبيت (اليوم ${consolidationDay} من 7) - ${schedItem.title} (الهدف: ${schedItem.target} تكرارات)`
-    adjacentTaskText = "معلّق خلال أسبوع التثبيت"
-    listeningTaskText = "معلّق خلال أسبوع التثبيت"
-    tafsirTaskText = "معلّق خلال أسبوع التثبيت"
-    nightPrayerTaskText = "معلّق خلال أسبوع التثبيت"
-    revisionTaskText = "معلّق خلال أسبوع التثبيت"
+    const cJuz = safePlan.consolidation_juz || juz
+    const { start: jStart, end: jEnd } = getJuzPageRange(cJuz)
+
+    let dStart = jStart
+    let dEnd = jStart + 4
+    if (consolidationDay === 1) {
+      dStart = jStart
+      dEnd = jStart + 4
+    } else if (consolidationDay === 2) {
+      dStart = jStart + 5
+      dEnd = jStart + 9
+    } else if (consolidationDay === 3) {
+      dStart = jStart + 10
+      dEnd = jStart + 14
+    } else if (consolidationDay === 4) {
+      dStart = jStart + 15
+      dEnd = jEnd
+    } else if (consolidationDay === 5) {
+      dStart = jStart
+      dEnd = jStart + 9
+    } else if (consolidationDay === 6) {
+      dStart = jStart + 10
+      dEnd = jEnd
+    } else if (consolidationDay === 7) {
+      dStart = jStart
+      dEnd = jEnd
+    }
+    const cumulativeEnd = consolidationDay <= 4 ? dEnd : jEnd
+
+    // 🛡️ Friday Zero-Reward Rule:
+    const repPoints = isFriday ? 0 : 20
+    const adjPoints = isFriday ? 0 : 5
+    const nightPoints = isFriday ? 0 : 5
+
+    lessonTaskText = `أسبوع التثبيت (اليوم ${consolidationDay} من 7): ${schedItem.title} (الهدف: ${schedItem.target} تكرارات)`
+    adjacentTaskText = `تسميع ومراجعة جميع الصفحات التي تم أخذها منذ بداية خطة التثبيت الحالية وحتى اليوم (من ص ${jStart} إلى ص ${cumulativeEnd})`
+    nightPrayerTaskText = `صلاة قيام الليل بالصفحات التي تم تكرارها اليوم فقط في خطة التثبيت (صفحات اليوم: من ص ${dStart} إلى ص ${dEnd})`
+    listeningTaskText = "معلّق خلال أسبوع التثبيت للتركيز على إتقان الجزء"
+    tafsirTaskText = "معلّق خلال أسبوع التثبيت للتركيز على إتقان الجزء"
+    revisionTaskText = "معلّق خلال أسبوع التثبيت للتركيز على إتقان الجزء"
+
+    const repTask = {
+      title: lessonTaskText,
+      target: schedItem.target,
+      points: repPoints,
+      pagesText: `من ص ${dStart} إلى ص ${dEnd}`,
+    }
+    const adjTask = {
+      title: "جنب الدرس (المراجعة التراكمية للتثبيت)",
+      description: "تسميع ومراجعة جميع الصفحات التي تم أخذها منذ بداية خطة التثبيت الحالية وحتى اليوم",
+      points: adjPoints,
+      pagesText: `من ص ${jStart} إلى ص ${cumulativeEnd}`,
+    }
+    const nightTask = {
+      title: "قيام الليل بالورد التثبيتي",
+      description: "صلاة قيام الليل بالصفحات التي تم تكرارها اليوم فقط في خطة التثبيت",
+      points: nightPoints,
+      pagesText: `صفحات اليوم: من ص ${dStart} إلى ص ${dEnd}`,
+    }
+
+    consolidationTasksInfo = {
+      isFridayZeroReward: isFriday,
+      repetition: repTask,
+      adjacent: adjTask,
+      nightPrayer: nightTask,
+      task1: repTask,
+      task2: adjTask,
+      task3: nightTask,
+    }
   }
 
   return {
@@ -359,6 +433,7 @@ export function getDailyPlanDetails(plan: StudentPlan | null | undefined, dateSt
       adjacentLesson: adjacentTaskText,
       revision: revisionTaskText,
     },
+    consolidationTasksInfo,
   }
 }
 

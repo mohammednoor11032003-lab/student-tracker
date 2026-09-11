@@ -634,7 +634,7 @@ function StudentPlanView({
           </p>
         </div>
       ) : activeManualForDate && manualDetails ? (
-        /* Priority 1: Manual Consolidation Active View */
+        /* Priority 1: Manual Consolidation Active View (3 Balanced Tasks) */
         <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
           <div
             style={{
@@ -650,53 +650,179 @@ function StudentPlanView({
                 : "0 8px 25px rgba(244, 63, 94, 0.25)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
-              <span style={{ fontSize: "2rem" }}>{manualDetails.isHarvestDay ? "🌾" : "🛡️"}</span>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900, color: "#fef08a" }}>
-                  {manualDetails.isHarvestDay ? "يوم حصاد التثبيت الشامل 🌾" : "نظام التثبيت اليدوي المكثف"}
-                </h3>
-                <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
-                  فترة التثبيت: من {activeManualForDate.start_date} حتى {activeManualForDate.end_date} (الهدف: {activeManualForDate.repetitions_count} تكرارات)
-                </span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <span style={{ fontSize: "2rem" }}>{manualDetails.isHarvestDay ? "🌾" : "🛡️"}</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900, color: "#fef08a" }}>
+                    {manualDetails.isHarvestDay ? "يوم حصاد التثبيت الشامل 🌾" : "نظام التثبيت اليدوي المكثف"}
+                  </h3>
+                  <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
+                    فترة التثبيت: من {activeManualForDate.start_date} حتى {activeManualForDate.end_date}
+                  </span>
+                </div>
+              </div>
+
+              {/* Friday Zero-Reward or Daily Balanced Badges */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                {manualDetails.isFridayZeroReward ? (
+                  <span
+                    style={{
+                      background: "rgba(16, 185, 129, 0.25)",
+                      border: "1px solid #10b981",
+                      color: "#a7f3d0",
+                      padding: "0.3rem 0.75rem",
+                      borderRadius: "9999px",
+                      fontWeight: 900,
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    🕌 جمعة تثبيتي: 0 نقطة و 0 جوهرة (تكافؤ الفرص)
+                  </span>
+                ) : (
+                  <>
+                    <span
+                      style={{
+                        background: "rgba(255, 255, 255, 0.15)",
+                        border: "1px solid rgba(255, 255, 255, 0.3)",
+                        color: "#fef08a",
+                        padding: "0.3rem 0.65rem",
+                        borderRadius: "9999px",
+                        fontWeight: 900,
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      ⭐ المجموع: 30 نقطة (3 مهام)
+                    </span>
+                    <span
+                      style={{
+                        background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                        color: "white",
+                        padding: "0.3rem 0.65rem",
+                        borderRadius: "9999px",
+                        fontWeight: 900,
+                        fontSize: "0.8rem",
+                        boxShadow: "0 2px 8px rgba(245, 158, 11, 0.4)",
+                      }}
+                    >
+                      💎 مكافأة الإتمام: +10 جواهر
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             <p style={{ margin: "0.25rem 0 0", fontSize: "0.9rem", color: manualDetails.isHarvestDay ? "#fef3c7" : "#fecaca", lineHeight: 1.5 }}>
               {manualDetails.isHarvestDay
                 ? `يوم الحصاد الشامل: مراجعة وتسميع كافة صفحات دورة التثبيت (من صفحة ${activeManualForDate.start_page} إلى صفحة ${activeManualForDate.end_page}) دفعة واحدة لترسيخ الحفظ!`
-                : `أنت الآن في فترة تثبيت ومراجعة مكثفة. تم تعليق مهام الدرس الخمس ومهمة المراجعة للتركيز على تثبيت الصفحات (${activeManualForDate.start_page} إلى ${activeManualForDate.end_page}).`}
+                : `أنت الآن في فترة تثبيت ومراجعة مكثفة. الجدول اليومي مقسم إلى 3 مهام عادلة تعادل 30 نقطة ومكافأة 10 جواهر عند إتمامها بالكامل.`}
             </p>
           </div>
 
-          {/* Consolidation Task Card */}
-          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.25rem", borderLeft: manualDetails.isHarvestDay ? "5px solid #f59e0b" : "5px solid #f43f5e" }}>
-            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: manualDetails.isHarvestDay ? "#fef3c7" : "#ffe4e6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.75rem" }}>
-              {manualDetails.isHarvestDay ? "🌾" : "🎯"}
+          {/* Task 1: مهمة التكرار (20 pts / 0 on Friday) */}
+          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.15rem 1.25rem", borderLeft: manualDetails.isHarvestDay ? "5px solid #f59e0b" : "5px solid #f43f5e" }}>
+            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: manualDetails.isHarvestDay ? "#fef3c7" : "#ffe4e6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}>
+              {manualDetails.isHarvestDay ? "🌾" : "🔁"}
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 900, fontSize: "1.1rem", color: "#1f2937" }}>
-                  {manualDetails.isHarvestDay ? "مهمة يوم الحصاد النهائي" : "مهمة التثبيت المقررة لليوم"}
-                </span>
-                <span style={{ fontSize: "0.75rem", background: manualDetails.isHarvestDay ? "#fef3c7" : "#ffe4e6", color: manualDetails.isHarvestDay ? "#b45309" : "#e11d48", padding: "0.2rem 0.6rem", borderRadius: "9999px", fontWeight: 800 }}>
-                  الهدف: {activeManualForDate.repetitions_count} تكرارات
-                </span>
-                {isProjected && (
-                  <span style={{ fontSize: "0.75rem", background: "#f0f9ff", color: "#0369a1", padding: "0.2rem 0.5rem", borderRadius: "9999px", fontWeight: 700 }}>
-                    للقراءة فقط (محاكاة)
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+                  <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>
+                    المهمة الأولى: مهمة التكرار
                   </span>
-                )}
+                  <span style={{ fontSize: "0.75rem", background: manualDetails.isHarvestDay ? "#fef3c7" : "#ffe4e6", color: manualDetails.isHarvestDay ? "#b45309" : "#e11d48", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                    الهدف: {activeManualForDate.repetitions_count} تكرارات
+                  </span>
+                </div>
+                <span
+                  style={{
+                    background: manualDetails.isFridayZeroReward ? "#f1f5f9" : "#fef3c7",
+                    color: manualDetails.isFridayZeroReward ? "#64748b" : "#b45309",
+                    fontWeight: 900,
+                    fontSize: "0.85rem",
+                    padding: "0.2rem 0.65rem",
+                    borderRadius: "0.6rem",
+                    border: manualDetails.isFridayZeroReward ? "1px solid #cbd5e1" : "1px solid #fde68a",
+                  }}
+                >
+                  {manualDetails.isFridayZeroReward ? "0 نقطة (جمعة)" : "+20 نقطة"}
+                </span>
               </div>
-              <p style={{ margin: "0.35rem 0 0", color: "#111827", fontSize: "1.05rem", fontWeight: 800 }}>
+              <p style={{ margin: "0.25rem 0 0", color: "#111827", fontSize: "1rem", fontWeight: 800 }}>
                 {manualDetails.taskTitle}
               </p>
-              <p style={{ margin: "0.25rem 0 0", color: "#4b5563", fontSize: "0.9rem", lineHeight: 1.5 }}>
+              <p style={{ margin: "0.2rem 0 0", color: "#64748b", fontSize: "0.85rem", lineHeight: 1.4 }}>
                 {manualDetails.detailsDescription}
               </p>
             </div>
           </div>
 
-          {/* Revision Suspended Notice */}
+          {/* Task 2: جنب الدرس - المراجعة التراكمية (5 pts / 0 on Friday) */}
+          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.15rem 1.25rem", borderLeft: "5px solid #3b82f6" }}>
+            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}>
+              📖
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>
+                  المهمة الثانية: {manualDetails.adjacentTitle}
+                </span>
+                <span
+                  style={{
+                    background: manualDetails.isFridayZeroReward ? "#f1f5f9" : "#dbeafe",
+                    color: manualDetails.isFridayZeroReward ? "#64748b" : "#1d4ed8",
+                    fontWeight: 900,
+                    fontSize: "0.85rem",
+                    padding: "0.2rem 0.65rem",
+                    borderRadius: "0.6rem",
+                    border: manualDetails.isFridayZeroReward ? "1px solid #cbd5e1" : "1px solid #bfdbfe",
+                  }}
+                >
+                  {manualDetails.isFridayZeroReward ? "0 نقطة (جمعة)" : "+5 نقاط"}
+                </span>
+              </div>
+              <p style={{ margin: "0.25rem 0 0", color: "#1d4ed8", fontSize: "0.95rem", fontWeight: 800 }}>
+                {manualDetails.adjacentPagesText}
+              </p>
+              <p style={{ margin: "0.2rem 0 0", color: "#475569", fontSize: "0.85rem", lineHeight: 1.4 }}>
+                {manualDetails.adjacentDescription}
+              </p>
+            </div>
+          </div>
+
+          {/* Task 3: قيام الليل بالورد التثبيتي (5 pts / 0 on Friday) */}
+          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.15rem 1.25rem", borderLeft: "5px solid #8b5cf6" }}>
+            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}>
+              🌙
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>
+                  المهمة الثالثة: {manualDetails.nightPrayerTitle}
+                </span>
+                <span
+                  style={{
+                    background: manualDetails.isFridayZeroReward ? "#f1f5f9" : "#ede9fe",
+                    color: manualDetails.isFridayZeroReward ? "#64748b" : "#6d28d9",
+                    fontWeight: 900,
+                    fontSize: "0.85rem",
+                    padding: "0.2rem 0.65rem",
+                    borderRadius: "0.6rem",
+                    border: manualDetails.isFridayZeroReward ? "1px solid #cbd5e1" : "1px solid #ddd6fe",
+                  }}
+                >
+                  {manualDetails.isFridayZeroReward ? "0 نقطة (جمعة)" : "+5 نقاط"}
+                </span>
+              </div>
+              <p style={{ margin: "0.25rem 0 0", color: "#6d28d9", fontSize: "0.95rem", fontWeight: 800 }}>
+                {manualDetails.nightPrayerPagesText}
+              </p>
+              <p style={{ margin: "0.2rem 0 0", color: "#475569", fontSize: "0.85rem", lineHeight: 1.4 }}>
+                {manualDetails.nightPrayerDescription}
+              </p>
+            </div>
+          </div>
+
+          {/* Suspended Routine Notice */}
           <div
             style={{
               background: "#f8fafc",
@@ -707,18 +833,18 @@ function StudentPlanView({
               alignItems: "center",
               gap: "0.6rem",
               color: "#475569",
-              fontSize: "0.9rem",
+              fontSize: "0.85rem",
               fontWeight: 700,
             }}
           >
             <span style={{ fontSize: "1.2rem" }}>⏸️</span>
             <span>
-              مهام الحفظ الجديد والمراجعة مجمدة طوال فترة التثبيت اليدوي، وتُستأنف تلقائياً من الموضع المحفوظ بمجرد انتهاء الخطة.
+              مهام السماع والتفسير والمراجعة الروتينية معلّقة طوال فترة التثبيت لتركيز الجهد، وتُستأنف تلقائياً بعد انتهاء الخطة.
             </span>
           </div>
         </div>
       ) : planDetails.isInConsolidation ? (
-        /* Auto-Consolidation Week Active View */
+        /* Priority 2: Auto-Consolidation Week Active View (3 Balanced Tasks) */
         <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
           <div
             style={{
@@ -730,43 +856,123 @@ function StudentPlanView({
               boxShadow: "0 8px 25px rgba(153,27,27,0.3)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
-              <span style={{ fontSize: "2rem" }}>🛡️</span>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900, color: "#fef08a" }}>
-                  أسبوع التثبيت التلقائي - الجزء {planDetails.consolidationJuz}
-                </h3>
-                <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
-                  اليوم {planDetails.consolidationDay} من أصل 7 أيام تثبيت مكثف
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <span style={{ fontSize: "2rem" }}>🛡️</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900, color: "#fef08a" }}>
+                    أسبوع التثبيت التلقائي - الجزء {planDetails.consolidationJuz}
+                  </h3>
+                  <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
+                    اليوم {planDetails.consolidationDay} من أصل 7 أيام تثبيت مكثف
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                <span
+                  style={{
+                    background: "rgba(255, 255, 255, 0.15)",
+                    border: "1px solid rgba(255, 255, 255, 0.3)",
+                    color: "#fef08a",
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: "9999px",
+                    fontWeight: 900,
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  ⭐ المجموع: 30 نقطة (3 مهام)
+                </span>
+                <span
+                  style={{
+                    background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                    color: "white",
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: "9999px",
+                    fontWeight: 900,
+                    fontSize: "0.8rem",
+                    boxShadow: "0 2px 8px rgba(245, 158, 11, 0.4)",
+                  }}
+                >
+                  💎 مكافأة الإتمام: +10 جواهر
                 </span>
               </div>
             </div>
             <p style={{ margin: "0.25rem 0 0", fontSize: "0.9rem", color: "#fecaca", lineHeight: 1.5 }}>
-              تهانينا بإتمام الجزء! تم تعليق مهام الدرس الخمس ومهمة المراجعة بالكامل للتركيز التام على إتقان هذا الجزء، وتُستأنف الخطة والمراجعة تلقائياً بعد اليوم السابع.
+              تهانينا بإتمام الجزء! تم تعليق مهام السماع والتفسير والمراجعة الروتينية للتركيز على تثبيت هذا الجزء عبر 3 مهام متوازنة.
             </p>
           </div>
 
-          {/* Consolidation Task Card */}
-          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.25rem", borderLeft: "5px solid #dc2626" }}>
-            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.75rem" }}>
+          {/* Task 1: مهمة التكرار */}
+          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.15rem 1.25rem", borderLeft: "5px solid #dc2626" }}>
+            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}>
               🎯
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 900, fontSize: "1.1rem", color: "#1f2937" }}>
-                  مهمة التثبيت المقررة (اليوم {planDetails.consolidationDay})
-                </span>
-                <span style={{ fontSize: "0.75rem", background: "#fee2e2", color: "#991b1b", padding: "0.2rem 0.6rem", borderRadius: "9999px", fontWeight: 800 }}>
-                  الهدف: {planDetails.consolidationTask?.target} تكرارات
-                </span>
-                {isProjected && (
-                  <span style={{ fontSize: "0.75rem", background: "#f0f9ff", color: "#0369a1", padding: "0.2rem 0.5rem", borderRadius: "9999px", fontWeight: 700 }}>
-                    للقراءة فقط (محاكاة)
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+                  <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>
+                    المهمة الأولى: مهمة التكرار
                   </span>
-                )}
+                  <span style={{ fontSize: "0.75rem", background: "#fee2e2", color: "#991b1b", padding: "0.15rem 0.55rem", borderRadius: "9999px", fontWeight: 800 }}>
+                    الهدف: {planDetails.consolidationTask?.target} تكرارات
+                  </span>
+                </div>
+                <span style={{ background: "#fef3c7", color: "#b45309", fontWeight: 900, fontSize: "0.85rem", padding: "0.2rem 0.65rem", borderRadius: "0.6rem", border: "1px solid #fde68a" }}>
+                  +20 نقطة
+                </span>
               </div>
-              <p style={{ margin: "0.35rem 0 0", color: "#374151", fontSize: "1rem", fontWeight: 800 }}>
+              <p style={{ margin: "0.25rem 0 0", color: "#374151", fontSize: "1rem", fontWeight: 800 }}>
                 {planDetails.consolidationTask?.title}
+              </p>
+              <p style={{ margin: "0.2rem 0 0", color: "#64748b", fontSize: "0.85rem" }}>
+                {planDetails.consolidationTasksInfo?.repetition.pagesText || `صفحات اليوم`}
+              </p>
+            </div>
+          </div>
+
+          {/* Task 2: جنب الدرس التراكمي */}
+          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.15rem 1.25rem", borderLeft: "5px solid #3b82f6" }}>
+            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}>
+              📖
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>
+                  المهمة الثانية: جنب الدرس (المراجعة التراكمية للتثبيت)
+                </span>
+                <span style={{ background: "#dbeafe", color: "#1d4ed8", fontWeight: 900, fontSize: "0.85rem", padding: "0.2rem 0.65rem", borderRadius: "0.6rem", border: "1px solid #bfdbfe" }}>
+                  +5 نقاط
+                </span>
+              </div>
+              <p style={{ margin: "0.25rem 0 0", color: "#1d4ed8", fontSize: "0.95rem", fontWeight: 800 }}>
+                {planDetails.consolidationTasksInfo?.adjacent.pagesText}
+              </p>
+              <p style={{ margin: "0.2rem 0 0", color: "#475569", fontSize: "0.85rem", lineHeight: 1.4 }}>
+                تسميع ومراجعة جميع الصفحات التي تم أخذها منذ بداية خطة التثبيت الحالية وحتى اليوم
+              </p>
+            </div>
+          </div>
+
+          {/* Task 3: قيام الليل بالورد التثبيتي */}
+          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.15rem 1.25rem", borderLeft: "5px solid #8b5cf6" }}>
+            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.6rem" }}>
+              🌙
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>
+                  المهمة الثالثة: قيام الليل بالورد التثبيتي
+                </span>
+                <span style={{ background: "#ede9fe", color: "#6d28d9", fontWeight: 900, fontSize: "0.85rem", padding: "0.2rem 0.65rem", borderRadius: "0.6rem", border: "1px solid #ddd6fe" }}>
+                  +5 نقاط
+                </span>
+              </div>
+              <p style={{ margin: "0.25rem 0 0", color: "#6d28d9", fontSize: "0.95rem", fontWeight: 800 }}>
+                {planDetails.consolidationTasksInfo?.nightPrayer.pagesText}
+              </p>
+              <p style={{ margin: "0.2rem 0 0", color: "#475569", fontSize: "0.85rem", lineHeight: 1.4 }}>
+                صلاة قيام الليل بالصفحات التي تم تكرارها اليوم فقط في خطة التثبيت
               </p>
             </div>
           </div>
@@ -782,7 +988,7 @@ function StudentPlanView({
               alignItems: "center",
               gap: "0.6rem",
               color: "#475569",
-              fontSize: "0.9rem",
+              fontSize: "0.85rem",
               fontWeight: 700,
             }}
           >
@@ -793,12 +999,40 @@ function StudentPlanView({
           </div>
         </div>
       ) : (
-        /* The 6 Interconnected Daily Tasks Cards */
+        /* Priority 3: The 6 Interconnected Daily Tasks Cards (Normal Hifz - 5 pts each = 30 pts) */
         <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", color: "white", padding: "0 0.25rem" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", color: "white", padding: "0 0.25rem", flexWrap: "wrap", gap: "0.5rem" }}>
             <h3 style={{ margin: 0, fontSize: "1.15rem", fontWeight: 900 }}>
               {isProjected ? `📋 مهام الورد المتوقعة لتاريخ ${selectedDate}` : "📋 ورد اليوم المترابط (6 مهام)"}
             </h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <span
+                style={{
+                  background: "rgba(255, 255, 255, 0.18)",
+                  border: "1px solid rgba(255, 255, 255, 0.3)",
+                  color: "#fef08a",
+                  padding: "0.25rem 0.65rem",
+                  borderRadius: "9999px",
+                  fontSize: "0.8rem",
+                  fontWeight: 900,
+                }}
+              >
+                ⭐ 30 نقطة يومياً
+              </span>
+              <span
+                style={{
+                  background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                  color: "white",
+                  padding: "0.25rem 0.65rem",
+                  borderRadius: "9999px",
+                  fontSize: "0.8rem",
+                  fontWeight: 900,
+                  boxShadow: "0 2px 8px rgba(245, 158, 11, 0.35)",
+                }}
+              >
+                💎 مكافأة الإتمام: +10 جواهر
+              </span>
+            </div>
           </div>
 
           {/* 1. الدرس */}
@@ -807,9 +1041,14 @@ function StudentPlanView({
               📖
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>الدرس (الحفظ الجديد)</span>
-                <span style={{ fontSize: "0.75rem", background: "#f3e8ff", color: "#7c3aed", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>نصف صفحة</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>الدرس (الحفظ الجديد)</span>
+                  <span style={{ fontSize: "0.75rem", background: "#f3e8ff", color: "#7c3aed", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>نصف صفحة</span>
+                </div>
+                <span style={{ background: "#f5f3ff", color: "#7c3aed", fontWeight: 900, fontSize: "0.85rem", padding: "0.15rem 0.55rem", borderRadius: "0.5rem", border: "1px solid #ddd6fe" }}>
+                  +5 نقاط
+                </span>
               </div>
               <p style={{ margin: "0.2rem 0 0", color: "#6b7280", fontSize: "0.95rem", fontWeight: 700 }}>
                 {planDetails.tasks.lesson}
@@ -823,9 +1062,14 @@ function StudentPlanView({
               🎧
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>السماع</span>
-                <span style={{ fontSize: "0.75rem", background: "#dbeafe", color: "#2563eb", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>استماع للشيخ</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>السماع</span>
+                  <span style={{ fontSize: "0.75rem", background: "#dbeafe", color: "#2563eb", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>استماع للشيخ</span>
+                </div>
+                <span style={{ background: "#eff6ff", color: "#2563eb", fontWeight: 900, fontSize: "0.85rem", padding: "0.15rem 0.55rem", borderRadius: "0.5rem", border: "1px solid #bfdbfe" }}>
+                  +5 نقاط
+                </span>
               </div>
               <p style={{ margin: "0.2rem 0 0", color: "#6b7280", fontSize: "0.95rem", fontWeight: 700 }}>
                 {planDetails.tasks.listening}
@@ -839,9 +1083,14 @@ function StudentPlanView({
               🔗
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>جنب الدرس (الربط)</span>
-                <span style={{ fontSize: "0.75rem", background: "#fef3c7", color: "#d97706", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>صفحتين سابقتين</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>جنب الدرس (الربط)</span>
+                  <span style={{ fontSize: "0.75rem", background: "#fef3c7", color: "#d97706", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>صفحتين سابقتين</span>
+                </div>
+                <span style={{ background: "#fffbeb", color: "#d97706", fontWeight: 900, fontSize: "0.85rem", padding: "0.15rem 0.55rem", borderRadius: "0.5rem", border: "1px solid #fde68a" }}>
+                  +5 نقاط
+                </span>
               </div>
               <p style={{ margin: "0.2rem 0 0", color: "#6b7280", fontSize: "0.95rem", fontWeight: 700 }}>
                 {planDetails.tasks.adjacentLesson}
@@ -855,9 +1104,14 @@ function StudentPlanView({
               📜
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>التفسير</span>
-                <span style={{ fontSize: "0.75rem", background: "#d1fae5", color: "#059669", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>فهم وتدبر</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>التفسير</span>
+                  <span style={{ fontSize: "0.75rem", background: "#d1fae5", color: "#059669", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>فهم وتدبر</span>
+                </div>
+                <span style={{ background: "#f0fdf4", color: "#059669", fontWeight: 900, fontSize: "0.85rem", padding: "0.15rem 0.55rem", borderRadius: "0.5rem", border: "1px solid #bbf7d0" }}>
+                  +5 نقاط
+                </span>
               </div>
               <p style={{ margin: "0.2rem 0 0", color: "#6b7280", fontSize: "0.95rem", fontWeight: 700 }}>
                 {planDetails.tasks.tafsir}
@@ -866,21 +1120,25 @@ function StudentPlanView({
           </div>
 
           {/* 5. المراجعة */}
-          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem", borderLeft: "5px solid #ec4899" }}>
-            <div style={{ width: "2.75rem", height: "2.75rem", borderRadius: "0.75rem", background: "#fce7f3", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>
+          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1rem 1.25rem", borderLeft: "5px solid #06b6d4" }}>
+            <div style={{ width: "2.75rem", height: "2.75rem", borderRadius: "0.75rem", background: "#cffafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>
               🔄
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>المراجعة</span>
-                <span style={{ fontSize: "0.75rem", background: "#fce7f3", color: "#db2777", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>حزب كامل</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>المراجعة (الدورة التراكمية)</span>
+                  <span style={{ fontSize: "0.75rem", background: "#cffafe", color: "#0891b2", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>
+                    حزب {planDetails.hizb}
+                  </span>
+                </div>
+                <span style={{ background: "#ecfeff", color: "#0891b2", fontWeight: 900, fontSize: "0.85rem", padding: "0.15rem 0.55rem", borderRadius: "0.5rem", border: "1px solid #a5f3fc" }}>
+                  +5 نقاط
+                </span>
               </div>
               <p style={{ margin: "0.2rem 0 0", color: "#6b7280", fontSize: "0.95rem", fontWeight: 700 }}>
                 {planDetails.tasks.revision}
               </p>
-              <span style={{ display: "inline-block", fontSize: "0.75rem", color: "#db2777", marginTop: "0.2rem", fontWeight: 700 }}>
-                الحزب {planDetails.hizbIndex + 1} من أصل {planDetails.totalCycleHizbs} في دورة المراجعة الخاصة بك
-              </span>
             </div>
           </div>
 
@@ -890,9 +1148,14 @@ function StudentPlanView({
               🌙
             </div>
             <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>قيام الليل</span>
-                <span style={{ fontSize: "0.75rem", background: "#e0e7ff", color: "#4f46e5", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>تثبيت بالصلاة</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.4rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontWeight: 900, fontSize: "1.05rem", color: "#1f2937" }}>قيام الليل</span>
+                  <span style={{ fontSize: "0.75rem", background: "#e0e7ff", color: "#4f46e5", padding: "0.15rem 0.5rem", borderRadius: "9999px", fontWeight: 800 }}>تثبيت روحي</span>
+                </div>
+                <span style={{ background: "#eef2ff", color: "#4f46e5", fontWeight: 900, fontSize: "0.85rem", padding: "0.15rem 0.55rem", borderRadius: "0.5rem", border: "1px solid #c7d2fe" }}>
+                  +5 نقاط
+                </span>
               </div>
               <p style={{ margin: "0.2rem 0 0", color: "#6b7280", fontSize: "0.95rem", fontWeight: 700 }}>
                 {planDetails.tasks.nightPrayer}
