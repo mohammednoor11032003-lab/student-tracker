@@ -200,6 +200,7 @@ export default function StudentPortal({
           borderRadius: "1.25rem",
           border: "1px solid rgba(255,255,255,0.25)",
           boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+          fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         }}
       >
         {/* 1. خطة الحفظ */}
@@ -215,8 +216,10 @@ export default function StudentPortal({
             borderRadius: "0.95rem",
             border: "none",
             cursor: "pointer",
+            fontFamily: "inherit",
             fontWeight: 800,
-            fontSize: "0.9rem",
+            fontSize: "0.92rem",
+            letterSpacing: "0.01em",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             background: activeTab === "plan" ? "white" : "transparent",
             color: activeTab === "plan" ? "#7c3aed" : "white",
@@ -241,8 +244,10 @@ export default function StudentPortal({
             borderRadius: "0.95rem",
             border: "none",
             cursor: "pointer",
+            fontFamily: "inherit",
             fontWeight: 800,
-            fontSize: "0.9rem",
+            fontSize: "0.92rem",
+            letterSpacing: "0.01em",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             background: activeTab === "tasks" ? "white" : "transparent",
             color: activeTab === "tasks" ? "#7c3aed" : "white",
@@ -267,8 +272,10 @@ export default function StudentPortal({
             borderRadius: "0.95rem",
             border: "none",
             cursor: "pointer",
+            fontFamily: "inherit",
             fontWeight: 800,
-            fontSize: "0.9rem",
+            fontSize: "0.92rem",
+            letterSpacing: "0.01em",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             background: activeTab === "hero" ? "white" : "transparent",
             color: activeTab === "hero" ? "#f59e0b" : "white",
@@ -277,7 +284,7 @@ export default function StudentPortal({
           }}
         >
           <Shield size={17} strokeWidth={activeTab === "hero" ? 2.5 : 2} />
-          <span>بطلي 🛡️</span>
+          <span>بطلي</span>
         </button>
 
         {/* 4. ميدان التنافس (The Arena) */}
@@ -293,8 +300,10 @@ export default function StudentPortal({
             borderRadius: "0.95rem",
             border: "none",
             cursor: "pointer",
+            fontFamily: "inherit",
             fontWeight: 800,
-            fontSize: "0.9rem",
+            fontSize: "0.92rem",
+            letterSpacing: "0.01em",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             background: activeTab === "arena" ? "white" : "transparent",
             color: activeTab === "arena" ? "#ef4444" : "white",
@@ -303,7 +312,7 @@ export default function StudentPortal({
           }}
         >
           <Swords size={17} strokeWidth={activeTab === "arena" ? 2.5 : 2} />
-          <span>الميدان ⚔️</span>
+          <span>الميدان</span>
         </button>
 
         {/* 5. الترتيب */}
@@ -319,8 +328,10 @@ export default function StudentPortal({
             borderRadius: "0.95rem",
             border: "none",
             cursor: "pointer",
+            fontFamily: "inherit",
             fontWeight: 800,
-            fontSize: "0.9rem",
+            fontSize: "0.92rem",
+            letterSpacing: "0.01em",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             background: activeTab === "leaderboard" ? "white" : "transparent",
             color: activeTab === "leaderboard" ? "#7c3aed" : "white",
@@ -345,8 +356,10 @@ export default function StudentPortal({
             borderRadius: "0.95rem",
             border: "none",
             cursor: "pointer",
+            fontFamily: "inherit",
             fontWeight: 800,
-            fontSize: "0.9rem",
+            fontSize: "0.92rem",
+            letterSpacing: "0.01em",
             transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             background: activeTab === "bank" ? "white" : "transparent",
             color: activeTab === "bank" ? "#10b981" : "white",
@@ -355,7 +368,7 @@ export default function StudentPortal({
           }}
         >
           <Landmark size={17} strokeWidth={activeTab === "bank" ? 2.5 : 2} />
-          <span>البنك 🏦</span>
+          <span>البنك</span>
         </button>
       </div>
 
