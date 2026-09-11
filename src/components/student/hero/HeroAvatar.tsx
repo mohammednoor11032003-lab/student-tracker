@@ -151,18 +151,14 @@ export default function HeroAvatar({
             stroke="#334155"
             strokeWidth="1"
           />
-          {/* Left Hand (Skin) */}
-          <circle cx="89" cy="177" r="6" fill="url(#skinGrad)" stroke="#c28b6d" strokeWidth="1" />
 
-          {/* Slim Right Arm (Ready to hold weapon at 162, 172) */}
+          {/* Slim Right Arm (Ready to hold weapon at 151, 172) */}
           <path
             d="M 138 108 L 154 160 L 156 172 L 146 172 L 138 140 L 136 120 Z"
             fill="url(#baseMeshGrad)"
             stroke="#334155"
             strokeWidth="1"
           />
-          {/* Right Hand (Skin, grasping weapon) */}
-          <circle cx="151" cy="177" r="6" fill="url(#skinGrad)" stroke="#c28b6d" strokeWidth="1" />
         </g>
 
         {/* ================= 3. BASE SHOES (IF NO FEET EQUIPPED) ================= */}
@@ -354,8 +350,8 @@ export default function HeroAvatar({
                   strokeLinejoin="round"
                 />
                 {/* Tailored Sleeves */}
-                <path d="M 78 112 L 66 166 C 64 175, 72 178, 82 174 L 92 140 Z" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.2" />
-                <path d="M 162 112 L 174 166 C 176 175, 168 178, 158 174 L 148 140 Z" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.2" />
+                <path d="M 78 112 L 70 164 C 70 172, 82 174, 94 171 L 96 138 Z" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.2" />
+                <path d="M 162 112 L 170 164 C 170 172, 158 174, 146 171 L 144 138 Z" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.2" />
 
                 {/* Collar & Pearl Placket */}
                 <path d="M 111 96 L 120 102 L 129 96 L 125 106 L 115 106 Z" fill="#f1f5f9" stroke="#cbd5e1" strokeWidth="1" />
@@ -382,8 +378,8 @@ export default function HeroAvatar({
                 <path d="M 80 112 L 68 180 L 88 246 L 102 246 L 94 120 Z" fill="#b45309" stroke="#78350f" strokeWidth="1" />
                 <path d="M 160 112 L 172 180 L 152 246 L 138 246 L 146 120 Z" fill="#b45309" stroke="#78350f" strokeWidth="1" />
                 {/* Sleeves */}
-                <path d="M 80 112 L 68 166 L 84 168 L 94 135 Z" fill="#92400e" />
-                <path d="M 160 112 L 172 166 L 156 168 L 146 135 Z" fill="#92400e" />
+                <path d="M 80 112 L 70 164 L 94 171 L 96 135 Z" fill="#92400e" />
+                <path d="M 160 112 L 170 164 L 146 171 L 144 135 Z" fill="#92400e" />
                 {/* Cross-body leather baldric */}
                 <line x1="84" y1="116" x2="156" y2="175" stroke="#78350f" strokeWidth="6" strokeLinecap="round" />
                 <line x1="84" y1="116" x2="156" y2="175" stroke="#d97706" strokeWidth="2" strokeDasharray="3,3" />
@@ -400,8 +396,8 @@ export default function HeroAvatar({
                   strokeWidth="1.5"
                 />
                 {/* Sleeves */}
-                <path d="M 78 112 L 66 166 L 82 168 L 92 135 Z" fill="#475569" />
-                <path d="M 162 112 L 174 166 L 158 168 L 148 135 Z" fill="#475569" />
+                <path d="M 78 112 L 70 164 L 94 171 L 96 135 Z" fill="#475569" />
+                <path d="M 162 112 L 170 164 L 146 171 L 144 135 Z" fill="#475569" />
                 {/* Reinforced Leather Cuirass */}
                 <path
                   d="M 110 98 L 82 112 L 85 174 Q 120 182 155 174 L 158 112 L 130 98 Z"
@@ -434,10 +430,10 @@ export default function HeroAvatar({
                 <line x1="78" y1="220" x2="162" y2="220" stroke="#94a3b8" strokeWidth="1" strokeDasharray="4,2" />
 
                 {/* Steel Sleeves with Vambraces */}
-                <path d="M 78 112 L 66 166 L 82 168 L 92 135 Z" fill="#64748b" />
-                <rect x="68" y="145" width="14" height="20" rx="2" fill="url(#steelGrad)" stroke="#334155" strokeWidth="1" />
-                <path d="M 162 112 L 174 166 L 158 168 L 148 135 Z" fill="#64748b" />
-                <rect x="158" y="145" width="14" height="20" rx="2" fill="url(#steelGrad)" stroke="#334155" strokeWidth="1" />
+                <path d="M 78 112 L 70 164 L 94 171 L 96 135 Z" fill="#64748b" />
+                <rect x="72" y="148" width="18" height="20" rx="2" fill="url(#steelGrad)" stroke="#334155" strokeWidth="1" />
+                <path d="M 162 112 L 170 164 L 146 171 L 144 135 Z" fill="#64748b" />
+                <rect x="150" y="148" width="18" height="20" rx="2" fill="url(#steelGrad)" stroke="#334155" strokeWidth="1" />
 
                 {/* Polished Steel Breastplate */}
                 <path
@@ -470,8 +466,8 @@ export default function HeroAvatar({
                   strokeLinejoin="round"
                 />
                 {/* Flowing Sleeves */}
-                <path d="M 76 112 L 64 168 L 80 172 L 90 138 Z" fill="#1e3a8a" stroke="#fbbf24" strokeWidth="1.2" />
-                <path d="M 164 112 L 176 168 L 160 172 L 150 138 Z" fill="#1e3a8a" stroke="#fbbf24" strokeWidth="1.2" />
+                <path d="M 76 112 L 70 166 L 94 171 L 96 138 Z" fill="#1e3a8a" stroke="#fbbf24" strokeWidth="1.2" />
+                <path d="M 164 112 L 170 166 L 146 171 L 144 138 Z" fill="#1e3a8a" stroke="#fbbf24" strokeWidth="1.2" />
 
                 {/* Golden Cordoba Braiding Down Center */}
                 <line x1="120" y1="98" x2="120" y2="250" stroke="url(#goldGrad)" strokeWidth="4" />
@@ -497,10 +493,10 @@ export default function HeroAvatar({
                 <line x1="74" y1="225" x2="166" y2="225" stroke="#64748b" strokeWidth="1.2" strokeDasharray="3,2" />
 
                 {/* Sleeves with Steel Vambraces */}
-                <path d="M 76 112 L 64 168 L 80 172 L 90 138 Z" fill="#334155" />
-                <rect x="66" y="142" width="16" height="24" rx="2" fill="url(#darkIronGrad)" stroke="#fbbf24" strokeWidth="1.5" />
-                <path d="M 164 112 L 176 168 L 160 172 L 150 138 Z" fill="#334155" />
-                <rect x="158" y="142" width="16" height="24" rx="2" fill="url(#darkIronGrad)" stroke="#fbbf24" strokeWidth="1.5" />
+                <path d="M 76 112 L 70 164 L 94 171 L 96 138 Z" fill="#334155" />
+                <rect x="72" y="145" width="18" height="22" rx="2" fill="url(#darkIronGrad)" stroke="#fbbf24" strokeWidth="1.5" />
+                <path d="M 164 112 L 170 164 L 146 171 L 144 138 Z" fill="#334155" />
+                <rect x="150" y="145" width="18" height="22" rx="2" fill="url(#darkIronGrad)" stroke="#fbbf24" strokeWidth="1.5" />
 
                 {/* Heavy Plated Cuirass with Tassets */}
                 <path
@@ -530,8 +526,8 @@ export default function HeroAvatar({
                   strokeLinejoin="round"
                 />
                 {/* Regal Bell Sleeves */}
-                <path d="M 74 112 L 60 172 L 78 178 L 90 138 Z" fill="#0284c7" stroke="#fbbf24" strokeWidth="1.5" />
-                <path d="M 166 112 L 180 172 L 162 178 L 150 138 Z" fill="#0284c7" stroke="#fbbf24" strokeWidth="1.5" />
+                <path d="M 74 112 L 68 168 L 94 172 L 96 138 Z" fill="#0284c7" stroke="#fbbf24" strokeWidth="1.5" />
+                <path d="M 166 112 L 172 168 L 146 172 L 144 138 Z" fill="#0284c7" stroke="#fbbf24" strokeWidth="1.5" />
 
                 {/* Radiant Golden Tree / Arabesque Pattern */}
                 <line x1="120" y1="98" x2="120" y2="250" stroke="url(#goldGrad)" strokeWidth="4.5" />
@@ -561,63 +557,87 @@ export default function HeroAvatar({
         {weaponItem && (
           <g id="equipped_weapon">
             {weaponVisualId === "traveler_staff" ? (
-              /* عصا الترحال: عصا سنديان خشبية متينة */
+              /* عصا الترحال: عصا سنديان خشبية متينة مستقرة بيمين البطل */
               <g>
-                <rect x="156" y="55" width="6" height="230" rx="3" fill="#92400e" stroke="#78350f" strokeWidth="1" />
-                <circle cx="159" cy="58" r="7" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="1" />
-                <rect x="154" y="170" width="10" height="15" rx="2" fill="#451a03" />
+                <rect x="148" y="55" width="6" height="230" rx="3" fill="#92400e" stroke="#78350f" strokeWidth="1" />
+                <circle cx="151" cy="58" r="7" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="1" />
+                {/* Leather Grip Wrap at Hand Position */}
+                <rect x="146" y="169" width="10" height="16" rx="2" fill="#451a03" stroke="#78350f" strokeWidth="0.8" />
               </g>
             ) : weaponVisualId === "dagger_of_certainty" ? (
-              /* خنجر اليقين: جنبية يمانية فولاذية مقوسة مع غمد مذهب */
+              /* خنجر اليقين: جنبية يمانية فولاذية مقوسة مع مقبض محكم باليد */
               <g>
-                <path d="M 152 174 Q 170 148 182 120 Q 186 116 182 124 Q 164 162 152 182 Z" fill="url(#steelGrad)" stroke="#475569" strokeWidth="1.2" />
-                <rect x="146" y="174" width="16" height="5" rx="1.5" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="1" />
-                <circle cx="150" cy="186" r="3.5" fill="#ef4444" stroke="#ffffff" strokeWidth="0.8" />
+                {/* Grip Handle inside hand */}
+                <rect x="149" y="173" width="4" height="13" rx="1" fill="#78350f" />
+                {/* Curved Blade pointing upward */}
+                <path d="M 150 172 Q 168 146 180 118 Q 184 114 180 122 Q 162 160 152 172 Z" fill="url(#steelGrad)" stroke="#475569" strokeWidth="1.2" />
+                {/* Golden Guard */}
+                <rect x="143" y="172" width="16" height="5" rx="1.5" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="1" />
+                {/* Pommel with Ruby */}
+                <circle cx="151" cy="187" r="3.5" fill="#ef4444" stroke="#ffffff" strokeWidth="0.8" />
               </g>
             ) : weaponVisualId === "bow_of_insight" ? (
-              /* قوس البصيرة: قوس عربي مركب أصيل مع وتر حريري */
+              /* قوس البصيرة: قوس عربي مركب أصيل مقبضه محمول باليد اليمنى */
               <g>
-                <path d="M 145 75 Q 198 165 148 255" stroke="#b45309" strokeWidth="5" fill="none" strokeLinecap="round" />
-                <path d="M 145 75 Q 192 165 148 255" stroke="url(#goldGrad)" strokeWidth="2" fill="none" />
-                <line x1="145" y1="75" x2="148" y2="255" stroke="#ffffff" strokeWidth="1.5" strokeDasharray="4,1" />
-                <circle cx="178" cy="165" r="4" fill="#fbbf24" stroke="#78350f" strokeWidth="1" />
+                {/* Upper Limb curving outward from hand */}
+                <path d="M 151 172 Q 140 120 166 75" stroke="#b45309" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+                <path d="M 151 172 Q 142 120 166 75" stroke="url(#goldGrad)" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+
+                {/* Lower Limb curving outward from hand */}
+                <path d="M 151 182 Q 140 230 166 255" stroke="#b45309" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+                <path d="M 151 182 Q 142 230 166 255" stroke="url(#goldGrad)" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+
+                {/* Bowstring taut between bow tips */}
+                <line x1="166" y1="75" x2="166" y2="255" stroke="#ffffff" strokeWidth="1.2" strokeDasharray="5,1" />
+
+                {/* Central Leather Grip at hand position (151, 177) */}
+                <rect x="148" y="171" width="6" height="12" rx="2" fill="#78350f" stroke="#fbbf24" strokeWidth="1" />
+                <circle cx="151" cy="177" r="2.5" fill="#fbbf24" />
               </g>
             ) : weaponVisualId === "sword_of_resolve" ? (
               /* سيف العزيمة: سيف عربي مستقيم مصقول من الفولاذ الدمشقي */
               <g>
-                <path d="M 150 172 L 168 45 L 171 30 L 174 45 L 156 172 Z" fill="url(#steelGrad)" stroke="#334155" strokeWidth="1.5" />
-                <line x1="153" y1="168" x2="171" y2="45" stroke="#ffffff" strokeWidth="1.5" />
+                {/* Grip Handle */}
+                <rect x="149" y="174" width="4" height="14" rx="1" fill="#475569" />
+                {/* Blade */}
+                <path d="M 148 172 L 166 45 L 169 30 L 172 45 L 154 172 Z" fill="url(#steelGrad)" stroke="#334155" strokeWidth="1.5" />
+                <line x1="151" y1="168" x2="169" y2="45" stroke="#ffffff" strokeWidth="1.5" />
                 {/* Crossguard & Pommel */}
-                <rect x="140" y="172" width="24" height="6" rx="2" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="1.2" />
+                <rect x="139" y="172" width="24" height="6" rx="2" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="1.2" />
                 <circle cx="151" cy="190" r="4" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="1" />
               </g>
             ) : weaponVisualId === "spear_of_steadfastness" ? (
               /* رمح الثبات: رمح طويل مع سنان فولاذي وراية خضراء ترفرف */
               <g>
-                <rect x="156" y="25" width="5.5" height="258" rx="2.5" fill="#78350f" stroke="#451a03" strokeWidth="1" />
-                <path d="M 154 28 L 158.5 4 L 163 28 Z" fill="url(#steelGrad)" stroke="#0284c7" strokeWidth="1.2" />
+                <rect x="148.25" y="25" width="5.5" height="258" rx="2.5" fill="#78350f" stroke="#451a03" strokeWidth="1" />
+                <path d="M 146.5 28 L 151 4 L 155.5 28 Z" fill="url(#steelGrad)" stroke="#0284c7" strokeWidth="1.2" />
                 {/* Green Silk Pennon with Golden Border */}
-                <path d="M 161 26 Q 196 35 188 56 Q 174 52 161 50 Z" fill="url(#emeraldGrad)" stroke="#fbbf24" strokeWidth="1.2" />
+                <path d="M 153.75 26 Q 188 35 180 56 Q 166 52 153.75 50 Z" fill="url(#emeraldGrad)" stroke="#fbbf24" strokeWidth="1.2" />
+                {/* Grip Wrap at Hand */}
+                <rect x="147" y="169" width="8" height="16" rx="2" fill="#0284c7" stroke="#fbbf24" strokeWidth="1" />
               </g>
             ) : weaponVisualId === "blade_of_yarmouk" ? (
               /* نصل اليرموك: سيف عربي منحني (شامشير) قاطع ومهيب */
               <g>
+                {/* Grip Handle */}
+                <rect x="149" y="174" width="4" height="13" rx="1" fill="#78350f" />
+                {/* Curved Blade */}
                 <path
-                  d="M 151 172 Q 170 120 196 52 Q 192 46 184 52 Q 162 110 155 172 Z"
+                  d="M 148 172 Q 167 120 193 52 Q 189 46 181 52 Q 159 110 152 172 Z"
                   fill="url(#steelGrad)"
                   stroke="#1e293b"
                   strokeWidth="1.8"
                 />
-                <line x1="153" y1="165" x2="182" y2="60" stroke="#ffffff" strokeWidth="1.5" />
-                <rect x="142" y="172" width="22" height="6" rx="2" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="1.2" />
-                <circle cx="152" cy="189" r="3.5" fill="#ef4444" stroke="#fbbf24" strokeWidth="1" />
+                <line x1="150" y1="165" x2="179" y2="60" stroke="#ffffff" strokeWidth="1.5" />
+                <rect x="140" y="172" width="22" height="6" rx="2" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="1.2" />
+                <circle cx="151" cy="189" r="3.5" fill="#ef4444" stroke="#fbbf24" strokeWidth="1" />
               </g>
             ) : weaponVisualId === "sword_of_conquest" ? (
               /* سيف الفتح المبين: سيف أسطوري ملحمي يشع بنور سماوي متوهج */
               <g>
                 {/* Blue Aura / Glow */}
                 <path
-                  d="M 149 174 L 170 38 L 173 22 L 176 38 L 157 174 Z"
+                  d="M 147 174 L 168 38 L 171 22 L 174 38 L 155 174 Z"
                   fill="none"
                   stroke="#38bdf8"
                   strokeWidth="8"
@@ -625,32 +645,46 @@ export default function HeroAvatar({
                   opacity="0.45"
                 />
                 <path
-                  d="M 150 172 L 170 38 L 173 22 L 176 38 L 156 172 Z"
+                  d="M 148 172 L 168 38 L 171 22 L 174 38 L 154 172 Z"
                   fill="url(#royalNavyGrad)"
                   stroke="#ffffff"
                   strokeWidth="1.8"
                 />
-                <line x1="153" y1="168" x2="173" y2="38" stroke="#ffffff" strokeWidth="2" />
+                <line x1="151" y1="168" x2="171" y2="38" stroke="#ffffff" strokeWidth="2" />
 
                 {/* Golden Masterpiece Hilt */}
-                <rect x="138" y="172" width="28" height="7" rx="2.5" fill="url(#goldGrad)" stroke="#ffffff" strokeWidth="1.5" />
-                <circle cx="152" cy="175" r="3" fill="#38bdf8" />
-                <circle cx="152" cy="192" r="4.5" fill="url(#goldGrad)" stroke="#ffffff" strokeWidth="1.2" />
+                <rect x="137" y="172" width="28" height="7" rx="2.5" fill="url(#goldGrad)" stroke="#ffffff" strokeWidth="1.5" />
+                <rect x="149" y="174" width="4" height="15" rx="1" fill="#0f172a" />
+                <circle cx="151" cy="175.5" r="3" fill="#38bdf8" />
+                <circle cx="151" cy="192" r="4.5" fill="url(#goldGrad)" stroke="#ffffff" strokeWidth="1.2" />
 
                 {/* Star Glints */}
-                <path d="M 173 16 L 174.5 21 L 179 22.5 L 174.5 24 L 173 29 L 171.5 24 L 167 22.5 L 171.5 21 Z" fill="#ffffff" />
+                <path d="M 171 16 L 172.5 21 L 177 22.5 L 172.5 24 L 171 29 L 169.5 24 L 165 22.5 L 169.5 21 Z" fill="#ffffff" />
               </g>
             ) : (
               /* Fallback Weapon */
               <g>
-                <path d="M 150 172 L 168 45 L 171 30 L 174 45 L 156 172 Z" fill="url(#steelGrad)" stroke="#334155" strokeWidth="1.5" />
-                <rect x="140" y="172" width="24" height="6" rx="2" fill="url(#goldGrad)" />
+                <rect x="149" y="174" width="4" height="14" rx="1" fill="#475569" />
+                <path d="M 148 172 L 166 45 L 169 30 L 172 45 L 154 172 Z" fill="url(#steelGrad)" stroke="#334155" strokeWidth="1.5" />
+                <rect x="139" y="172" width="24" height="6" rx="2" fill="url(#goldGrad)" />
+                <circle cx="151" cy="190" r="4" fill="url(#goldGrad)" />
               </g>
             )}
           </g>
         )}
 
-        {/* ================= 7. HEAD, HAIR & DIGNIFIED BEARD (THE ANCHOR FOUNDATION) ================= */}
+        {/* ================= 7. HANDS OVERLAY (ALWAYS VISIBLE OVER CLOTHES & WEAPONS) ================= */}
+        <g id="hero_hands">
+          {/* Left Hand */}
+          <circle cx="89" cy="177" r="6" fill="url(#skinGrad)" stroke="#c28b6d" strokeWidth="1" />
+          <path d="M 86 175 Q 89 173 92 175" stroke="#c28b6d" strokeWidth="1.1" fill="none" />
+
+          {/* Right Hand (Grasping weapon hilt or resting gracefully at side) */}
+          <circle cx="151" cy="177" r="6" fill="url(#skinGrad)" stroke="#c28b6d" strokeWidth="1" />
+          <path d="M 148 175 Q 151 173 154 175" stroke="#c28b6d" strokeWidth="1.1" fill="none" />
+        </g>
+
+        {/* ================= 8. HEAD, HAIR & DIGNIFIED BEARD (THE ANCHOR FOUNDATION) ================= */}
         {/*
           Anchor coordinates:
           Head center: cx = 120, cy = 66
