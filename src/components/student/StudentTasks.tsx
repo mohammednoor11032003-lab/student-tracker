@@ -116,6 +116,13 @@ function StudentTasks({
   })
   const [assignments, setAssignments] = useState<Assignment[]>(initAssignments)
   const [weeklyPoints, setWeeklyPoints] = useState(initWeeklyPoints)
+
+  // Broadcast points update to RPG Game Wallet in real time
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("student_points_updated", { detail: { points: weeklyPoints } }))
+    }
+  }, [weeklyPoints])
   const [loading, setLoading] = useState<string | null>(null)
   const [fetchingDate, setFetchingDate] = useState(false)
   const [activeModal, setActiveModal] = useState<"month" | "week" | "day" | null>(null)

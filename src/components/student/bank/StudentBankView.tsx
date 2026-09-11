@@ -37,6 +37,9 @@ export default function StudentBankView({
       const data = await res.json()
       if (data.success && data.summary) {
         setSummary(data.summary)
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("student_dinars_updated", { detail: { dinars: data.summary.current_balance } }))
+        }
       }
     } catch (err) {
       console.error('Failed to fetch student bank summary:', err)
