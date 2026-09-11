@@ -554,7 +554,7 @@ export default function TeacherPlansManager({
                 {/* Consolidation Week Switch */}
                 <div>
                   <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#374151", marginBottom: "0.35rem" }}>
-                    🛡️ أسبوع التثبيت التلقائي
+                    🛡️ أسبوع تثبيت نهاية الجزء (7 أيام)
                   </label>
                   <select
                     value={plan.is_in_consolidation ? "yes" : "no"}
@@ -566,13 +566,16 @@ export default function TeacherPlansManager({
                       border: "1px solid #cbd5e1",
                       fontWeight: 700,
                       fontSize: "0.95rem",
-                      background: plan.is_in_consolidation ? "#dcfce7" : "white",
-                      color: plan.is_in_consolidation ? "#15803d" : "#1f2937",
+                      background: plan.is_in_consolidation ? "#fef3c7" : "white",
+                      color: plan.is_in_consolidation ? "#b45309" : "#1f2937",
                     }}
                   >
-                    <option value="no">خطة عادية (غير مفعّل)</option>
-                    <option value="yes">مفعّل (أسبوع التثبيت)</option>
+                    <option value="no">تلقائي حسب تقدم الطالب (ينشط ذاتياً عند إتمام كل 20 صفحة)</option>
+                    <option value="yes">فرض أسبوع التثبيت الآن (استثنائي لمدة 7 أيام)</option>
                   </select>
+                  <span style={{ display: "block", fontSize: "0.75rem", color: "#64748b", marginTop: "0.3rem", lineHeight: 1.4 }}>
+                    ملاحظة: هذا النظام ينشط تلقائياً للطالب بعد كل 20 صفحة (الأيام 1-4: 5 صفحات x 10 تكرارات | 5-6: 10 صفحات x 5 | 7: 20 صفحة x 3). الخيار اليدوي هنا يُستخدم فقط في حال رغبت بفرضه استثنائياً.
+                  </span>
                 </div>
               </div>
 

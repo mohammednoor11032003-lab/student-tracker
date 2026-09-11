@@ -248,30 +248,37 @@ export async function deleteManualConsolidation(id: string): Promise<boolean> {
 export async function enforceStudentResumePointer(studentId: string, todayStr: string): Promise<boolean> {
   try {
     const consolidations = await getStudentManualConsolidations(studentId)
-    // Find the most recent consolidation that ended today or earlier
-    const ended = consolidations.find(c => c.is_active && c.end_date < todayStr)
-    if (ended && ended.resume_page_pointer) {
-      const { page, part } = parseResumePointer(ended.resume_page_pointer)
-      const { getStudentPlan, updateStudentPlan } = await import("@/lib/student-plan")
-      const current = await getStudentPlan(studentId)
+    // Find active consolidations whose end_date is in the past (completed)
+    const endedList = consolidations
+      .filter(c => c.is_active && c.end_date < todayStr)
+      .sort((a, b) => b.end_date.localeCompare(a.end_date))
 
-      // If today is end_date + 1, or student plan is desynced, force pointer
-      const [ey, em, ed] = ended.end_date.split("-").map(Number)
-      const endPlusOne = new Date(ey, em - 1, ed)
-      endPlusOne.setDate(endPlusOne.getDate() + 1)
-      const yyyy = endPlusOne.getFullYear()
-      const mm = String(endPlusOne.getMonth() + 1).padStart(2, "0")
-      const dd = String(endPlusOne.getDate()).padStart(2, "0")
-      const endPlusOneStr = `${yyyy}-${mm}-${dd}`
+    if (endedList.length > 0) {
+      const mostRecentEnded = endedList[0]
+      let planUpdated = false
 
-      if (todayStr === endPlusOneStr || current.current_page !== page || current.page_part !== part) {
-        console.log(`[ManualConsolidation] Enforcing resume pointer for student ${studentId}: ص ${page} ${part} (resumption from consolidation ended ${ended.end_date})`)
-        await updateStudentPlan(studentId, {
-          current_page: page,
-          page_part: part,
-        })
-        return true
+      if (mostRecentEnded.resume_page_pointer) {
+        const { page, part } = parseResumePointer(mostRecentEnded.resume_page_pointer)
+        const { getStudentPlan, updateStudentPlan } = await import("@/lib/student-plan")
+        const current = await getStudentPlan(studentId)
+
+        if (current.current_page !== page || current.page_part !== part) {
+          console.log(`[ManualConsolidation] Precision resume pointer enforced for student ${studentId}: ص ${page} ${part} (resumption from ended consolidation ${mostRecentEnded.id})`)
+          await updateStudentPlan(studentId, {
+            current_page: page,
+            page_part: part,
+            is_in_consolidation: false,
+          })
+          planUpdated = true
+        }
       }
+
+      // Mark all past ended consolidations as inactive so they don't trigger repeatedly
+      for (const ended of endedList) {
+        await cancelManualConsolidation(ended.id)
+      }
+
+      return planUpdated
     }
   } catch (err) {
     console.error("Error in enforceStudentResumePointer:", err)

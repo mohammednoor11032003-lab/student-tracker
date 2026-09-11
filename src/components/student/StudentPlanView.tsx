@@ -3,7 +3,7 @@ import React, { useState, useMemo } from "react"
 import Link from "next/link"
 import { StudentPlan, getDailyPlanDetails, calculateProjectedPlan, calculateTotalMemorizedPages } from "@/lib/plan-utils"
 import { formatDisplayDate } from "@/lib/date-utils"
-import type { ManualConsolidation } from "@/lib/manual-consolidation-utils"
+import { getManualConsolidationDailyTaskDetails, type ManualConsolidation } from "@/lib/manual-consolidation-utils"
 
 interface StudentPlanViewProps {
   plan: StudentPlan
@@ -27,20 +27,13 @@ function StudentPlanView({
   const isProjected = selectedDate > todayStr
 
   const { activePlan, planDetails, diffDays } = useMemo(() => {
-    if (isProjected) {
-      const res = calculateProjectedPlan(plan, selectedDate, todayStr, manualConsolidations)
-      return {
-        activePlan: res.projectedPlan,
-        planDetails: res.planDetails,
-        diffDays: res.diffDays,
-      }
-    }
+    const res = calculateProjectedPlan(plan, selectedDate, todayStr, manualConsolidations)
     return {
-      activePlan: plan,
-      planDetails: getDailyPlanDetails(plan, selectedDate),
-      diffDays: 0,
+      activePlan: res.projectedPlan,
+      planDetails: res.planDetails,
+      diffDays: res.diffDays,
     }
-  }, [plan, selectedDate, todayStr, isProjected, manualConsolidations])
+  }, [plan, selectedDate, todayStr, manualConsolidations])
 
   const { totalPages: memorizedPagesCount, percentComplete } = useMemo(() => {
     return calculateTotalMemorizedPages(activePlan)
@@ -51,6 +44,11 @@ function StudentPlanView({
       c => c.is_active && selectedDate >= c.start_date && selectedDate <= c.end_date
     ) || null
   }, [manualConsolidations, selectedDate])
+
+  const manualDetails = useMemo(() => {
+    if (!activeManualForDate) return null
+    return getManualConsolidationDailyTaskDetails(activeManualForDate, selectedDate)
+  }, [activeManualForDate, selectedDate])
 
   const isEffectiveFriday = activeManualForDate
     ? (!activeManualForDate.include_fridays && planDetails.isFriday)
@@ -634,6 +632,90 @@ function StudentPlanView({
               ? `يوافق تاريخ ${selectedDate} يوم جمعة، وهو يوم إجازة أسبوعية لا توجد فيه مهام حفظ مقررة.`
               : "اليوم الجمعة لا توجد مهام حفظ أو مراجعة مقررة. استمتع بقراءة سورة الكهف والصلاة على النبي ﷺ، وتقبل الله طاعاتكم!"}
           </p>
+        </div>
+      ) : activeManualForDate && manualDetails ? (
+        /* Priority 1: Manual Consolidation Active View */
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+          <div
+            style={{
+              background: manualDetails.isHarvestDay
+                ? "linear-gradient(135deg, #451a03 0%, #78350f 50%, #b45309 100%)"
+                : "linear-gradient(135deg, #1e1b4b 0%, #31104b 50%, #4c0519 100%)",
+              border: manualDetails.isHarvestDay ? "2px solid #f59e0b" : "2px solid #f43f5e",
+              borderRadius: "1.25rem",
+              padding: "1.25rem",
+              color: "white",
+              boxShadow: manualDetails.isHarvestDay
+                ? "0 8px 25px rgba(245, 158, 11, 0.35)"
+                : "0 8px 25px rgba(244, 63, 94, 0.25)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "2rem" }}>{manualDetails.isHarvestDay ? "🌾" : "🛡️"}</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900, color: "#fef08a" }}>
+                  {manualDetails.isHarvestDay ? "يوم حصاد التثبيت الشامل 🌾" : "نظام التثبيت اليدوي المكثف"}
+                </h3>
+                <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
+                  فترة التثبيت: من {activeManualForDate.start_date} حتى {activeManualForDate.end_date} (الهدف: {activeManualForDate.repetitions_count} تكرارات)
+                </span>
+              </div>
+            </div>
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.9rem", color: manualDetails.isHarvestDay ? "#fef3c7" : "#fecaca", lineHeight: 1.5 }}>
+              {manualDetails.isHarvestDay
+                ? `يوم الحصاد الشامل: مراجعة وتسميع كافة صفحات دورة التثبيت (من صفحة ${activeManualForDate.start_page} إلى صفحة ${activeManualForDate.end_page}) دفعة واحدة لترسيخ الحفظ!`
+                : `أنت الآن في فترة تثبيت ومراجعة مكثفة. تم تعليق مهام الدرس الخمس ومهمة المراجعة للتركيز على تثبيت الصفحات (${activeManualForDate.start_page} إلى ${activeManualForDate.end_page}).`}
+            </p>
+          </div>
+
+          {/* Consolidation Task Card */}
+          <div className="card" style={{ display: "flex", alignItems: "center", gap: "1rem", padding: "1.25rem", borderLeft: manualDetails.isHarvestDay ? "5px solid #f59e0b" : "5px solid #f43f5e" }}>
+            <div style={{ width: "3rem", height: "3rem", borderRadius: "0.85rem", background: manualDetails.isHarvestDay ? "#fef3c7" : "#ffe4e6", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.75rem" }}>
+              {manualDetails.isHarvestDay ? "🌾" : "🎯"}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 900, fontSize: "1.1rem", color: "#1f2937" }}>
+                  {manualDetails.isHarvestDay ? "مهمة يوم الحصاد النهائي" : "مهمة التثبيت المقررة لليوم"}
+                </span>
+                <span style={{ fontSize: "0.75rem", background: manualDetails.isHarvestDay ? "#fef3c7" : "#ffe4e6", color: manualDetails.isHarvestDay ? "#b45309" : "#e11d48", padding: "0.2rem 0.6rem", borderRadius: "9999px", fontWeight: 800 }}>
+                  الهدف: {activeManualForDate.repetitions_count} تكرارات
+                </span>
+                {isProjected && (
+                  <span style={{ fontSize: "0.75rem", background: "#f0f9ff", color: "#0369a1", padding: "0.2rem 0.5rem", borderRadius: "9999px", fontWeight: 700 }}>
+                    للقراءة فقط (محاكاة)
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: "0.35rem 0 0", color: "#111827", fontSize: "1.05rem", fontWeight: 800 }}>
+                {manualDetails.taskTitle}
+              </p>
+              <p style={{ margin: "0.25rem 0 0", color: "#4b5563", fontSize: "0.9rem", lineHeight: 1.5 }}>
+                {manualDetails.detailsDescription}
+              </p>
+            </div>
+          </div>
+
+          {/* Revision Suspended Notice */}
+          <div
+            style={{
+              background: "#f8fafc",
+              borderRadius: "1rem",
+              padding: "0.85rem 1.25rem",
+              border: "1.5px dashed #cbd5e1",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              color: "#475569",
+              fontSize: "0.9rem",
+              fontWeight: 700,
+            }}
+          >
+            <span style={{ fontSize: "1.2rem" }}>⏸️</span>
+            <span>
+              مهام الحفظ الجديد والمراجعة مجمدة طوال فترة التثبيت اليدوي، وتُستأنف تلقائياً من الموضع المحفوظ بمجرد انتهاء الخطة.
+            </span>
+          </div>
         </div>
       ) : planDetails.isInConsolidation ? (
         /* Auto-Consolidation Week Active View */

@@ -207,11 +207,11 @@ export function getManualConsolidationDailyTaskDetails(
   }
 
   // Regular review day chunking:
-  // Evenly distribute pages across availableReviewDays (totalWorkingDays - harvestDays)
-  const effectiveDaily = Math.max(1, Math.ceil(totalPages / availableReviewDays))
+  // Calculated strictly according to teacher's daily_pages_count
+  const dailyCount = Math.max(1, consolidation.daily_pages_count || 4)
   const chunkIndex = Math.min(workingDayIndex, availableReviewDays - 1)
-  const todayStart = consolidation.start_page + chunkIndex * effectiveDaily
-  let todayEnd = todayStart + effectiveDaily - 1
+  const todayStart = consolidation.start_page + chunkIndex * dailyCount
+  let todayEnd = todayStart + dailyCount - 1
 
   if (chunkIndex === availableReviewDays - 1 || todayEnd > consolidation.end_page) {
     todayEnd = consolidation.end_page
@@ -225,11 +225,11 @@ export function getManualConsolidationDailyTaskDetails(
     totalPages,
     totalWorkingDays,
     availableReviewDays,
-    dailyCount: effectiveDaily,
+    dailyCount,
     isHarvestDay: false,
     todayStart: safeStart,
     todayEnd: safeEnd,
     taskTitle: `مهمة التثبيت: تسميع من ص ${safeStart} إلى ص ${safeEnd}`,
-    detailsDescription: `اليوم ${workingDayIndex + 1} من أصل ${availableReviewDays} أيام تثبيت (المقدار: ${Math.max(1, safeEnd - safeStart + 1)} صفحات). خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار.`,
+    detailsDescription: `اليوم ${workingDayIndex + 1} من أصل ${availableReviewDays} أيام تثبيت (المقدار: ${Math.max(1, safeEnd - safeStart + 1)} صفحات بـ ${consolidation.repetitions_count || 5} تكرارات). خطة الحفظ التلقائية مجمدة مؤقتاً لحين إتقان هذا المقدار.`,
   }
 }
