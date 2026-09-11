@@ -75,15 +75,14 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
 
   // Quick equip/try-on in dressing room
   function handleTryOn(item: ShopItem) {
-    setPreviewEquipped(prev => {
-      // If already equipped, clicking again unequips it
-      if (prev[item.category]?.id === item.id) {
-        toast("تم خلع " + item.name, { icon: "↩️" })
-        return { ...prev, [item.category]: null }
-      }
+    const isCurrentlyEquipped = previewEquipped[item.category]?.id === item.id
+    if (isCurrentlyEquipped) {
+      toast("تم خلع " + item.name, { icon: "↩️" })
+      setPreviewEquipped(prev => ({ ...prev, [item.category]: null }))
+    } else {
       toast.success("تم تجربة: " + item.name + " (" + CATEGORY_NAMES[item.category] + ")")
-      return { ...prev, [item.category]: item }
-    })
+      setPreviewEquipped(prev => ({ ...prev, [item.category]: item }))
+    }
   }
 
   // Unequip specific slot
