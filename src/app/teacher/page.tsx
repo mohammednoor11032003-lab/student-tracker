@@ -36,7 +36,8 @@ export default async function TeacherDashboard() {
     { href: "/teacher/tasks", icon: "📋", title: "إدارة المهام", desc: "إضافة وتعديل قائمة المهام ونقاطها" },
     { href: "/teacher/shop", icon: "🛡️", title: "إدارة المتجر", desc: "تعديل أسعار العتاد وتجربة الطبقات في غرفة القياس" },
     { href: "/teacher/assign", icon: "📅", title: "تعيين مهام اليوم", desc: "اختر المهام وعيّنها للطلاب" },
-    { href: "/teacher/leaderboard", icon: "🏆", title: "الليدربورد", desc: "شاهد ترتيب الطلاب هذا الأسبوع والشهر" },
+    { href: "/teacher/leaderboard", label: "الترتيب", icon: "🏆", title: "الليدربورد", desc: "شاهد ترتيب الطلاب هذا الأسبوع والشهر" },
+    { href: "/teacher/bank", icon: "🏦", title: "بنك الدنانير", desc: "إدارة المكافآت المالية وسجلات الصرف وتوزيع جوائز النجوم" },
   ]
 
   return (

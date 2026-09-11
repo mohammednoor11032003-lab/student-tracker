@@ -7,6 +7,7 @@ import { getStudentStarBadges } from "@/lib/badge-utils"
 import { isBountyTask, parseBountyTask } from "@/lib/bounty-utils"
 import { getStudentHeroState } from "@/lib/hero-utils"
 import { getStudentActiveAndUpcomingConsolidations } from "@/lib/manual-consolidation"
+import { getStudentBankSummary } from "@/lib/bank-server"
 
 interface PageProps {
   searchParams: Promise<{ tab?: string }>
@@ -21,7 +22,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
   }
 
   const { tab } = await searchParams
-  const initialTab = tab === "tasks" || tab === "leaderboard" || tab === "hero" || tab === "arena" ? tab : "plan"
+  const initialTab = tab === "tasks" || tab === "leaderboard" || tab === "hero" || tab === "arena" || tab === "bank" ? tab : "plan"
 
   const today = getTodayDateStr()
   const weekInfo = getWeekAndMonthInfo(today)
@@ -77,7 +78,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     }
   }
 
-  const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes, starBadges, allTasksRes, heroState] = await Promise.all([
+  const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes, starBadges, allTasksRes, heroState, bankSummary] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", user.id).single(),
     supabase.from("weekly_summaries").select("total_points").eq("student_id", user.id).eq("week_start", weekStartStr).single(),
     supabase.from("daily_assignments").select("completed, tasks(points)").eq("student_id", user.id).gte("assigned_date", weekStartStr).lte("assigned_date", weekEndStr).eq("completed", true),
@@ -87,6 +88,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     getStudentStarBadges(supabase, user.id),
     supabase.from("tasks").select("*"),
     getStudentHeroState(user.id),
+    getStudentBankSummary(user.id),
   ])
 
   // Extract optional bounty challenges
@@ -123,6 +125,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
       initialGems={heroState.gems_balance}
       initialInventory={heroState.inventory}
       initialManualConsolidations={manualConsolidations}
+      initialBankSummary={bankSummary}
     />
   )
 }

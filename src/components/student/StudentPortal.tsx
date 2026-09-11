@@ -1,16 +1,18 @@
 "use client"
 import React, { useState, useEffect } from "react"
-import { BookOpen, ClipboardList, Trophy, Shield, Swords } from "lucide-react"
+import { BookOpen, ClipboardList, Trophy, Shield, Swords, Landmark } from "lucide-react"
 import StudentPlanView from "@/components/student/StudentPlanView"
 import StudentTasks from "@/components/student/StudentTasks"
 import Leaderboard from "@/components/Leaderboard"
 import HeroView from "@/components/student/hero/HeroView"
 import ArenaView from "@/components/student/arena/ArenaView"
+import StudentBankView from "@/components/student/bank/StudentBankView"
 import DailyGemsModal from "@/components/student/hero/DailyGemsModal"
 import { StudentPlan, DEFAULT_PLAN } from "@/lib/plan-utils"
 import { Task } from "@/lib/types"
 import { BountyTask } from "@/lib/bounty-utils"
 import { StudentInventoryItem } from "@/lib/hero-utils"
+import { StudentBankSummary } from "@/lib/bank-types"
 import LoadingScreen from "@/components/LoadingScreen"
 
 interface Assignment {
@@ -40,7 +42,7 @@ interface StudentPortalProps {
   weeklyPoints: number
   leaderboardWeekly: LeaderboardEntry[]
   leaderboardMonthly: LeaderboardEntry[]
-  initialTab?: "plan" | "tasks" | "hero" | "arena" | "leaderboard"
+  initialTab?: "plan" | "tasks" | "hero" | "arena" | "leaderboard" | "bank"
   isStarOfWeek?: boolean
   isStarOfMonth?: boolean
   bounties?: BountyTask[]
@@ -49,6 +51,7 @@ interface StudentPortalProps {
   initialInventory?: StudentInventoryItem[]
   initialManualConsolidations?: ManualConsolidation[]
   initialManualConsolidation?: ManualConsolidation | null
+  initialBankSummary?: StudentBankSummary
 }
 
 export default function StudentPortal({
@@ -69,8 +72,9 @@ export default function StudentPortal({
   initialInventory = [],
   initialManualConsolidations = [],
   initialManualConsolidation = null,
+  initialBankSummary,
 }: StudentPortalProps) {
-  const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "hero" | "arena" | "leaderboard">(initialTab)
+  const [activeTab, setActiveTab] = useState<"plan" | "tasks" | "hero" | "arena" | "leaderboard" | "bank">(initialTab)
   const [gems, setGems] = useState<number>(initialGems)
   const [dailyGemsOpen, setDailyGemsOpen] = useState(false)
   const [allConsolidations, setAllConsolidations] = useState<ManualConsolidation[]>(
@@ -163,13 +167,13 @@ export default function StudentPortal({
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search)
       const tabParam = params.get("tab")
-      if (tabParam === "tasks" || tabParam === "plan" || tabParam === "leaderboard" || tabParam === "hero" || tabParam === "arena") {
+      if (tabParam === "tasks" || tabParam === "plan" || tabParam === "leaderboard" || tabParam === "hero" || tabParam === "arena" || tabParam === "bank") {
         setActiveTab(tabParam)
       }
     }
   }, [])
 
-  function switchTab(tab: "plan" | "tasks" | "hero" | "arena" | "leaderboard") {
+  function switchTab(tab: "plan" | "tasks" | "hero" | "arena" | "leaderboard" | "bank") {
     setActiveTab(tab)
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href)
@@ -188,7 +192,7 @@ export default function StudentPortal({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
+          gridTemplateColumns: "repeat(6, 1fr)",
           gap: "0.5rem",
           background: "rgba(255,255,255,0.15)",
           backdropFilter: "blur(12px)",
@@ -327,6 +331,32 @@ export default function StudentPortal({
           <Trophy size={17} strokeWidth={activeTab === "leaderboard" ? 2.5 : 2} />
           <span>الترتيب</span>
         </button>
+
+        {/* 6. البنك */}
+        <button
+          type="button"
+          onClick={() => switchTab("bank")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.35rem",
+            padding: "0.75rem 0.25rem",
+            borderRadius: "0.95rem",
+            border: "none",
+            cursor: "pointer",
+            fontWeight: 800,
+            fontSize: "0.9rem",
+            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            background: activeTab === "bank" ? "white" : "transparent",
+            color: activeTab === "bank" ? "#10b981" : "white",
+            boxShadow: activeTab === "bank" ? "0 4px 15px rgba(0,0,0,0.12)" : "none",
+            transform: activeTab === "bank" ? "scale(1.02)" : "scale(1)",
+          }}
+        >
+          <Landmark size={17} strokeWidth={activeTab === "bank" ? 2.5 : 2} />
+          <span>البنك 🏦</span>
+        </button>
       </div>
 
       {/* Tab Panels (Kept in DOM with display toggling for instant 0ms switching) */}
@@ -385,6 +415,14 @@ export default function StudentPortal({
           </p>
         </div>
         <Leaderboard weekly={leaderboardWeekly} monthly={leaderboardMonthly} />
+      </div>
+
+      <div style={{ display: activeTab === "bank" ? "block" : "none" }}>
+        <StudentBankView
+          studentId={studentId}
+          studentName={studentName}
+          initialSummary={initialBankSummary}
+        />
       </div>
 
       {/* Daily Login Chest Modal (Awards 5-20 gems) */}

@@ -2,7 +2,7 @@
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { BookOpen, ClipboardList, Trophy, LogOut } from "lucide-react"
+import { BookOpen, ClipboardList, Trophy, LogOut, Landmark } from "lucide-react"
 import toast from "react-hot-toast"
 
 import { useAuth } from "@/contexts/AuthContext"
@@ -26,7 +26,7 @@ export default function StudentNav({
     toast.success("تم تسجيل الخروج بنجاح", { id: "logout_toast" })
   }
 
-  const currentTab = searchParams.get("tab") || (pathname === "/student/plan" ? "plan" : pathname === "/student/leaderboard" ? "leaderboard" : "plan")
+  const currentTab = searchParams.get("tab") || (pathname === "/student/plan" ? "plan" : pathname === "/student/leaderboard" ? "leaderboard" : pathname === "/student?tab=bank" ? "bank" : "plan")
 
   const navItems = [
     {
@@ -49,6 +49,13 @@ export default function StudentNav({
       label: "الترتيب",
       icon: Trophy,
       isActive: currentTab === "leaderboard" && pathname.startsWith("/student"),
+    },
+    {
+      key: "bank",
+      href: "/student?tab=bank",
+      label: "البنك",
+      icon: Landmark,
+      isActive: currentTab === "bank" && pathname.startsWith("/student"),
     },
   ]
 

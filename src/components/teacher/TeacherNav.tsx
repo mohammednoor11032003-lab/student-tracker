@@ -25,6 +25,7 @@ export default function TeacherNav({ teacherName }: { teacherName: string }) {
     { href: "/teacher/students", label: "الطلاب", icon: "👨‍🎓" },
     { href: "/teacher/shop", label: "المتجر", icon: "🛡️" },
     { href: "/teacher/leaderboard", label: "الترتيب", icon: "🏆" },
+    { href: "/teacher/bank", label: "البنك", icon: "🏦" },
   ]
 
   return (
