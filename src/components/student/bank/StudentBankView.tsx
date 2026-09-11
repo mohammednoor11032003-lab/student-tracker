@@ -143,18 +143,20 @@ export default function StudentBankView({
             border: '1px solid rgba(255, 255, 255, 0.25)',
             color: 'white',
             borderRadius: '0.85rem',
-            padding: '0.5rem 0.85rem',
-            fontSize: '0.8rem',
+            padding: '0.55rem 0.95rem',
+            fontSize: '0.85rem',
             fontWeight: 800,
             cursor: 'pointer',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.4rem',
+            gap: '0.45rem',
+            lineHeight: 1.2,
             transition: 'all 0.15s ease',
+            fontFamily: "'Tajawal', 'Cairo', sans-serif",
           }}
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          <span>تحديث الحساب</span>
+          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          <span style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>تحديث الحساب</span>
         </button>
       </div>
 
@@ -268,7 +270,7 @@ export default function StudentBankView({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.75rem' }}>
           <div>
             <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.1rem', fontWeight: 800 }}>
-              📜 سجل الحركات المالية (Transaction History)
+              📜 سجل الحركات المالية
             </h3>
             <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
               توثيق شفاف لجميع حركات الكسب والاستبدال والتعديلات الإدارية
@@ -294,14 +296,19 @@ export default function StudentBankView({
                   color: activeFilter === tab.id ? '#0f172a' : '#94a3b8',
                   border: 'none',
                   borderRadius: '0.55rem',
-                  padding: '0.3rem 0.65rem',
-                  fontSize: '0.75rem',
+                  padding: '0.35rem 0.75rem',
+                  fontSize: '0.82rem',
                   fontWeight: 800,
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
+                  fontFamily: "'Tajawal', 'Cairo', sans-serif",
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                  lineHeight: 1.2,
                 }}
               >
-                {tab.label}
+                <span style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>{tab.label}</span>
               </button>
             ))}
           </div>

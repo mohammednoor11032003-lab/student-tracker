@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 import { useState } from "react"
 
 interface Entry {
@@ -42,16 +42,35 @@ function RankList({ entries }: { entries: Entry[] }) {
 export default function Leaderboard({ weekly, monthly }: { weekly: Entry[]; monthly: Entry[] }) {
   const [tab, setTab] = useState<"weekly" | "monthly">("weekly")
   const tabStyle = (active: boolean) => ({
-    flex: 1, padding: "0.75rem", borderRadius: "0.75rem", fontWeight: 700,
-    border: "none", cursor: "pointer", transition: "all 0.2s",
-    background: active ? "linear-gradient(to right, #7c3aed, #db2777)" : "#f3f4f6",
-    color: active ? "white" : "#374151", fontSize: "1rem"
+    flex: 1,
+    padding: "0.75rem 1rem",
+    borderRadius: "0.85rem",
+    fontWeight: 800,
+    border: "none",
+    cursor: "pointer",
+    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    background: active ? "linear-gradient(135deg, #7c3aed, #db2777)" : "#f1f5f9",
+    color: active ? "white" : "#475569",
+    fontSize: "0.95rem",
+    fontFamily: "'Tajawal', 'Cairo', sans-serif",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.45rem",
+    lineHeight: 1.2,
+    boxShadow: active ? "0 4px 14px rgba(124, 58, 237, 0.3)" : "none",
   })
   return (
     <div className="card">
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
-        <button onClick={() => setTab("weekly")} style={tabStyle(tab === "weekly")}>📅 هذا الأسبوع</button>
-        <button onClick={() => setTab("monthly")} style={tabStyle(tab === "monthly")}>📆 هذا الشهر</button>
+        <button type="button" onClick={() => setTab("weekly")} style={tabStyle(tab === "weekly")}>
+          <span>📅</span>
+          <span>هذا الأسبوع</span>
+        </button>
+        <button type="button" onClick={() => setTab("monthly")} style={tabStyle(tab === "monthly")}>
+          <span>📆</span>
+          <span>هذا الشهر</span>
+        </button>
       </div>
       <RankList entries={tab === "weekly" ? weekly : monthly} />
     </div>
