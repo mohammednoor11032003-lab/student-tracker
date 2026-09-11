@@ -7,15 +7,28 @@ export default async function TeacherLayout({ children }: { children: React.Reac
   const userRes = await supabase.auth.getUser()
   const user = userRes.data?.user || (await supabase.auth.getSession()).data?.session?.user
 
-  let teacherName = "المعلم"
-  if (user) {
-    try {
-      const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single()
-      if (profile?.full_name) {
-        teacherName = profile.full_name
-      }
-    } catch {}
+  if (!user) {
+    redirect("/login")
   }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, full_name")
+    .eq("id", user.id)
+    .single()
+
+  // Strict Role Check: Only 'teacher' is allowed into any /teacher route
+  if (!profile || profile.role !== "teacher") {
+    if (profile?.role === "student") {
+      redirect("/student")
+    }
+    if (profile?.role === "parent") {
+      redirect("/parent")
+    }
+    redirect("/login")
+  }
+
+  const teacherName = profile.full_name || "المعلم"
 
   return (
     <div className="animated-bg" style={{ minHeight: "100vh", position: "relative" }}>

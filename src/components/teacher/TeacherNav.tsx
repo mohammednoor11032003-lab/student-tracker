@@ -48,26 +48,6 @@ export default function TeacherNav({ teacherName }: { teacherName: string }) {
                 <span>{link.label}</span>
               </Link>
             ))}
-            <Link
-              href="/student"
-              title="الانتقال إلى منصة الطالب"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                padding: "0.35rem 0.65rem",
-                borderRadius: "0.75rem",
-                fontSize: "0.78rem",
-                fontWeight: 800,
-                textDecoration: "none",
-                background: "rgba(255, 255, 255, 0.22)",
-                color: "white",
-                border: "1px solid rgba(255, 255, 255, 0.35)",
-              }}
-            >
-              <span>👨‍🎓</span>
-              <span>الطالب</span>
-            </Link>
             <button onClick={logout} style={{
               padding: "0.4rem 0.75rem", borderRadius: "0.75rem", fontSize: "0.85rem",
               fontWeight: 700, background: "transparent", color: "white", border: "none", cursor: "pointer"

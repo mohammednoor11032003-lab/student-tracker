@@ -281,6 +281,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return <LoadingScreen message="جاري تحويلك لصفحة تسجيل الدخول..." />
   }
 
+  // 3. Role-Based Gatekeeper: Strictly enforce route access per user role
+  if (!isLoading && user && profile?.role) {
+    if (pathname.startsWith("/teacher") && profile.role !== "teacher") {
+      const redirectUrl = profile.role === "student" ? "/student" : profile.role === "parent" ? "/parent" : "/login"
+      if (typeof window !== "undefined") {
+        window.location.href = redirectUrl
+      }
+      return <LoadingScreen message="غير مصرح لك بالوصول إلى لوحة المعلم. جاري تحويلك..." />
+    }
+
+    if (pathname.startsWith("/student") && profile.role !== "student") {
+      const redirectUrl = profile.role === "teacher" ? "/teacher" : profile.role === "parent" ? "/parent" : "/login"
+      if (typeof window !== "undefined") {
+        window.location.href = redirectUrl
+      }
+      return <LoadingScreen message="جاري تحويلك إلى لوحتك الخاصة..." />
+    }
+
+    if (pathname.startsWith("/parent") && profile.role !== "parent") {
+      const redirectUrl = profile.role === "teacher" ? "/teacher" : profile.role === "student" ? "/student" : "/login"
+      if (typeof window !== "undefined") {
+        window.location.href = redirectUrl
+      }
+      return <LoadingScreen message="جاري تحويلك إلى لوحتك الخاصة..." />
+    }
+  }
+
   return (
     <AuthContext.Provider value={contextValue}>
       {children}

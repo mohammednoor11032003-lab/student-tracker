@@ -128,29 +128,6 @@ export default function StudentNav({
               )
             })}
 
-            {/* Quick Switch to Teacher Platform */}
-            <Link
-              href="/teacher/shop"
-              title="الانتقال إلى منصة المعلم / غرفة القياس"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                padding: "0.35rem 0.65rem",
-                borderRadius: "0.75rem",
-                fontSize: "0.78rem",
-                fontWeight: 800,
-                textDecoration: "none",
-                background: "rgba(255, 255, 255, 0.22)",
-                color: "white",
-                border: "1px solid rgba(255, 255, 255, 0.35)",
-                backdropFilter: "blur(4px)",
-              }}
-            >
-              <span>👨‍🏫</span>
-              <span>المعلم</span>
-            </Link>
-
             <button
               onClick={logout}
               title="تسجيل الخروج"
