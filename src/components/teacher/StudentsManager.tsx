@@ -1,5 +1,6 @@
 "use client"
 import React, { useState } from "react"
+import Link from "next/link"
 import { Shield, Phone, Save, CheckCircle, AlertTriangle, RefreshCw, X, UserCheck } from "lucide-react"
 import toast from "react-hot-toast"
 import ManualConsolidationModal from "./ManualConsolidationModal"
@@ -211,6 +212,26 @@ export default function StudentsManager({
             <UserCheck size={18} />
             <span>الهواتف الجاهزة: {readyCount} / {students.length}</span>
           </div>
+          <Link
+            href="/teacher/reports"
+            style={{
+              background: "linear-gradient(135deg, #22c55e, #16a34a)",
+              color: "white",
+              padding: "0.55rem 1.15rem",
+              borderRadius: "0.85rem",
+              fontWeight: 800,
+              fontSize: "0.9rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.45rem",
+              textDecoration: "none",
+              boxShadow: "0 4px 15px rgba(22, 163, 74, 0.4)",
+              fontFamily: "'Tajawal', 'Cairo', sans-serif",
+            }}
+          >
+            <span>📱</span>
+            <span>عرض تقارير الواتساب اليومية ◀</span>
+          </Link>
         </div>
       </div>
 
