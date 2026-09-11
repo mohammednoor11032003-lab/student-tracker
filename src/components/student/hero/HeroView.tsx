@@ -126,14 +126,41 @@ export default function HeroView({
     }
   })
 
-  // Handlers
+  // Handlers with Optimistic UI Updates & Error Rollback
   async function handleBuyItem(item: ShopItem) {
     if (gems < item.price_in_gems) {
       toast.error(`رصيد الجواهر غير كافٍ! تحتاج إلى ${item.price_in_gems - gems} جوهرة إضافية 💎`)
       return
     }
 
-    setLoadingAction(`buy_${item.id}`)
+    // 1. Snapshot previous state for instant rollback on failure
+    const previousGems = gems
+    const previousInventory = inventory
+
+    // 2. Optimistic UI Update: deduct gems & add item to inventory immediately
+    const optimisticGems = previousGems - item.price_in_gems
+    const optimisticItem: StudentInventoryItem = {
+      id: `temp_inv_${item.id}_${Date.now()}`,
+      student_id: studentId,
+      item_id: item.id,
+      is_equipped: false,
+      item_level: 1,
+      purchased_at: new Date().toISOString(),
+      item: item,
+    }
+    const optimisticInventory = [...previousInventory, optimisticItem]
+
+    // Apply immediately to state
+    setGems(optimisticGems)
+    setInventory(optimisticInventory)
+    window.dispatchEvent(
+      new CustomEvent("hero_gems_updated", {
+        detail: { gems_balance: optimisticGems },
+      })
+    )
+    toast.success(`تهانينا! اشتريت "${item.name}" بنجاح! 🛍️✨`)
+
+    // 3. Background server update
     try {
       const res = await fetch("/api/hero", {
         method: "POST",
@@ -145,20 +172,55 @@ export default function HeroView({
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to buy item")
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "فشل تسجيل الشراء في الخادم")
+      }
 
-      setGems(data.gems_balance)
-      setInventory(data.inventory)
-      toast.success(`تهانينا! اشتريت "${item.name}" بنجاح! 🛍️✨`)
+      // Reconcile with authoritative server state
+      if (data.gems_balance !== undefined) {
+        setGems(data.gems_balance)
+      }
+      if (Array.isArray(data.inventory)) {
+        setInventory(data.inventory)
+      }
     } catch (err: any) {
-      toast.error(err.message || "حدث خطأ أثناء الشراء")
-    } finally {
-      setLoadingAction(null)
+      // 4. Rollback mechanism
+      console.error("[Optimistic UI] Buy item failed, rolling back:", err)
+      setGems(previousGems)
+      setInventory(previousInventory)
+      window.dispatchEvent(
+        new CustomEvent("hero_gems_updated", {
+          detail: { gems_balance: previousGems },
+        })
+      )
+      toast.error(
+        `تعذر إتمام عملية الشراء، تم استرجاع رصيد الجواهر. (${err.message || "خطأ في الاتصال"}) ❌`,
+        { duration: 4000 }
+      )
     }
   }
 
   async function handleEquipItem(itemId: string, category: GearCategory) {
-    setLoadingAction(`equip_${itemId}`)
+    // 1. Snapshot previous state for instant rollback on failure
+    const previousInventory = inventory
+
+    // 2. Optimistic UI Update: equip target item & unequip any other item in same category immediately
+    const optimisticInventory = previousInventory.map(inv => {
+      const itemCat = inv.item?.category || shopCatalog.find(c => c.id === inv.item_id)?.category
+      if (inv.item_id === itemId) {
+        return { ...inv, is_equipped: true }
+      }
+      if (itemCat === category) {
+        return { ...inv, is_equipped: false }
+      }
+      return inv
+    })
+
+    // Apply immediately to state (HeroAvatar updates synchronously)
+    setInventory(optimisticInventory)
+    toast.success("تم تجهيز العتاد بنجاح! ⚔️")
+
+    // 3. Background server update
     try {
       const res = await fetch("/api/hero", {
         method: "POST",
@@ -171,19 +233,47 @@ export default function HeroView({
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to equip item")
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "فشل تحديث التجهيز في الخادم")
+      }
 
-      setInventory(data.inventory)
-      toast.success("تم تجهيز العتاد بنجاح! ⚔️")
+      // Reconcile with authoritative server state
+      if (Array.isArray(data.inventory)) {
+        setInventory(data.inventory)
+      }
     } catch (err: any) {
-      toast.error(err.message || "حدث خطأ أثناء التجهيز")
-    } finally {
-      setLoadingAction(null)
+      // 4. Rollback mechanism
+      console.error("[Optimistic UI] Equip item failed, rolling back:", err)
+      setInventory(previousInventory)
+      toast.error(
+        `تعذر تجهيز العتاد، تم إلغاء العملية وإعادة الحالة السابقة. (${err.message || "خطأ في الاتصال"}) ❌`,
+        { duration: 4000 }
+      )
     }
   }
 
   async function handleUnequipItem(itemId: string, category: GearCategory) {
-    setLoadingAction(`unequip_${itemId}`)
+    // 1. Snapshot previous state for instant rollback on failure
+    const previousInventory = inventory
+
+    // 2. Optimistic UI Update: unequip target item immediately
+    const optimisticInventory = previousInventory.map(inv => {
+      const isTarget =
+        inv.item_id === itemId ||
+        (category &&
+          (inv.item?.category === category ||
+            shopCatalog.find(c => c.id === inv.item_id)?.category === category))
+      if (isTarget) {
+        return { ...inv, is_equipped: false }
+      }
+      return inv
+    })
+
+    // Apply immediately to state (HeroAvatar updates synchronously)
+    setInventory(optimisticInventory)
+    toast.success("تم خلع العتاد ↩️")
+
+    // 3. Background server update
     try {
       const res = await fetch("/api/hero", {
         method: "POST",
@@ -196,14 +286,22 @@ export default function HeroView({
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to unequip item")
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "فشل تحديث الخلع في الخادم")
+      }
 
-      setInventory(data.inventory)
-      toast.success("تم خلع العتاد ↩️")
+      // Reconcile with authoritative server state
+      if (Array.isArray(data.inventory)) {
+        setInventory(data.inventory)
+      }
     } catch (err: any) {
-      toast.error(err.message || "حدث خطأ أثناء خلع العتاد")
-    } finally {
-      setLoadingAction(null)
+      // 4. Rollback mechanism
+      console.error("[Optimistic UI] Unequip item failed, rolling back:", err)
+      setInventory(previousInventory)
+      toast.error(
+        `تعذر خلع العتاد، تم إلغاء العملية وإعادة الحالة السابقة. (${err.message || "خطأ في الاتصال"}) ❌`,
+        { duration: 4000 }
+      )
     }
   }
 
@@ -537,7 +635,6 @@ export default function HeroView({
                       <button
                         type="button"
                         onClick={() => handleUnequipItem(item.id, cat)}
-                        disabled={loadingAction === `unequip_${item.id}`}
                         style={{
                           marginTop: "0.25rem",
                           width: "100%",
@@ -853,7 +950,7 @@ export default function HeroView({
                           <button
                             type="button"
                             onClick={() => handleBuyItem(item)}
-                            disabled={loadingAction === `buy_${item.id}`}
+                            disabled={!canAfford}
                             style={{
                               width: "100%",
                               background: canAfford
@@ -1086,7 +1183,6 @@ export default function HeroView({
                               <button
                                 type="button"
                                 onClick={() => handleUnequipItem(itemObj.id, itemObj.category)}
-                                disabled={loadingAction === `unequip_${itemObj.id}`}
                                 style={{
                                   background: "rgba(239, 68, 68, 0.2)",
                                   color: "#f87171",
@@ -1105,7 +1201,6 @@ export default function HeroView({
                               <button
                                 type="button"
                                 onClick={() => handleEquipItem(itemObj.id, itemObj.category)}
-                                disabled={loadingAction === `equip_${itemObj.id}`}
                                 style={{
                                   background: "linear-gradient(135deg, #8b5cf6, #7c3aed)",
                                   color: "#ffffff",
