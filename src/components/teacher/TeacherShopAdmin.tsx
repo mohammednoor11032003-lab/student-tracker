@@ -276,7 +276,7 @@ export default function TeacherShopAdmin({ initialItems }: TeacherShopAdminProps
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.3rem" }}>
             <span style={{ fontSize: "2rem" }}>🛡️</span>
-            <h1 style={{ fontSize: "1.6rem", fontWeight: 900, margin: 0 }}>إدارة المتجر ونظام الـ RPG</h1>
+            <h1 style={{ fontSize: "1.6rem", fontWeight: 900, margin: 0 }}>إدارة متجر العتاد والبطولة</h1>
             <span
               style={{
                 fontSize: "0.75rem",

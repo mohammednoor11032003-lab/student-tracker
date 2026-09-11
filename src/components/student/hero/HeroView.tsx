@@ -386,6 +386,18 @@ export default function HeroView({
   // Count equipped items
   const equippedCount = Object.values(equippedMap).filter(Boolean).length
 
+  // Dynamic counts for category filter pills
+  const totalCategoryCount = activeTab === "shop" ? shopCatalog.length : inventory.length
+  function getCategoryCount(cat: GearCategory) {
+    if (activeTab === "shop") {
+      return shopCatalog.filter(i => i.category === cat).length
+    }
+    return inventory.filter(inv => {
+      const itemObj = inv.item || shopCatalog.find(i => i.id === inv.item_id) || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
+      return itemObj?.category === cat
+    }).length
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       {/* Top Banner & Gems Balance */}
@@ -405,23 +417,10 @@ export default function HeroView({
       >
         <div>
           <h2 style={{ margin: 0, color: "#ffffff", fontSize: "1.5rem", fontWeight: 900, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span>🛡️ بطلي (My Hero)</span>
-            <span
-              style={{
-                fontSize: "0.75rem",
-                background: "rgba(245, 158, 11, 0.2)",
-                color: "#fbbf24",
-                padding: "0.2rem 0.6rem",
-                borderRadius: "9999px",
-                border: "1px solid rgba(245, 158, 11, 0.4)",
-                fontWeight: 800,
-              }}
-            >
-              RPG
-            </span>
+            <span>🛡️ بطلي</span>
           </h2>
           <p style={{ margin: "0.25rem 0 0", color: "#94a3b8", fontSize: "0.85rem" }}>
-            جهّز بطل القرآن بخانات العتاد المضيئة باستخدام الجواهر المكتسبة من إتقانك القرآني!
+            جهّز بطل القرآن بخانات العتاد باستخدام الجواهر المكتسبة من إتقانك القرآني!
           </p>
         </div>
 
@@ -551,7 +550,7 @@ export default function HeroView({
               }}
             >
               <Zap size={14} color="#f59e0b" />
-              <span>خانات العتاد الأربعة (Equipped Slots)</span>
+              <span>خانات العتاد الأربعة</span>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
@@ -696,53 +695,63 @@ export default function HeroView({
               type="button"
               onClick={() => setActiveTab("shop")}
               style={{
-                padding: "0.65rem 0.5rem",
+                padding: "0.65rem 0.65rem",
                 borderRadius: "0.75rem",
                 border: "none",
                 background: activeTab === "shop" ? "linear-gradient(135deg, #f59e0b, #d97706)" : "transparent",
                 color: activeTab === "shop" ? "white" : "#94a3b8",
-                fontWeight: 800,
+                fontWeight: 900,
                 fontSize: "0.95rem",
                 cursor: "pointer",
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: "0.4rem",
+                gap: "0.45rem",
+                lineHeight: 1.2,
                 transition: "all 0.2s",
                 boxShadow: activeTab === "shop" ? "0 4px 15px rgba(245, 158, 11, 0.35)" : "none",
+                fontFamily: "'Tajawal', 'Cairo', sans-serif",
               }}
             >
               <ShoppingBag size={18} />
-              <span>متجر العتاد ({shopCatalog.length}) 🛒</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                <span>متجر العتاد ({shopCatalog.length})</span>
+                <span style={{ fontSize: "1.1rem" }}>🛒</span>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("inventory")}
               style={{
-                padding: "0.65rem 0.5rem",
+                padding: "0.65rem 0.65rem",
                 borderRadius: "0.75rem",
                 border: "none",
                 background: activeTab === "inventory" ? "linear-gradient(135deg, #8b5cf6, #7c3aed)" : "transparent",
                 color: activeTab === "inventory" ? "white" : "#94a3b8",
-                fontWeight: 800,
+                fontWeight: 900,
                 fontSize: "0.95rem",
                 cursor: "pointer",
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: "0.4rem",
+                gap: "0.45rem",
+                lineHeight: 1.2,
                 transition: "all 0.2s",
                 boxShadow: activeTab === "inventory" ? "0 4px 15px rgba(139, 92, 246, 0.35)" : "none",
+                fontFamily: "'Tajawal', 'Cairo', sans-serif",
               }}
             >
               <Backpack size={18} />
-              <span>حقيبتي ({inventory.length}) 🎒</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                <span>حقيبتي ({inventory.length})</span>
+                <span style={{ fontSize: "1.1rem" }}>🎒</span>
+              </span>
             </button>
           </div>
 
-          {/* Category Filter Pills (Enhanced High Contrast) */}
-          <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
+          {/* Category Filter Pills (Enhanced High Contrast & Arabic Tajawal Typography) */}
+          <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap", alignItems: "center" }}>
             <button
               type="button"
               onClick={() => setCategoryFilter("all")}
@@ -752,14 +761,18 @@ export default function HeroView({
                 border: categoryFilter === "all" ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.3)",
                 background: categoryFilter === "all" ? "#ffffff" : "rgba(255, 255, 255, 0.16)",
                 color: categoryFilter === "all" ? "#0f172a" : "#ffffff",
-                fontSize: "0.82rem",
+                fontSize: "0.85rem",
                 fontWeight: 800,
                 cursor: "pointer",
                 boxShadow: categoryFilter === "all" ? "0 2px 10px rgba(255,255,255,0.25)" : "none",
                 transition: "all 0.15s ease",
+                fontFamily: "'Tajawal', 'Cairo', sans-serif",
+                display: "inline-flex",
+                alignItems: "center",
+                lineHeight: 1.2,
               }}
             >
-              الكل (28)
+              الكل ({totalCategoryCount})
             </button>
             {(["head", "body", "weapon", "feet"] as GearCategory[]).map(cat => (
               <button
@@ -772,18 +785,20 @@ export default function HeroView({
                   border: categoryFilter === cat ? "1px solid #ffffff" : "1px solid rgba(255,255,255,0.3)",
                   background: categoryFilter === cat ? "#ffffff" : "rgba(255, 255, 255, 0.16)",
                   color: categoryFilter === cat ? "#0f172a" : "#ffffff",
-                  fontSize: "0.82rem",
+                  fontSize: "0.85rem",
                   fontWeight: 800,
                   cursor: "pointer",
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
-                  gap: "0.35rem",
+                  gap: "0.4rem",
+                  lineHeight: 1.2,
                   boxShadow: categoryFilter === cat ? "0 2px 10px rgba(255,255,255,0.25)" : "none",
                   transition: "all 0.15s ease",
+                  fontFamily: "'Tajawal', 'Cairo', sans-serif",
                 }}
               >
-                <span>{CATEGORY_LABELS[cat].icon}</span>
-                <span>{CATEGORY_LABELS[cat].name} (7)</span>
+                <span style={{ fontSize: "1rem", display: "inline-block", lineHeight: 1 }}>{CATEGORY_LABELS[cat].icon}</span>
+                <span>{CATEGORY_LABELS[cat].name} ({getCategoryCount(cat)})</span>
               </button>
             ))}
           </div>
@@ -941,9 +956,10 @@ export default function HeroView({
                               color: "#34d399",
                               padding: "0.55rem 0.85rem",
                               borderRadius: "0.85rem",
-                              fontSize: "0.85rem",
+                              fontSize: "0.88rem",
                               fontWeight: 800,
                               border: "1px solid rgba(16, 185, 129, 0.35)",
+                              fontFamily: "'Tajawal', 'Cairo', sans-serif",
                             }}
                           >
                             مملوك في حقيبتك ✓
@@ -962,18 +978,23 @@ export default function HeroView({
                               border: canAfford ? "1px solid #38bdf8" : "1px solid rgba(255, 255, 255, 0.15)",
                               padding: "0.6rem 1rem",
                               borderRadius: "0.85rem",
-                              fontSize: "0.9rem",
+                              fontSize: "0.95rem",
                               fontWeight: 900,
                               cursor: canAfford ? "pointer" : "not-allowed",
-                              display: "flex",
+                              display: "inline-flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              gap: "0.4rem",
+                              gap: "0.45rem",
+                              lineHeight: 1.2,
                               boxShadow: canAfford ? "0 4px 15px rgba(2, 132, 199, 0.35)" : "none",
                               transition: "all 0.15s ease",
+                              fontFamily: "'Tajawal', 'Cairo', sans-serif",
                             }}
                           >
-                            <span>شراء مقابل {item.price_in_gems} جوهرة 💎</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+                              <span>شراء مقابل {item.price_in_gems} جوهرة</span>
+                              <span style={{ fontSize: "1.05rem" }}>💎</span>
+                            </span>
                           </button>
                         )}
                       </div>
@@ -1329,6 +1350,7 @@ export default function HeroView({
                   fontSize: "0.95rem",
                   cursor: "pointer",
                   boxShadow: "0 4px 15px rgba(2, 132, 199, 0.4)",
+                  fontFamily: "'Tajawal', 'Cairo', sans-serif",
                 }}
               >
                 تأكيد
@@ -1346,6 +1368,7 @@ export default function HeroView({
                   fontWeight: 700,
                   fontSize: "0.95rem",
                   cursor: "pointer",
+                  fontFamily: "'Tajawal', 'Cairo', sans-serif",
                 }}
               >
                 إلغاء
@@ -1508,6 +1531,7 @@ export default function HeroView({
                     fontSize: "0.95rem",
                     cursor: canAfford ? "pointer" : "not-allowed",
                     boxShadow: canAfford ? "0 4px 15px rgba(245, 158, 11, 0.4)" : "none",
+                    fontFamily: "'Tajawal', 'Cairo', sans-serif",
                   }}
                 >
                   تأكيد
@@ -1525,6 +1549,7 @@ export default function HeroView({
                     fontWeight: 700,
                     fontSize: "0.95rem",
                     cursor: "pointer",
+                    fontFamily: "'Tajawal', 'Cairo', sans-serif",
                   }}
                 >
                   إلغاء
