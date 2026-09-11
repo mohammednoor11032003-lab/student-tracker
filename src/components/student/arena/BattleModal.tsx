@@ -184,7 +184,23 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
                 textAlign: "center",
               }}
             >
-              <div style={{ fontSize: "1.75rem", marginBottom: "0.25rem" }}>🧕</div>
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #6366f1 0%, #4338ca 100%)",
+                color: "white",
+                fontWeight: 900,
+                fontSize: "1.25rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 0.4rem",
+                border: outcome.is_quran_boosted ? "2px solid #fbbf24" : "2px solid rgba(255,255,255,0.3)",
+                boxShadow: outcome.is_quran_boosted ? "0 0 15px rgba(251, 191, 36, 0.5)" : "0 4px 12px rgba(0,0,0,0.3)",
+              }}>
+                {outcome.attacker_name?.trim().charAt(0) || "⚔️"}
+              </div>
               <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#f8fafc" }}>
                 {outcome.attacker_name}
               </div>
@@ -263,7 +279,23 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
                 textAlign: "center",
               }}
             >
-              <div style={{ fontSize: "1.75rem", marginBottom: "0.25rem" }}>🤺</div>
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)",
+                color: "white",
+                fontWeight: 900,
+                fontSize: "1.25rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 0.4rem",
+                border: "2px solid rgba(255,255,255,0.3)",
+                boxShadow: "0 4px 12px rgba(239, 68, 68, 0.4)",
+              }}>
+                {outcome.defender_name?.trim().charAt(0) || "⚔️"}
+              </div>
               <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#f8fafc" }}>
                 {outcome.defender_name}
               </div>

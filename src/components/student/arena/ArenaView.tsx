@@ -214,11 +214,14 @@ export default function ArenaView({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "1.75rem",
-                  boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
+                  fontSize: "1.45rem",
+                  fontWeight: 900,
+                  color: "#ffffff",
+                  border: isQuranBoosted ? "2px solid #fef08a" : "2px solid rgba(255,255,255,0.3)",
+                  boxShadow: isQuranBoosted ? "0 0 15px rgba(251, 191, 36, 0.5)" : "0 4px 15px rgba(0,0,0,0.2)",
                 }}
               >
-                🧕
+                {studentName?.trim().charAt(0) || "⚔️"}
               </div>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -424,14 +427,20 @@ export default function ArenaView({
                         width: "44px",
                         height: "44px",
                         borderRadius: "0.85rem",
-                        background: opp.is_bot ? "#fef3c7" : "#e0e7ff",
+                        background: opp.is_bot
+                          ? "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)"
+                          : "linear-gradient(135deg, #6366f1 0%, #4338ca 100%)",
+                        color: opp.is_bot ? "#d97706" : "#ffffff",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "1.4rem",
+                        fontSize: opp.is_bot ? "1.4rem" : "1.2rem",
+                        fontWeight: 900,
+                        border: opp.is_bot ? "1px solid #f59e0b" : "1px solid rgba(255,255,255,0.25)",
+                        boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
                       }}
                     >
-                      {opp.avatar_icon || "🤺"}
+                      {opp.is_bot ? (opp.avatar_icon || "⚔️") : (opp.full_name?.trim().charAt(0) || "👦")}
                     </div>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#1e293b" }}>

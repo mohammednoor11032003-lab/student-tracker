@@ -73,6 +73,8 @@ export default function HeroView({
   const [activeTab, setActiveTab] = useState<"shop" | "inventory">("shop")
   const [categoryFilter, setCategoryFilter] = useState<GearCategory | "all">("all")
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
+  const [pendingBuyItem, setPendingBuyItem] = useState<ShopItem | null>(null)
+  const [pendingUpgradeItem, setPendingUpgradeItem] = useState<StudentInventoryItem | null>(null)
 
   // Fetch current shop catalog from API
   React.useEffect(() => {
@@ -949,7 +951,7 @@ export default function HeroView({
                         ) : (
                           <button
                             type="button"
-                            onClick={() => handleBuyItem(item)}
+                            onClick={() => setPendingBuyItem(item)}
                             disabled={!canAfford}
                             style={{
                               width: "100%",
@@ -1143,7 +1145,7 @@ export default function HeroView({
                             {/* UPGRADE BUTTON */}
                             <button
                               type="button"
-                              onClick={() => handleUpgradeItem(inv)}
+                              onClick={() => setPendingUpgradeItem(inv)}
                               disabled={isUpgrading}
                               style={{
                                 background: canUpgrade
@@ -1228,6 +1230,310 @@ export default function HeroView({
           </div>
         </div>
       </div>
+    
+      {/* ================= 1. PURCHASE CONFIRMATION MODAL ================= */}
+      {pendingBuyItem && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.8)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+          }}
+          onClick={e => {
+            if (e.target === e.currentTarget) setPendingBuyItem(null)
+          }}
+        >
+          <div
+            style={{
+              background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)",
+              borderRadius: "1.5rem",
+              maxWidth: "440px",
+              width: "100%",
+              padding: "1.75rem",
+              border: "1px solid rgba(56, 189, 248, 0.35)",
+              boxShadow: "0 25px 50px rgba(0, 0, 0, 0.6)",
+              color: "white",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                width: "70px",
+                height: "70px",
+                borderRadius: "1.25rem",
+                background: "rgba(2, 132, 199, 0.2)",
+                border: "2px solid #38bdf8",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "2.5rem",
+                margin: "0 auto 1rem",
+                boxShadow: "0 0 20px rgba(56, 189, 248, 0.35)",
+              }}
+            >
+              {pendingBuyItem.icon_name}
+            </div>
+
+            <h3 style={{ margin: "0 0 0.25rem", fontSize: "1.25rem", fontWeight: 900, color: "#ffffff" }}>
+              تأكيد الشراء 🛍️
+            </h3>
+
+            <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#38bdf8", marginBottom: "0.85rem" }}>
+              {pendingBuyItem.name}
+            </div>
+
+            <p style={{ fontSize: "0.95rem", color: "#e2e8f0", margin: "0 0 1.25rem", fontWeight: 700, lineHeight: 1.5 }}>
+              هل تريد بالتأكيد شراء هذا العنصر؟
+            </p>
+
+            <div
+              style={{
+                background: "rgba(0, 0, 0, 0.35)",
+                borderRadius: "1rem",
+                padding: "0.85rem 1rem",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                marginBottom: "1.5rem",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>سعر العنصر:</span>
+              <span style={{ fontSize: "1.1rem", fontWeight: 900, color: "#a5f3fc" }}>
+                {pendingBuyItem.price_in_gems} 💎 جوهرة
+              </span>
+            </div>
+
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const itm = pendingBuyItem
+                  setPendingBuyItem(null)
+                  handleBuyItem(itm)
+                }}
+                style={{
+                  flex: 1,
+                  background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                  color: "white",
+                  border: "1px solid #38bdf8",
+                  padding: "0.75rem",
+                  borderRadius: "0.85rem",
+                  fontWeight: 900,
+                  fontSize: "0.95rem",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 15px rgba(2, 132, 199, 0.4)",
+                }}
+              >
+                تأكيد
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingBuyItem(null)}
+                style={{
+                  flex: 1,
+                  background: "rgba(255, 255, 255, 0.1)",
+                  color: "#cbd5e1",
+                  border: "1px solid rgba(255, 255, 255, 0.15)",
+                  padding: "0.75rem",
+                  borderRadius: "0.85rem",
+                  fontWeight: 700,
+                  fontSize: "0.95rem",
+                  cursor: "pointer",
+                }}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= 2. UPGRADE STATS & CONFIRMATION MODAL ================= */}
+      {pendingUpgradeItem && (() => {
+        const itemObj =
+          pendingUpgradeItem.item ||
+          shopCatalog.find(i => i.id === pendingUpgradeItem.item_id) ||
+          INITIAL_SHOP_CATALOG.find(i => i.id === pendingUpgradeItem.item_id)
+        if (!itemObj) return null
+
+        const currentLevel = pendingUpgradeItem.item_level || 1
+        const nextLevel = currentLevel + 1
+        const currentAttack = getItemAttack(itemObj, currentLevel)
+        const nextAttack = getItemAttack(itemObj, nextLevel)
+        const currentDefense = getItemDefense(itemObj, currentLevel)
+        const nextDefense = getItemDefense(itemObj, nextLevel)
+        const upgradeCost = getItemUpgradeCost(itemObj, currentLevel)
+        const canAfford = gems >= upgradeCost
+
+        return (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15, 23, 42, 0.8)",
+              backdropFilter: "blur(6px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999,
+              padding: "1rem",
+            }}
+            onClick={e => {
+              if (e.target === e.currentTarget) setPendingUpgradeItem(null)
+            }}
+          >
+            <div
+              style={{
+                background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)",
+                borderRadius: "1.5rem",
+                maxWidth: "460px",
+                width: "100%",
+                padding: "1.75rem",
+                border: "1px solid rgba(245, 158, 11, 0.4)",
+                boxShadow: "0 25px 50px rgba(0, 0, 0, 0.6)",
+                color: "white",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  width: "70px",
+                  height: "70px",
+                  borderRadius: "1.25rem",
+                  background: "rgba(245, 158, 11, 0.2)",
+                  border: "2px solid #f59e0b",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "2.5rem",
+                  margin: "0 auto 1rem",
+                  boxShadow: "0 0 20px rgba(245, 158, 11, 0.35)",
+                }}
+              >
+                {itemObj.icon_name}
+              </div>
+
+              <h3 style={{ margin: "0 0 0.25rem", fontSize: "1.25rem", fontWeight: 900, color: "#ffffff" }}>
+                ترقية العتاد ⭐
+              </h3>
+
+              <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#fbbf24", marginBottom: "1rem" }}>
+                {itemObj.name}
+              </div>
+
+              {/* Stats Comparison Grid */}
+              <div
+                style={{
+                  background: "rgba(0, 0, 0, 0.35)",
+                  borderRadius: "1.15rem",
+                  padding: "1rem",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  marginBottom: "1.25rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                }}
+              >
+                {/* Level comparison */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.25rem 0.5rem" }}>
+                  <span style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 700 }}>المستوى:</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 900, fontSize: "0.95rem" }}>
+                    <span style={{ color: "#cbd5e1" }}>المستوى {currentLevel}</span>
+                    <span style={{ color: "#fbbf24" }}>➔</span>
+                    <span style={{ color: "#fef08a" }}>المستوى {nextLevel} ⭐</span>
+                  </div>
+                </div>
+
+                {/* Power / Attack comparison */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0.6rem", background: "rgba(239, 68, 68, 0.12)", borderRadius: "0.5rem" }}>
+                  <span style={{ fontSize: "0.85rem", color: "#fca5a5", fontWeight: 800 }}>القوة:</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 900, fontSize: "1.05rem" }}>
+                    <span style={{ color: "#fca5a5" }}>{currentAttack}</span>
+                    <span style={{ color: "#ef4444" }}>➔</span>
+                    <span style={{ color: "#4ade80" }}>{nextAttack} ⚔️</span>
+                  </div>
+                </div>
+
+                {/* Defense / Protection comparison */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0.6rem", background: "rgba(59, 130, 246, 0.12)", borderRadius: "0.5rem" }}>
+                  <span style={{ fontSize: "0.85rem", color: "#93c5fd", fontWeight: 800 }}>الحماية:</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 900, fontSize: "1.05rem" }}>
+                    <span style={{ color: "#93c5fd" }}>{currentDefense}</span>
+                    <span style={{ color: "#3b82f6" }}>➔</span>
+                    <span style={{ color: "#4ade80" }}>{nextDefense} 🛡️</span>
+                  </div>
+                </div>
+
+                {/* Upgrade Cost */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.35rem 0.5rem", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "0.5rem" }}>
+                  <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>تكلفة الترقية:</span>
+                  <span style={{ fontSize: "1.05rem", fontWeight: 900, color: canAfford ? "#a5f3fc" : "#f87171" }}>
+                    {upgradeCost} 💎 جوهرة
+                  </span>
+                </div>
+              </div>
+
+              {/* Confirmation Question */}
+              <p style={{ fontSize: "0.95rem", color: "#e2e8f0", margin: "0 0 1.25rem", fontWeight: 700 }}>
+                هل تريد بالتأكيد ترقية هذا العتاد؟
+              </p>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <button
+                  type="button"
+                  disabled={!canAfford}
+                  onClick={() => {
+                    const inv = pendingUpgradeItem
+                    setPendingUpgradeItem(null)
+                    handleUpgradeItem(inv)
+                  }}
+                  style={{
+                    flex: 1,
+                    background: canAfford
+                      ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+                      : "rgba(255, 255, 255, 0.08)",
+                    color: canAfford ? "#ffffff" : "#64748b",
+                    border: canAfford ? "1px solid #fbbf24" : "1px solid rgba(255, 255, 255, 0.15)",
+                    padding: "0.75rem",
+                    borderRadius: "0.85rem",
+                    fontWeight: 900,
+                    fontSize: "0.95rem",
+                    cursor: canAfford ? "pointer" : "not-allowed",
+                    boxShadow: canAfford ? "0 4px 15px rgba(245, 158, 11, 0.4)" : "none",
+                  }}
+                >
+                  تأكيد
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingUpgradeItem(null)}
+                  style={{
+                    flex: 1,
+                    background: "rgba(255, 255, 255, 0.1)",
+                    color: "#cbd5e1",
+                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                    padding: "0.75rem",
+                    borderRadius: "0.85rem",
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    cursor: "pointer",
+                  }}
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
