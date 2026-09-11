@@ -10,6 +10,8 @@ import {
   getItemAttack,
   getItemDefense,
   getItemUpgradeCost,
+  calculateHeroCombatStats,
+  BASE_HERO_STATS,
 } from "@/lib/hero-utils"
 import { Shield, Sparkles, ShoppingBag, Backpack, Check, Plus, Minus, X, RefreshCw, Zap } from "lucide-react"
 import toast from "react-hot-toast"
@@ -355,22 +357,9 @@ export default function HeroView({
     }
   }
 
-  // Compute Total Combat Stats from equipped gear
-  const totalAttack = inventory.reduce((sum, inv) => {
-    if (inv.is_equipped) {
-      const itemObj = inv.item || shopCatalog.find(i => i.id === inv.item_id) || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
-      return sum + getItemAttack(itemObj, inv.item_level || 1)
-    }
-    return sum
-  }, 0)
-
-  const totalDefense = inventory.reduce((sum, inv) => {
-    if (inv.is_equipped) {
-      const itemObj = inv.item || shopCatalog.find(i => i.id === inv.item_id) || INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
-      return sum + getItemDefense(itemObj, inv.item_level || 1)
-    }
-    return sum
-  }, 0)
+  // Compute Total Combat Stats (Single Source of Truth: Base Stats + Equipped Items)
+  const combatStats = calculateHeroCombatStats(inventory, shopCatalog)
+  const { totalAttack, totalDefense, battlePower: totalCombatPower, gearAttack, gearDefense } = combatStats
 
   // Filtered Shop Items
   const filteredShopItems = shopCatalog.filter(
@@ -486,46 +475,56 @@ export default function HeroView({
             </span>
           </div>
 
-          {/* ================= COMBAT POWER HUD (إجمالي القوة القتالية) ================= */}
+          {/* ================= COMBAT POWER HUD (إجمالي القوة القتالية: الأساسية + العتاد) ================= */}
           <div
             style={{
               width: "100%",
               background: "linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(30, 41, 59, 0.8) 50%, rgba(59, 130, 246, 0.12) 100%)",
               border: "1px solid rgba(255, 255, 255, 0.15)",
               borderRadius: "1rem",
-              padding: "0.65rem 0.85rem",
+              padding: "0.75rem 0.85rem",
               marginBottom: "0.85rem",
               display: "flex",
               justifyContent: "space-around",
               alignItems: "center",
               boxShadow: "0 4px 15px rgba(0, 0, 0, 0.3)",
+              fontFamily: "'Tajawal', 'Cairo', sans-serif",
             }}
           >
             {/* Attack */}
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "0.7rem", color: "#fca5a5", fontWeight: 700 }}>الهجوم ⚔️</div>
-              <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "#ef4444", lineHeight: 1.1 }}>
+              <div style={{ fontSize: "0.72rem", color: "#fca5a5", fontWeight: 800 }}>القوة الإجمالية ⚔️</div>
+              <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "#ef4444", lineHeight: 1.1 }}>
                 {totalAttack}
+              </div>
+              <div style={{ fontSize: "0.62rem", color: "#fca5a5", opacity: 0.85, marginTop: "0.15rem", fontWeight: 700 }}>
+                15 أساسية + {gearAttack} عتاد
               </div>
             </div>
 
-            <div style={{ width: "1px", height: "26px", background: "rgba(255, 255, 255, 0.12)" }} />
+            <div style={{ width: "1px", height: "34px", background: "rgba(255, 255, 255, 0.12)" }} />
 
             {/* Defense */}
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "0.7rem", color: "#93c5fd", fontWeight: 700 }}>الحماية 🛡️</div>
-              <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "#38bdf8", lineHeight: 1.1 }}>
+              <div style={{ fontSize: "0.72rem", color: "#93c5fd", fontWeight: 800 }}>الحماية الإجمالية 🛡️</div>
+              <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "#38bdf8", lineHeight: 1.1 }}>
                 {totalDefense}
+              </div>
+              <div style={{ fontSize: "0.62rem", color: "#93c5fd", opacity: 0.85, marginTop: "0.15rem", fontWeight: 700 }}>
+                15 أساسية + {gearDefense} عتاد
               </div>
             </div>
 
-            <div style={{ width: "1px", height: "26px", background: "rgba(255, 255, 255, 0.12)" }} />
+            <div style={{ width: "1px", height: "34px", background: "rgba(255, 255, 255, 0.12)" }} />
 
             {/* Total Combat Power */}
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: "0.7rem", color: "#fde047", fontWeight: 700 }}>القدرة القتالية ⚡</div>
-              <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "#fbbf24", lineHeight: 1.1 }}>
-                {totalAttack + totalDefense}
+              <div style={{ fontSize: "0.72rem", color: "#fde047", fontWeight: 800 }}>القدرة القتالية ⚡</div>
+              <div style={{ fontSize: "1.35rem", fontWeight: 900, color: "#fbbf24", lineHeight: 1.1 }}>
+                {totalCombatPower}
+              </div>
+              <div style={{ fontSize: "0.62rem", color: "#fde047", opacity: 0.85, marginTop: "0.15rem", fontWeight: 700 }}>
+                إجمالي الطاقة
               </div>
             </div>
           </div>

@@ -97,6 +97,7 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
           color: "white",
           position: "relative",
           animation: "modalFadeIn 0.3s ease-out",
+          fontFamily: "'Tajawal', 'Cairo', sans-serif",
         }}
       >
         {/* Header Bar */}
@@ -303,10 +304,11 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
                 المنافس
               </div>
 
-              {/* Stats */}
+              {/* Stats - Hidden for Opponent Privacy */}
               <div style={{ display: "flex", justifyContent: "center", gap: "0.4rem", fontSize: "0.75rem" }}>
-                <span style={{ color: "#f87171", fontWeight: 700 }}>⚔️ {outcome.defender_attack}</span>
-                <span style={{ color: "#38bdf8", fontWeight: 700 }}>🛡️ {outcome.defender_defense}</span>
+                <span style={{ color: "#fbbf24", fontWeight: 800, fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+                  فارس المنافسة ⚔️
+                </span>
               </div>
 
               {/* HP Bar */}
@@ -515,6 +517,7 @@ export default function BattleModal({ outcome, isOpen, onClose }: BattleModalPro
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "0.5rem",
+                    fontFamily: "'Tajawal', 'Cairo', sans-serif",
                   }}
                 >
                   <span>المتابعة إلى الميدان</span>

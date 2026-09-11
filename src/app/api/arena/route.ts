@@ -79,6 +79,14 @@ export async function GET(req: NextRequest) {
 
     const remainingChallenges = Math.max(0, 3 - todayBattles)
 
+    const sanitizedOpponents = opponents.map(opp => ({
+      id: opp.id,
+      full_name: opp.full_name,
+      avatar_icon: opp.avatar_icon,
+      level: opp.level || 1,
+      is_bot: opp.is_bot,
+    }))
+
     return NextResponse.json({
       success: true,
       student: {
@@ -94,7 +102,7 @@ export async function GET(req: NextRequest) {
       today_battles_count: todayBattles,
       remaining_challenges: remainingChallenges,
       is_quran_boosted: isQuranBoosted,
-      opponents,
+      opponents: sanitizedOpponents,
       recent_battles: recentBattles,
     })
   } catch (err: any) {
@@ -146,7 +154,11 @@ export async function POST(req: NextRequest) {
     const botMatch = HONORABLE_CHALLENGERS.find(b => b.id === defenderId)
     if (botMatch) {
       defenderName = botMatch.full_name
-      defenderStats = { attack: botMatch.attack, defense: botMatch.defense, battle_power: botMatch.battle_power }
+      defenderStats = {
+        attack: botMatch.attack ?? 30,
+        defense: botMatch.defense ?? 20,
+        battle_power: botMatch.battle_power ?? 50,
+      }
     } else {
       const supabase = await createClient()
       const { data: defProfile } = await supabase

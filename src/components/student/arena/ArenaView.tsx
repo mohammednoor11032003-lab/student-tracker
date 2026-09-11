@@ -290,11 +290,12 @@ export default function ArenaView({
               marginTop: "1rem",
               paddingTop: "1rem",
               borderTop: "1px solid rgba(255,255,255,0.1)",
+              fontFamily: "'Tajawal', 'Cairo', sans-serif",
             }}
           >
             {/* Total Attack */}
             <div style={{ background: "rgba(239, 68, 68, 0.15)", borderRadius: "0.75rem", padding: "0.65rem", textAlign: "center" }}>
-              <div style={{ fontSize: "0.75rem", color: "#fca5a5", fontWeight: 700 }}>قوة الهجوم ⚔️</div>
+              <div style={{ fontSize: "0.75rem", color: "#fca5a5", fontWeight: 800 }}>القوة الإجمالية ⚔️</div>
               <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "#f87171" }}>
                 {studentStats.effective_attack}
                 {isQuranBoosted && <span style={{ fontSize: "0.75rem", color: "#fbbf24" }}> (1.5x ✨)</span>}
@@ -303,7 +304,7 @@ export default function ArenaView({
 
             {/* Total Defense */}
             <div style={{ background: "rgba(2, 132, 199, 0.15)", borderRadius: "0.75rem", padding: "0.65rem", textAlign: "center" }}>
-              <div style={{ fontSize: "0.75rem", color: "#bae6fd", fontWeight: 700 }}>قوة الحماية 🛡️</div>
+              <div style={{ fontSize: "0.75rem", color: "#bae6fd", fontWeight: 800 }}>الحماية الإجمالية 🛡️</div>
               <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "#38bdf8" }}>
                 {studentStats.defense}
               </div>
@@ -311,7 +312,7 @@ export default function ArenaView({
 
             {/* Total Battle Power */}
             <div style={{ background: "rgba(245, 158, 11, 0.15)", borderRadius: "0.75rem", padding: "0.65rem", textAlign: "center" }}>
-              <div style={{ fontSize: "0.75rem", color: "#fde68a", fontWeight: 700 }}>القدرة القتالية ⚡</div>
+              <div style={{ fontSize: "0.75rem", color: "#fde68a", fontWeight: 800 }}>القدرة القتالية ⚡</div>
               <div style={{ fontSize: "1.25rem", fontWeight: 900, color: "#fbbf24" }}>
                 {studentStats.battle_power}
               </div>
@@ -408,25 +409,25 @@ export default function ArenaView({
                 <div
                   key={opp.id}
                   style={{
-                    background: "#f8fafc",
+                    background: "#ffffff",
                     border: "1px solid #e2e8f0",
-                    borderRadius: "1rem",
-                    padding: "1rem",
+                    borderRadius: "1.25rem",
+                    padding: "1.2rem",
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "space-between",
-                    gap: "0.85rem",
+                    gap: "1.1rem",
                     transition: "all 0.2s ease",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+                    boxShadow: "0 4px 15px rgba(0,0,0,0.03)",
                   }}
                 >
-                  {/* Opponent Header */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  {/* Opponent Header (Avatar + Name + Level Badge - Stats Private) */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
                     <div
                       style={{
-                        width: "44px",
-                        height: "44px",
-                        borderRadius: "0.85rem",
+                        width: "50px",
+                        height: "50px",
+                        borderRadius: "1rem",
                         background: opp.is_bot
                           ? "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)"
                           : "linear-gradient(135deg, #6366f1 0%, #4338ca 100%)",
@@ -434,91 +435,91 @@ export default function ArenaView({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: opp.is_bot ? "1.4rem" : "1.2rem",
+                        fontSize: opp.is_bot ? "1.6rem" : "1.35rem",
                         fontWeight: 900,
-                        border: opp.is_bot ? "1px solid #f59e0b" : "1px solid rgba(255,255,255,0.25)",
-                        boxShadow: "0 3px 10px rgba(0,0,0,0.08)",
+                        border: opp.is_bot ? "2px solid #f59e0b" : "2px solid rgba(255,255,255,0.35)",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                        flexShrink: 0,
                       }}
                     >
                       {opp.is_bot ? (opp.avatar_icon || "⚔️") : (opp.full_name?.trim().charAt(0) || "👦")}
                     </div>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "#1e293b" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", flex: 1 }}>
+                      <div
+                        style={{
+                          fontWeight: 900,
+                          fontSize: "1.02rem",
+                          color: "#1e293b",
+                          fontFamily: "'Tajawal', 'Cairo', sans-serif",
+                        }}
+                      >
                         {opp.full_name}
                       </div>
-                      <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                        {opp.is_bot ? "فارس مبارز في الميدان" : "طالب منافس"}
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <span
+                          style={{
+                            fontSize: "0.78rem",
+                            fontWeight: 800,
+                            color: "#b45309",
+                            background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
+                            padding: "0.18rem 0.65rem",
+                            borderRadius: "9999px",
+                            border: "1px solid #fcd34d",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.25rem",
+                            fontFamily: "'Tajawal', 'Cairo', sans-serif",
+                            boxShadow: "0 1px 4px rgba(245, 158, 11, 0.2)",
+                          }}
+                        >
+                          <span>⭐</span>
+                          <span>المستوى {opp.level || 1}</span>
+                        </span>
+                        <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600 }}>
+                          {opp.is_bot ? "فارس مبارز" : "طالب منافس"}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Opponent Stats */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: "0.4rem",
-                      background: "white",
-                      padding: "0.6rem 0.5rem",
-                      borderRadius: "0.6rem",
-                      border: "1px solid #f1f5f9",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>الهجوم</div>
-                      <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "#ef4444" }}>
-                        ⚔️ {opp.attack}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>الحماية</div>
-                      <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "#0284c7" }}>
-                        🛡️ {opp.defense}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>القدرة</div>
-                      <div style={{ fontWeight: 800, fontSize: "0.9rem", color: "#d97706" }}>
-                        ⚡ {opp.battle_power}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Challenge Button */}
+                  {/* Challenge Button (With Tajawal typography) */}
                   <button
                     type="button"
                     disabled={!canChallenge}
                     onClick={() => handleChallenge(opp)}
                     style={{
                       width: "100%",
-                      padding: "0.65rem",
-                      borderRadius: "0.75rem",
+                      padding: "0.75rem 1rem",
+                      borderRadius: "0.85rem",
                       border: "none",
                       background: canChallenge
                         ? "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)"
                         : "#cbd5e1",
                       color: "white",
-                      fontWeight: 800,
-                      fontSize: "0.85rem",
+                      fontWeight: 900,
+                      fontSize: "0.95rem",
                       cursor: canChallenge ? "pointer" : "not-allowed",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: "0.4rem",
-                      boxShadow: canChallenge ? "0 4px 12px rgba(124, 58, 237, 0.25)" : "none",
+                      gap: "0.45rem",
+                      lineHeight: 1.2,
+                      boxShadow: canChallenge ? "0 4px 14px rgba(124, 58, 237, 0.3)" : "none",
                       transition: "all 0.2s ease",
+                      fontFamily: "'Tajawal', 'Cairo', sans-serif",
                     }}
                   >
                     {isChallengingThis ? (
                       <>
-                        <Zap size={16} className="animate-spin" />
-                        <span>جاري بدء النزال...</span>
+                        <Zap size={18} className="animate-spin" />
+                        <span style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>جاري بدء النزال...</span>
                       </>
                     ) : (
                       <>
-                        <Swords size={16} />
-                        <span>{canChallenge ? "تحدي ⚔️" : "استهلكت المحاولات"}</span>
+                        <Swords size={18} />
+                        <span style={{ fontFamily: "'Tajawal', 'Cairo', sans-serif" }}>
+                          {canChallenge ? "تحدي ⚔️" : "استهلكت المحاولات"}
+                        </span>
                       </>
                     )}
                   </button>

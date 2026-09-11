@@ -1,4 +1,4 @@
-import { getStudentHeroState, getItemAttack, getItemDefense } from "./hero-utils"
+import { getStudentHeroState, getItemAttack, getItemDefense, calculateHeroCombatStats, BASE_HERO_STATS } from "./hero-utils"
 import { createClient } from "@supabase/supabase-js"
 import fs from "fs"
 import path from "path"
@@ -7,9 +7,10 @@ export interface ArenaOpponent {
   id: string
   full_name: string
   avatar_icon?: string
-  attack: number
-  defense: number
-  battle_power: number
+  attack?: number
+  defense?: number
+  battle_power?: number
+  level?: number
   is_bot?: boolean
 }
 
@@ -70,6 +71,7 @@ export const HONORABLE_CHALLENGERS: ArenaOpponent[] = [
     attack: 35,
     defense: 25,
     battle_power: 60,
+    level: 2,
     is_bot: true,
   },
   {
@@ -79,6 +81,7 @@ export const HONORABLE_CHALLENGERS: ArenaOpponent[] = [
     attack: 45,
     defense: 35,
     battle_power: 80,
+    level: 3,
     is_bot: true,
   },
   {
@@ -88,6 +91,7 @@ export const HONORABLE_CHALLENGERS: ArenaOpponent[] = [
     attack: 60,
     defense: 50,
     battle_power: 110,
+    level: 5,
     is_bot: true,
   },
   {
@@ -97,9 +101,18 @@ export const HONORABLE_CHALLENGERS: ArenaOpponent[] = [
     attack: 85,
     defense: 70,
     battle_power: 155,
+    level: 7,
     is_bot: true,
   },
 ]
+
+/**
+ * Calculates a student's level based on battle power.
+ * Base 30 power (15 atk + 15 def) = Level 1.
+ */
+export function getStudentLevel(battlePower: number): number {
+  return Math.max(1, Math.floor((battlePower - 30) / 20) + 1)
+}
 
 // Server Admin Supabase Client
 function getAdminClient() {
@@ -137,30 +150,35 @@ export async function getStudentCombatStats(studentId: string): Promise<{
   attack: number
   defense: number
   battle_power: number
+  base_attack: number
+  base_defense: number
+  gear_attack: number
+  gear_defense: number
 }> {
-  // Base warrior stats
-  const BASE_ATTACK = 15
-  const BASE_DEFENSE = 15
-
   try {
     const heroState = await getStudentHeroState(studentId)
-    let gearAttack = 0
-    let gearDefense = 0
-
-    heroState.inventory
-      .filter(i => i.is_equipped && i.item)
-      .forEach(inv => {
-        gearAttack += getItemAttack(inv.item, inv.item_level || 1)
-        gearDefense += getItemDefense(inv.item, inv.item_level || 1)
-      })
-
-    const totalAttack = BASE_ATTACK + gearAttack
-    const totalDefense = BASE_DEFENSE + gearDefense
-    const battlePower = totalAttack + totalDefense
-
-    return { attack: totalAttack, defense: totalDefense, battle_power: battlePower }
+    const stats = calculateHeroCombatStats(heroState.inventory)
+    return {
+      attack: stats.totalAttack,
+      defense: stats.totalDefense,
+      battle_power: stats.battlePower,
+      base_attack: stats.baseAttack,
+      base_defense: stats.baseDefense,
+      gear_attack: stats.gearAttack,
+      gear_defense: stats.gearDefense,
+    }
   } catch {
-    return { attack: BASE_ATTACK, defense: BASE_DEFENSE, battle_power: BASE_ATTACK + BASE_DEFENSE }
+    const baseAttack = BASE_HERO_STATS.attack
+    const baseDefense = BASE_HERO_STATS.defense
+    return {
+      attack: baseAttack,
+      defense: baseDefense,
+      battle_power: baseAttack + baseDefense,
+      base_attack: baseAttack,
+      base_defense: baseDefense,
+      gear_attack: 0,
+      gear_defense: 0,
+    }
   }
 }
 
@@ -330,6 +348,7 @@ export async function getAvailableOpponents(currentStudentId: string): Promise<A
           attack: stats.attack,
           defense: stats.defense,
           battle_power: stats.battle_power,
+          level: getStudentLevel(stats.battle_power),
           is_bot: false,
         })
       }
@@ -343,7 +362,10 @@ export async function getAvailableOpponents(currentStudentId: string): Promise<A
     const needed = 4 - opponents.length
     for (let i = 0; i < needed; i++) {
       if (HONORABLE_CHALLENGERS[i]) {
-        opponents.push(HONORABLE_CHALLENGERS[i])
+        opponents.push({
+          ...HONORABLE_CHALLENGERS[i],
+          level: HONORABLE_CHALLENGERS[i].level || getStudentLevel(HONORABLE_CHALLENGERS[i].battle_power ?? 60),
+        })
       }
     }
   }

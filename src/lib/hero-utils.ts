@@ -56,6 +56,55 @@ export function getItemUpgradeCost(item?: ShopItem | null, currentLevel = 1): nu
   return baseCost * Math.max(1, currentLevel)
 }
 
+/**
+ * Single Source of Truth for Student Base Stats:
+ * Base Attack = 15, Base Defense = 15
+ */
+export const BASE_HERO_STATS = {
+  attack: 15,
+  defense: 15,
+} as const
+
+/**
+ * Universal combat stats calculation combining Base Stats + Equipped Items stats.
+ * Used everywhere across HeroView, Arena, Battles, and APIs.
+ */
+export function calculateHeroCombatStats(
+  inventory: StudentInventoryItem[] = [],
+  shopCatalog?: ShopItem[]
+) {
+  const baseAttack = BASE_HERO_STATS.attack
+  const baseDefense = BASE_HERO_STATS.defense
+
+  let gearAttack = 0
+  let gearDefense = 0
+
+  inventory.forEach(inv => {
+    if (inv.is_equipped) {
+      const itemObj =
+        inv.item ||
+        shopCatalog?.find(i => i.id === inv.item_id) ||
+        INITIAL_SHOP_CATALOG.find(i => i.id === inv.item_id)
+      gearAttack += getItemAttack(itemObj, inv.item_level || 1)
+      gearDefense += getItemDefense(itemObj, inv.item_level || 1)
+    }
+  })
+
+  const totalAttack = baseAttack + gearAttack
+  const totalDefense = baseDefense + gearDefense
+  const battlePower = totalAttack + totalDefense
+
+  return {
+    baseAttack,
+    baseDefense,
+    gearAttack,
+    gearDefense,
+    totalAttack,
+    totalDefense,
+    battlePower,
+  }
+}
+
 export interface HeroState {
   gems_balance: number
   inventory: StudentInventoryItem[]
