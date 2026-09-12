@@ -42,6 +42,8 @@ export default function LoginPage() {
           "abdallah": "abdallah@tracker.app",
           "abdullah": "abdallah@tracker.app",
           "yahya": "yahya@tracker.app",
+          "adam": "adam@tracker.app",
+          "adam_n": "adam@tracker.app",
           "user1": "user1@tracker.app",
           "user2": "user2@tracker.app",
           "مستخدم1": "user1@tracker.app",
@@ -66,6 +68,9 @@ export default function LoginPage() {
           "يحيي": "yahya@tracker.app",
           "يحييجمعه": "yahya@tracker.app",
           "يحييالرواشده": "yahya@tracker.app",
+          "ادم": "adam@tracker.app",
+          "ادمالنجار": "adam@tracker.app",
+          "ادمفراسالنجار": "adam@tracker.app",
 
           // Teacher Aliases
           "معلم": "mohammednoor11032003@gmail.com",
