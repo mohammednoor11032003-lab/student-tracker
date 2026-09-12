@@ -37,7 +37,7 @@ import {
 } from "@/lib/weekly-quest-utils"
 import { StudentPlan, DEFAULT_PLAN, getDailyPlanDetails, calculateProjectedPlan, calculateNextPlanState } from "@/lib/plan-utils"
 import BountyBoard from "./BountyBoard"
-import { BountyTask, getWeeklyBounties } from "@/lib/bounty-utils"
+import { BountyTask, getWeeklyBounties, isBountyTask } from "@/lib/bounty-utils"
 
 import {
   ManualConsolidation,
@@ -219,15 +219,58 @@ function StudentTasks({
   const [isMysteryModalOpen, setIsMysteryModalOpen] = useState(false)
   const [isOpeningChest, setIsOpeningChest] = useState(false)
 
-  // Clean up stale localStorage altTaskState if student has neither active penalty nor completed alternative task in DB
+  // Clean up stale localStorage altTaskState ONLY if penalty was on selectedDate and got unchecked
   useEffect(() => {
     if (!altTaskState) return
-    const hasPenalty = assignments.some(a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed)
-    const hasAltInDb = assignments.some(a => a.tasks?.name === "المهمة البديلة" && a.completed)
-    if (!hasPenalty && !hasAltInDb) {
-      saveAltTaskState(null)
+    // If altTask is from a different date and not completed, keep it alive (it's an active carried-over debt)!
+    if (altTaskState.assignedDate && altTaskState.assignedDate !== selectedDate && !altTaskState.completed) {
+      return
     }
-  }, [assignments, altTaskState])
+    // If on the assigned date, check if penalty was cancelled
+    if (altTaskState.assignedDate === selectedDate) {
+      const hasPenalty = assignments.some(a => (a.tasks?.name?.includes("الحضور بدون حفظ") || a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب")) && a.completed)
+      const hasAltInDb = assignments.some(a => a.tasks?.name === "المهمة البديلة" && a.completed)
+      if (!hasPenalty && !hasAltInDb && !altTaskState.completed) {
+        saveAltTaskState(null)
+      }
+    }
+  }, [assignments, altTaskState, selectedDate])
+
+  // Check and apply carry-over delay penalty (-5 points per day delayed)
+  useEffect(() => {
+    if (!altTaskState || altTaskState.completed || !altTaskState.active || !altTaskState.assignedDate) return
+    const daysDelayed = Math.max(
+      0,
+      Math.floor((new Date(todayStr + "T00:00:00").getTime() - new Date(altTaskState.assignedDate + "T00:00:00").getTime()) / (1000 * 60 * 60 * 24))
+    )
+    const appliedDays = altTaskState.appliedDelayDays || 0
+    if (daysDelayed > appliedDays) {
+      const newDelayedDays = daysDelayed - appliedDays
+      const delayDeduction = newDelayedDays * 5
+      setWeeklyPoints(prev => prev - delayDeduction)
+      const updatedState: AlternativeTaskState = {
+        ...altTaskState,
+        appliedDelayDays: daysDelayed,
+      }
+      saveAltTaskState(updatedState)
+      toast.error(
+        `⚠️ تأخير في إنجاز المهمة البديلة (${daysDelayed} يوم تأخير): تم تطبيق خصم -${delayDeduction} نقطة! سارع بإنجازها لوقف تراكم الخصم.`,
+        { duration: 6000 }
+      )
+      // Background sync deduction to server
+      fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "680903aa-0b9a-42f3-a725-49eaf05a9148",
+          points: -delayDeduction,
+          completed: false,
+          assignedDate: todayStr,
+        }),
+      }).catch(err => console.error("Failed to sync delay penalty:", err))
+    }
+  }, [altTaskState, todayStr, studentId])
 
   // Save altTaskState to localStorage
   function saveAltTaskState(state: AlternativeTaskState | null) {
@@ -245,20 +288,90 @@ function StudentTasks({
     }
   }
 
-  // Trigger alternative task creation (called when 'الحضور بدون حفظ الدرس' is clicked)
-  function activateAlternativeTask() {
+  // Trigger alternative task creation (called when 'الحضور بدون حفظ الدرس' or 'الغياب' is clicked)
+  function activateAlternativeTask(type: "attendance" | "absence" = "attendance", dateStr: string = todayStr) {
     const newState: AlternativeTaskState = {
       active: true,
       opened: false,
       tasks: [],
       createdAt: new Date().toISOString(),
-      assignedDate: todayStr,
+      assignedDate: dateStr,
+      penaltyType: type,
     }
     saveAltTaskState(newState)
-    toast("📦 تم توليد 'المهمة البديلة' وتثبيتها في أعلى مهامك لتعويض النقاط!", {
-      icon: "🎁",
-      duration: 5000,
-    })
+    if (type === "attendance") {
+      toast("📦 تم تفعيل 'المهمة البديلة' لتعويض الـ 10 نقاط! أنجزها لوقف أي تأخير!", {
+        icon: "🎁",
+        duration: 5000,
+      })
+    } else {
+      toast("⚠️ تم تفعيل 'المهمة البديلة' لإيقاف تراكم خصومات التأخير اليومي (-5 نقاط/يوم)!", {
+        icon: "🛡️",
+        duration: 5500,
+      })
+    }
+  }
+
+  // Attendance selector handler
+  async function handleSelectAttendance(status: "present" | "no_memorization" | "absent") {
+    if (!isToday) return
+
+    const absenceAssignment = assignments.find(
+      a => (a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب") || a.task_id === "b319de27-d965-461f-aa70-b75821a58a29")
+    )
+    const noMemorizationAssignment = assignments.find(
+      a => (a.tasks?.name?.includes("الحضور بدون حفظ") || a.task_id === "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb")
+    )
+    const isAbsent = Boolean(absenceAssignment?.completed)
+    const isNoMemorization = Boolean(noMemorizationAssignment?.completed)
+    const isPresent = !isAbsent && !isNoMemorization
+
+    if (status === "present") {
+      if (isPresent) {
+        toast("أنت مسجل كحاضر ومستعد بالفعل ✅", { icon: "ℹ️" })
+        return
+      }
+      if (isAbsent && absenceAssignment) {
+        await completeTask(absenceAssignment)
+      }
+      if (isNoMemorization && noMemorizationAssignment) {
+        await completeTask(noMemorizationAssignment)
+      }
+      if (altTaskState && altTaskState.assignedDate === todayStr) {
+        saveAltTaskState(null)
+      }
+      toast.success("أهلاً بك! تم تثبيت حضورك واستعدادك للتسميع، بالتوفيق في إنجاز مهامك 🌟", { duration: 4500 })
+    } else if (status === "no_memorization") {
+      if (isNoMemorization) {
+        toast("تم تسجيل الحضور بدون حفظ مسبقاً ⚠️", { icon: "ℹ️" })
+        return
+      }
+      if (isAbsent && absenceAssignment) {
+        await completeTask(absenceAssignment)
+      }
+      if (noMemorizationAssignment) {
+        if (!noMemorizationAssignment.completed) {
+          await completeTask(noMemorizationAssignment)
+        }
+      } else {
+        activateAlternativeTask("attendance", todayStr)
+      }
+    } else if (status === "absent") {
+      if (isAbsent) {
+        toast("تم تسجيل الغياب مسبقاً ❌", { icon: "ℹ️" })
+        return
+      }
+      if (isNoMemorization && noMemorizationAssignment) {
+        await completeTask(noMemorizationAssignment)
+      }
+      if (absenceAssignment) {
+        if (!absenceAssignment.completed) {
+          await completeTask(absenceAssignment)
+        }
+      } else {
+        activateAlternativeTask("absence", todayStr)
+      }
+    }
   }
 
   // Handle Mystery Box Click / Opening
@@ -269,50 +382,62 @@ function StudentTasks({
       const outcome = generateMysteryBoxOutcome()
       if (outcome.isExempt) {
         // 5% Rare Exemption!
+        const isAbsence = altTaskState?.penaltyType === "absence"
+        const pointsToAdd = isAbsence ? 0 : 10
         const completedState: AlternativeTaskState = {
           active: true,
           opened: true,
           completed: true,
           completedAt: new Date().toISOString(),
-          completionSummary: "إعفاء نادر من العقوبة (5%)",
+          completionSummary: isAbsence ? "إعفاء نادر من المهمة البديلة للغياب (5%)" : "إعفاء نادر واسترداد الـ 10 نقاط (5%)",
           exempted: true,
           tasks: [],
           createdAt: altTaskState?.createdAt || new Date().toISOString(),
           assignedDate: altTaskState?.assignedDate || todayStr,
+          penaltyType: altTaskState?.penaltyType || "attendance",
         }
         saveAltTaskState(completedState)
 
-        // 1. Optimistic UI: restore +10 points to weeklyPoints and add to today's assignments
-        setWeeklyPoints(prev => prev + 10)
+        // 1. Optimistic UI:
+        if (pointsToAdd > 0) {
+          setWeeklyPoints(prev => prev + pointsToAdd)
+        }
 
-        // Insert or update 'المهمة البديلة' into assignments for today so todayPoints net is 0
+        // Insert or update 'المهمة البديلة' into assignments for today
         const altAssignmentId = `alt_task_${Date.now()}`
         const altAssignmentObj: Assignment = {
           id: altAssignmentId,
           student_id: studentId,
           task_id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
-          assigned_date: todayStr,
+          assigned_date: altTaskState?.assignedDate || todayStr,
           completed: true,
           tasks: {
             id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
             name: "المهمة البديلة",
-            description: "إعفاء نادر من العقوبة (5%)",
-            points: 10,
+            description: completedState.completionSummary || "إعفاء نادر (5%)",
+            points: pointsToAdd,
             emoji: "🎁",
             created_by: "",
             created_at: new Date().toISOString(),
           },
         }
 
-        const newAssignments = [...assignments, altAssignmentObj]
+        const targetDate = altTaskState?.assignedDate || todayStr
+        const newAssignments = [...assignments.filter(x => x.tasks?.name !== "المهمة البديلة"), altAssignmentObj]
         setAssignments(newAssignments)
-        setAssignmentsCache(prev => ({ ...prev, [todayStr]: newAssignments }))
+        setAssignmentsCache(prev => ({ ...prev, [targetDate]: newAssignments }))
 
         setIsOpeningChest(false)
         setIsMysteryModalOpen(false)
-        toast.success("🎊 مبروووك! حصلت على إعفاء نادر من العقوبة (5%)! تم استرداد الـ 10 نقاط فوراً! 🌟", {
-          duration: 6000,
-        })
+        if (isAbsence) {
+          toast.success("🎊 مبروك! حصلت على إعفاء نادر (5%) وتم إيقاف تراكم خصومات التأخير اليومية! 🌟", {
+            duration: 6000,
+          })
+        } else {
+          toast.success("🎊 مبروووك! حصلت على إعفاء نادر من العقوبة (5%)! تم استرداد الـ 10 نقاط فوراً! 🌟", {
+            duration: 6000,
+          })
+        }
 
         // 2. Database Sync
         fetch("/api/complete-task", {
@@ -321,9 +446,9 @@ function StudentTasks({
           body: JSON.stringify({
             studentId,
             taskId: "680903aa-0b9a-42f3-a725-49eaf05a9148",
-            points: 10,
+            points: pointsToAdd,
             completed: true,
-            assignedDate: todayStr,
+            assignedDate: targetDate,
           }),
         }).catch(err => console.error("DB error on exemption:", err))
       } else {
@@ -362,6 +487,8 @@ function StudentTasks({
 
     // Generate readable summary of what was accomplished
     const summaryText = altTaskState.tasks.map(t => `${t.title} (${t.target} مرات)`).join(" + ")
+    const isAbsence = altTaskState.penaltyType === "absence"
+    const pointsToAdd = isAbsence ? 0 : 10
 
     // 1. Mark state as COMPLETED (retain permanently for history and documentation)
     const completedState: AlternativeTaskState = {
@@ -373,10 +500,11 @@ function StudentTasks({
     saveAltTaskState(completedState)
 
     // 2. Optimistic UI update:
-    // Update weekly points (+10)
-    setWeeklyPoints(prev => prev + 10)
+    if (pointsToAdd > 0) {
+      setWeeklyPoints(prev => prev + pointsToAdd)
+    }
 
-    // Add 'المهمة البديلة' (+10 pts) into daily assignments list so todayPoints updates from -10 to 0!
+    // Add 'المهمة البديلة' into daily assignments list
     const altAssignmentId = `alt_task_${Date.now()}`
     const altAssignmentObj: Assignment = {
       id: altAssignmentId,
@@ -388,7 +516,7 @@ function StudentTasks({
         id: "680903aa-0b9a-42f3-a725-49eaf05a9148",
         name: "المهمة البديلة",
         description: `تم إنجاز: ${summaryText}`,
-        points: 10,
+        points: pointsToAdd,
         emoji: "🎁",
         created_by: "",
         created_at: new Date().toISOString(),
@@ -403,9 +531,15 @@ function StudentTasks({
     }
 
     setIsMysteryModalOpen(false)
-    toast.success(`🎉 أحسنت صنعاً! تم توثيق المهمة البديلة واستعادة الـ 10 نقاط بنجاح! ⭐`, {
-      duration: 5000,
-    })
+    if (isAbsence) {
+      toast.success("✓ أحسنت صنعاً! تم توثيق إنجاز المهمة البديلة وإيقاف تراكم خصومات التأخير اليومية بنجاح!", {
+        duration: 5500,
+      })
+    } else {
+      toast.success(`🎉 أحسنت صنعاً! تم توثيق المهمة البديلة واستعادة الـ 10 نقاط بنجاح! ⭐`, {
+        duration: 5000,
+      })
+    }
 
     // 3. Save to Supabase daily_assignments table & update weekly_summaries
     try {
@@ -415,7 +549,7 @@ function StudentTasks({
         body: JSON.stringify({
           studentId,
           taskId: "680903aa-0b9a-42f3-a725-49eaf05a9148",
-          points: 10,
+          points: pointsToAdd,
           completed: true,
           assignedDate: targetDate,
         }),
@@ -1047,6 +1181,12 @@ function StudentTasks({
   const regularTasks = assignments
     .filter(a => (a.tasks?.points ?? 0) >= 0)
     .filter(a => {
+      if (!a.tasks) return false
+      // Exclude bounties, alternative task, surprise quest
+      if (isBountyTask(a.tasks)) return false
+      if (a.tasks.name === "المهمة البديلة" || a.tasks.name === "المهمة الأسبوعية المفاجئة") return false
+      if (!TASK_ORDER.includes(a.tasks.name)) return false
+
       // 1. If student is under an active Manual Consolidation for this date, hide all 6 routine tasks!
       if (activeManualForDate) {
         return false
@@ -1501,16 +1641,30 @@ function StudentTasks({
       updateDoubleRevision(a.id, false)
     }
 
-    // Check if task is 'الحضور بدون حفظ الدرس'
+    // Check if task is 'الحضور بدون حفظ الدرس' or 'الغياب'
     const isAttendancePenalty = a.tasks?.name?.includes("الحضور بدون حفظ")
+    const isAbsencePenalty = a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب")
     if (isAttendancePenalty) {
       if (nextCompleted) {
         // Trigger mandatory pinned alternative task!
-        activateAlternativeTask()
+        activateAlternativeTask("attendance", a.assigned_date || todayStr)
       } else {
         // Unchecked attendance penalty -> remove alternative task and clean state
-        saveAltTaskState(null)
-        supabase.from("daily_assignments").delete().eq("student_id", studentId).eq("task_id", "680903aa-0b9a-42f3-a725-49eaf05a9148").then(() => {})
+        if (altTaskState?.assignedDate === (a.assigned_date || todayStr)) {
+          saveAltTaskState(null)
+        }
+        supabase.from("daily_assignments").delete().eq("student_id", studentId).eq("task_id", "680903aa-0b9a-42f3-a725-49eaf05a9148").eq("assigned_date", a.assigned_date || todayStr).then(() => {})
+      }
+    } else if (isAbsencePenalty) {
+      if (nextCompleted) {
+        // Trigger mandatory pinned alternative task for absence!
+        activateAlternativeTask("absence", a.assigned_date || todayStr)
+      } else {
+        // Unchecked absence penalty -> remove alternative task and clean state
+        if (altTaskState?.assignedDate === (a.assigned_date || todayStr)) {
+          saveAltTaskState(null)
+        }
+        supabase.from("daily_assignments").delete().eq("student_id", studentId).eq("task_id", "680903aa-0b9a-42f3-a725-49eaf05a9148").eq("assigned_date", a.assigned_date || todayStr).then(() => {})
       }
     }
 
@@ -1520,7 +1674,7 @@ function StudentTasks({
 
     // 2. OPTIMISTIC UI UPDATE (0 ms instantaneous feedback!)
     let updated = assignments.map(x => (x.id === a.id ? { ...x, completed: nextCompleted } : x))
-    if (!nextCompleted && isAttendancePenalty) {
+    if (!nextCompleted && (isAttendancePenalty || isAbsencePenalty)) {
       updated = updated.filter(x => x.tasks?.name !== "المهمة البديلة")
     }
     setAssignments(updated)
@@ -2569,6 +2723,134 @@ function StudentTasks({
             )
           })()}
 
+          {/* ================= 🏫 ATTENDANCE STATUS SELECTOR ================= */}
+          {isToday && (() => {
+            const absenceAssignment = assignments.find(
+              a => (a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب") || a.task_id === "b319de27-d965-461f-aa70-b75821a58a29")
+            )
+            const noMemorizationAssignment = assignments.find(
+              a => (a.tasks?.name?.includes("الحضور بدون حفظ") || a.task_id === "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb")
+            )
+            const isAbsent = Boolean(absenceAssignment?.completed)
+            const isNoMemorization = Boolean(noMemorizationAssignment?.completed)
+            const isPresent = !isAbsent && !isNoMemorization
+
+            return (
+              <div
+                className="fade-in-down"
+                style={{
+                  marginBottom: "1rem",
+                  background: "white",
+                  borderRadius: "1.25rem",
+                  padding: "1.1rem 1.25rem",
+                  boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
+                  border: "1px solid #e2e8f0",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.85rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "1.3rem" }}>🏫</span>
+                    <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#1e293b" }}>
+                      ما حالة حضورك اليوم في الحلقة؟
+                    </h3>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 800,
+                      color: isAbsent ? "#dc2626" : isNoMemorization ? "#d97706" : "#059669",
+                      background: isAbsent ? "#fee2e2" : isNoMemorization ? "#fef3c7" : "#dcfce7",
+                      padding: "0.2rem 0.65rem",
+                      borderRadius: "9999px",
+                    }}
+                  >
+                    {isAbsent ? "غائب عن الحلقة ❌" : isNoMemorization ? "حضور بدون حفظ ⚠️" : "حاضر ومستعد للتسميع ✅"}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+                    gap: "0.6rem",
+                  }}
+                >
+                  {/* Option 1: Present & Ready */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAttendance("present")}
+                    style={{
+                      border: isPresent ? "2px solid #10b981" : "1px solid #e2e8f0",
+                      background: isPresent ? "linear-gradient(135deg, #ecfdf5, #d1fae5)" : "#f8fafc",
+                      borderRadius: "0.9rem",
+                      padding: "0.75rem 0.6rem",
+                      cursor: "pointer",
+                      textAlign: "center",
+                      transition: "all 0.2s",
+                      boxShadow: isPresent ? "0 4px 12px rgba(16,185,129,0.15)" : "none",
+                    }}
+                  >
+                    <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>✅</div>
+                    <div style={{ fontWeight: 800, fontSize: "0.88rem", color: isPresent ? "#065f46" : "#334155" }}>
+                      حاضر ومستعد
+                    </div>
+                    <div style={{ fontSize: "0.72rem", color: isPresent ? "#047857" : "#64748b", marginTop: "0.15rem" }}>
+                      كامل النقاط (لا خصم)
+                    </div>
+                  </button>
+
+                  {/* Option 2: Attended without memorizing */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAttendance("no_memorization")}
+                    style={{
+                      border: isNoMemorization ? "2px solid #f59e0b" : "1px solid #e2e8f0",
+                      background: isNoMemorization ? "linear-gradient(135deg, #fffbeb, #fef3c7)" : "#f8fafc",
+                      borderRadius: "0.9rem",
+                      padding: "0.75rem 0.6rem",
+                      cursor: "pointer",
+                      textAlign: "center",
+                      transition: "all 0.2s",
+                      boxShadow: isNoMemorization ? "0 4px 12px rgba(245,158,11,0.2)" : "none",
+                    }}
+                  >
+                    <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>⚠️</div>
+                    <div style={{ fontWeight: 800, fontSize: "0.88rem", color: isNoMemorization ? "#92400e" : "#334155" }}>
+                      حضور بدون حفظ
+                    </div>
+                    <div style={{ fontSize: "0.72rem", color: isNoMemorization ? "#b45309" : "#64748b", marginTop: "0.15rem" }}>
+                      -10 نقاط (تعويض بالمهمة)
+                    </div>
+                  </button>
+
+                  {/* Option 3: Absent */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAttendance("absent")}
+                    style={{
+                      border: isAbsent ? "2px solid #ef4444" : "1px solid #e2e8f0",
+                      background: isAbsent ? "linear-gradient(135deg, #fef2f2, #fee2e2)" : "#f8fafc",
+                      borderRadius: "0.9rem",
+                      padding: "0.75rem 0.6rem",
+                      cursor: "pointer",
+                      textAlign: "center",
+                      transition: "all 0.2s",
+                      boxShadow: isAbsent ? "0 4px 12px rgba(239,68,68,0.2)" : "none",
+                    }}
+                  >
+                    <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>❌</div>
+                    <div style={{ fontWeight: 800, fontSize: "0.88rem", color: isAbsent ? "#991b1b" : "#334155" }}>
+                      غياب عن الحلقة
+                    </div>
+                    <div style={{ fontSize: "0.72rem", color: isAbsent ? "#b91c1c" : "#64748b", marginTop: "0.15rem" }}>
+                      -20 نقطة (إيقاف التأخير)
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )
+          })()}
+
           {/* ================= 🕌 FRIDAY TAFSIR DAY TASKS (مهام يوم التفسير الأسبوعي) ================= */}
           {isFridayDate(selectedDate) && (
             <FridayTafsirSection
@@ -2581,143 +2863,205 @@ function StudentTasks({
           )}
 
           {/* ================= MANDATORY PINNED ALTERNATIVE TASK ================= */}
-          {altTaskState && altTaskState.active && (assignments.some(a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed) || assignments.some(a => a.tasks?.name === "المهمة البديلة" && a.completed)) && (
-            <div
-              className="fade-in-down"
-              style={{
-                marginBottom: "0.5rem",
-                position: "relative",
-              }}
-            >
+          {altTaskState && altTaskState.active && (() => {
+            const isAbsence = altTaskState.penaltyType === "absence"
+            const daysDelayed = Math.max(
+              0,
+              Math.floor(
+                (new Date(todayStr + "T00:00:00").getTime() - new Date((altTaskState.assignedDate || todayStr) + "T00:00:00").getTime()) /
+                  (1000 * 60 * 60 * 24)
+              )
+            )
+            const delayPenalty = daysDelayed * 5
+
+            return (
               <div
+                className="fade-in-down"
                 style={{
-                  background: altTaskState.completed
-                    ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-                    : "linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)",
-                  borderRadius: "1.25rem",
-                  padding: "1.1rem 1.25rem",
-                  color: "white",
-                  boxShadow: altTaskState.completed
-                    ? "0 10px 25px rgba(16,185,129,0.3)"
-                    : "0 10px 25px rgba(217,119,6,0.35)",
-                  border: altTaskState.completed ? "2px solid #86efac" : "2px solid #fde68a",
+                  marginBottom: "0.75rem",
                   position: "relative",
-                  overflow: "hidden",
-                  transition: "all 0.3s ease",
                 }}
               >
-                {/* Pin badge */}
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: "0.6rem",
+                    background: altTaskState.completed
+                      ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+                      : isAbsence
+                      ? "linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%)"
+                      : "linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%)",
+                    borderRadius: "1.25rem",
+                    padding: "1.1rem 1.25rem",
+                    color: "white",
+                    boxShadow: altTaskState.completed
+                      ? "0 10px 25px rgba(16,185,129,0.3)"
+                      : isAbsence
+                      ? "0 10px 25px rgba(220,38,38,0.35)"
+                      : "0 10px 25px rgba(217,119,6,0.35)",
+                    border: altTaskState.completed
+                      ? "2px solid #86efac"
+                      : isAbsence
+                      ? "2px solid #fca5a5"
+                      : "2px solid #fde68a",
+                    position: "relative",
+                    overflow: "hidden",
+                    transition: "all 0.3s ease",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <span style={{ fontSize: "1.2rem" }}>{altTaskState.completed ? "✅" : "📌"}</span>
-                    <span
-                      style={{
-                        background: "rgba(0,0,0,0.25)",
-                        padding: "0.15rem 0.6rem",
-                        borderRadius: "9999px",
-                        fontSize: "0.75rem",
-                        fontWeight: 800,
-                        letterSpacing: "0.5px",
-                      }}
-                    >
-                      {altTaskState.completed ? "مهمة بديلة موثقة ومكتملة ✓" : "مهمة إجبارية مُثبتة (مرحّلة كدَين حتى الإنجاز)"}
-                    </span>
-                  </div>
-                  <span
+                  {/* Pin badge */}
+                  <div
                     style={{
-                      background: altTaskState.completed ? "#ffffff" : "#ef4444",
-                      color: altTaskState.completed ? "#059669" : "white",
-                      fontSize: "0.75rem",
-                      fontWeight: 800,
-                      padding: "0.15rem 0.6rem",
-                      borderRadius: "0.5rem",
-                    }}
-                  >
-                    {altTaskState.completed ? "تم استرداد (+10 نقاط) 🌟" : "تعويض -10 نقاط"}
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "1rem",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-                    <div
-                      className={altTaskState.completed ? "" : "chest-wobble"}
-                      style={{
-                        width: "3.5rem",
-                        height: "3.5rem",
-                        borderRadius: "1rem",
-                        background: "rgba(255,255,255,0.25)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "2.2rem",
-                        flexShrink: 0,
-                        border: "1px solid rgba(255,255,255,0.4)",
-                      }}
-                    >
-                      {altTaskState.completed ? "🏆" : "🎁"}
-                    </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900 }}>
-                        {altTaskState.completed ? "المهمة البديلة (مكتملة وموثقة)" : "المهمة البديلة (صندوق الحظ)"}
-                      </h3>
-                      <p style={{ margin: "0.2rem 0 0", fontSize: "0.85rem", opacity: 0.95, fontWeight: 600 }}>
-                        {altTaskState.completed
-                          ? altTaskState.completionSummary || "تم إنجاز كافة الشروط البديلة بنجاح وتم تعويض النقاط ✓"
-                          : !altTaskState.opened
-                          ? "اضغط لفتح صندوق الحظ واكتشاف مهمتك لتعويض نقاطك!"
-                          : `${altTaskState.tasks.filter(t => t.current >= t.target).length} من ${altTaskState.tasks.length} مهام مكتملة`}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsMysteryModalOpen(true)}
-                    style={{
-                      border: "none",
-                      background: "white",
-                      color: altTaskState.completed ? "#059669" : "#b45309",
-                      padding: "0.65rem 1.1rem",
-                      borderRadius: "0.85rem",
-                      fontWeight: 900,
-                      fontSize: "0.95rem",
-                      cursor: "pointer",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                       display: "flex",
                       alignItems: "center",
-                      gap: "0.35rem",
-                      flexShrink: 0,
-                      transition: "transform 0.15s",
+                      justifyContent: "space-between",
+                      marginBottom: "0.6rem",
+                      flexWrap: "wrap",
+                      gap: "0.4rem",
                     }}
-                    onMouseDown={e => (e.currentTarget.style.transform = "scale(0.96)")}
-                    onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
                   >
-                    <span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <span style={{ fontSize: "1.2rem" }}>{altTaskState.completed ? "✅" : "📌"}</span>
+                      <span
+                        style={{
+                          background: "rgba(0,0,0,0.25)",
+                          padding: "0.15rem 0.6rem",
+                          borderRadius: "9999px",
+                          fontSize: "0.75rem",
+                          fontWeight: 800,
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        {altTaskState.completed
+                          ? "مهمة بديلة موثقة ومكتملة ✓"
+                          : isAbsence
+                          ? "مهمة بديلة لإيقاف تراكم خصم الغياب (مرحّلة كدَين)"
+                          : "مهمة بديلة لتعويض الحضور بدون حفظ (مرحّلة كدَين)"}
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        background: altTaskState.completed ? "#ffffff" : isAbsence ? "#fee2e2" : "#ffffff",
+                        color: altTaskState.completed ? "#059669" : isAbsence ? "#991b1b" : "#b45309",
+                        fontSize: "0.75rem",
+                        fontWeight: 800,
+                        padding: "0.15rem 0.6rem",
+                        borderRadius: "0.5rem",
+                      }}
+                    >
                       {altTaskState.completed
-                        ? "عرض التوثيق 📜"
-                        : !altTaskState.opened
-                        ? "افتح الصندوق 📦"
-                        : "متابعة المهمة 🎯"}
+                        ? isAbsence
+                          ? "تم إيقاف تراكم الخصم بنجاح ✓"
+                          : "تم استرداد (+10 نقاط) 🌟"
+                        : isAbsence
+                        ? "إيقاف تراكم التأخير (-20 نقطة سابقة)"
+                        : "تعويض (+10 نقاط)"}
                     </span>
-                  </button>
+                  </div>
+
+                  {/* Delay alert banner if delayed */}
+                  {!altTaskState.completed && daysDelayed > 0 && (
+                    <div
+                      style={{
+                        background: "rgba(0,0,0,0.25)",
+                        border: "1px solid rgba(255,255,255,0.3)",
+                        borderRadius: "0.75rem",
+                        padding: "0.45rem 0.75rem",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        marginBottom: "0.75rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        color: "#fef08a",
+                      }}
+                    >
+                      <span>⚠️</span>
+                      <span>
+                        متأخرة منذ {daysDelayed} {daysDelayed === 1 ? "يوم" : "أيام"} (خصم إضافي: -{delayPenalty} نقاط)! أنجزها الآن لوقف ترحيل الخصم اليومي (-5 نقاط/يوم).
+                      </span>
+                    </div>
+                  )}
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "1rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+                      <div
+                        className={altTaskState.completed ? "" : "chest-wobble"}
+                        style={{
+                          width: "3.5rem",
+                          height: "3.5rem",
+                          borderRadius: "1rem",
+                          background: "rgba(255,255,255,0.25)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "2.2rem",
+                          flexShrink: 0,
+                          border: "1px solid rgba(255,255,255,0.4)",
+                        }}
+                      >
+                        {altTaskState.completed ? "🏆" : isAbsence ? "🛡️" : "🎁"}
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900 }}>
+                          {altTaskState.completed
+                            ? "المهمة البديلة (مكتملة وموثقة)"
+                            : isAbsence
+                            ? "المهمة البديلة للغياب (صندوق الحظ)"
+                            : "المهمة البديلة (صندوق الحظ)"}
+                        </h3>
+                        <p style={{ margin: "0.2rem 0 0", fontSize: "0.85rem", opacity: 0.95, fontWeight: 600 }}>
+                          {altTaskState.completed
+                            ? altTaskState.completionSummary || (isAbsence ? "تم إنجاز المهمة وإيقاف خصومات التأخير اليومية بنجاح ✓" : "تم إنجاز كافة الشروط البديلة بنجاح وتم تعويض النقاط ✓")
+                            : !altTaskState.opened
+                            ? isAbsence
+                              ? "اضغط لفتح صندوق الحظ وإنجاز مهمتك لحماية نقاطك من خصومات التأخير!"
+                              : "اضغط لفتح صندوق الحظ واكتشاف مهمتك لتعويض الـ 10 نقاط!"
+                            : `${altTaskState.tasks.filter(t => t.current >= t.target).length} من ${altTaskState.tasks.length} مهام مكتملة`}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsMysteryModalOpen(true)}
+                      style={{
+                        border: "none",
+                        background: "white",
+                        color: altTaskState.completed ? "#059669" : isAbsence ? "#991b1b" : "#b45309",
+                        padding: "0.65rem 1.1rem",
+                        borderRadius: "0.85rem",
+                        fontWeight: 900,
+                        fontSize: "0.95rem",
+                        cursor: "pointer",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                        flexShrink: 0,
+                        transition: "transform 0.15s",
+                      }}
+                      onMouseDown={e => (e.currentTarget.style.transform = "scale(0.96)")}
+                      onMouseUp={e => (e.currentTarget.style.transform = "scale(1)")}
+                    >
+                      <span>
+                        {altTaskState.completed
+                          ? "عرض التوثيق 📜"
+                          : !altTaskState.opened
+                          ? "افتح الصندوق 📦"
+                          : "متابعة المهمة 🎯"}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* ================= 🛡️ AUTO-CONSOLIDATION WEEK (أسبوع التثبيت التلقائي - 3 مهام) ================= */}
           {(planDetails.isInConsolidation || todayBasePlan.is_in_consolidation) && (
@@ -4349,7 +4693,11 @@ function StudentTasks({
             {!altTaskState.opened && (
               <div style={{ textAlign: "center", padding: "1.5rem 0.5rem" }}>
                 <p style={{ color: "#4b5563", fontSize: "0.95rem", lineHeight: 1.6, margin: "0 0 1.5rem" }}>
-                  بسبب تسجيل <strong>الحضور بدون حفظ الدرس</strong> (-10 نقاط)، يمكنك فتح صندوق الحظ لإجراء مهمة بديلة واستعادة نقاطك كاملة!
+                  {altTaskState.penaltyType === "absence" ? (
+                    <>بسبب تسجيل <strong>الغياب عن الحلقة</strong> (-20 نقطة)، افتح صندوق الحظ لإجراء مهمة بديلة وإيقاف ترحيل وتراكم خصم التأخير اليومي (-5 نقاط عن كل يوم تأخير)!</>
+                  ) : (
+                    <>بسبب تسجيل <strong>الحضور بدون حفظ الدرس</strong> (-10 نقاط)، افتح صندوق الحظ لإجراء مهمة بديلة واستعادة نقاطك كاملة (+10) وتجنب تراكم خصومات التأخير!</>
+                  )}
                 </p>
 
                 {/* Animated Interactive Chest */}
@@ -4517,12 +4865,15 @@ function StudentTasks({
                         display: "inline-block",
                       }}
                     >
-                      ✓ تم استرداد الـ 10 نقاط كاملة
+                      {altTaskState.penaltyType === "absence"
+                        ? "✓ تم إيقاف تراكم خصم التأخير اليومي بنجاح"
+                        : "✓ تم استرداد الـ 10 نقاط كاملة"}
                     </span>
                   </div>
                 ) : (
                   (() => {
                     const allDone = altTaskState.tasks.every(t => t.current >= t.target)
+                    const isAbsence = altTaskState.penaltyType === "absence"
                     return (
                       <button
                         type="button"
@@ -4549,8 +4900,14 @@ function StudentTasks({
                           gap: "0.5rem",
                         }}
                       >
-                        <span>{allDone ? "🎉" : "🔒"}</span>
-                        <span>استعادة النقاط (10 نقاط)</span>
+                        <span>{allDone ? (isAbsence ? "🛡️" : "🎉") : "🔒"}</span>
+                        <span>
+                          {allDone
+                            ? isAbsence
+                              ? "اعتماد الإنجاز وإيقاف تراكم خصم التأخير"
+                              : "اعتماد الإنجاز واستعادة الـ 10 نقاط"
+                            : "أكمل جميع المهام أعلاه لتفعيل الزر"}
+                        </span>
                       </button>
                     )
                   })()

@@ -46,7 +46,9 @@ export async function POST(req: NextRequest) {
         .eq("id", effectiveAssignmentId)
         .single()
 
-      if (assignment && assignment.assigned_date !== todayStr) {
+      // Allow completing alternative task across days
+      const isAltTask = taskId === "680903aa-0b9a-42f3-a725-49eaf05a9148"
+      if (assignment && assignment.assigned_date !== todayStr && !isAltTask) {
         return NextResponse.json(
           { error: "انتهت مهلة هذا اليوم عند الساعة 12:00 منتصف الليل ولا يمكن تعديله" },
           { status: 403 }

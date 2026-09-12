@@ -70,9 +70,6 @@ export async function ensureDailyAssignmentsForAllStudents(
     .select("id, name, points, emoji, description")
     .neq("name", "المهمة البديلة")
     .neq("name", "المهمة الأسبوعية المفاجئة")
-    .neq("name", "الغياب")
-    .neq("name", "الحضور بدون حفظ الدرس")
-    .neq("name", "الحضور بدون حفظ")
 
   if (tasksError) {
     console.error("Error fetching tasks for daily assignments:", tasksError)

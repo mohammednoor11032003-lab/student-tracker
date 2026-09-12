@@ -42,13 +42,15 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
     c => c.is_active && today >= c.start_date && today <= c.end_date
   )
 
-  // 1. Fetch current assignments for today
-  let { data: assignments } = await supabase
+  // 1. Fetch current assignments for today (filter out any bounties so they never mix into daily tasks)
+  let { data: rawAssignments } = await supabase
     .from("daily_assignments")
     .select("*, tasks(*)")
     .eq("student_id", user.id)
     .eq("assigned_date", today)
     .order("completed", { ascending: true })
+
+  let assignments = (rawAssignments || []).filter(a => a.tasks && !isBountyTask(a.tasks))
 
   // 2. If no assignments exist for today, automatically create them for the student
   if (!assignments || assignments.length === 0) {
@@ -74,7 +76,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
         .eq("assigned_date", today)
         .order("completed", { ascending: true })
       
-      assignments = freshAssignments
+      assignments = (freshAssignments || []).filter((a: any) => !isBountyTask(a.tasks))
     }
   }
 
@@ -124,6 +126,7 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
       completedBountyTaskIds={completedBountyTaskIds}
       initialGems={heroState.gems_balance}
       initialInventory={heroState.inventory}
+      lastRewardClaimedDate={heroState.last_reward_claimed_date}
       initialManualConsolidations={manualConsolidations}
       initialBankSummary={bankSummary}
     />

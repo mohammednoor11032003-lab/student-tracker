@@ -189,6 +189,8 @@ export interface AlternativeTaskState {
   tasks: AlternativeSubTask[]
   createdAt: string
   assignedDate: string
+  penaltyType?: "attendance" | "absence"
+  appliedDelayDays?: number
 }
 
 function getRandomItems<T>(arr: T[], n: number): T[] {

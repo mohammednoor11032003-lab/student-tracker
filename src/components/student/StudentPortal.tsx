@@ -49,6 +49,7 @@ interface StudentPortalProps {
   completedBountyTaskIds?: string[]
   initialGems?: number
   initialInventory?: StudentInventoryItem[]
+  lastRewardClaimedDate?: string | null
   initialManualConsolidations?: ManualConsolidation[]
   initialManualConsolidation?: ManualConsolidation | null
   initialBankSummary?: StudentBankSummary
@@ -70,6 +71,7 @@ export default function StudentPortal({
   completedBountyTaskIds = [],
   initialGems = 0,
   initialInventory = [],
+  lastRewardClaimedDate = null,
   initialManualConsolidations = [],
   initialManualConsolidation = null,
   initialBankSummary,
@@ -127,8 +129,15 @@ export default function StudentPortal({
     return () => window.removeEventListener("hero_gems_updated", handleGemsEvent)
   }, [])
 
-  // Check Daily Login Gems Modal (appears once per day)
+  const [claimedRewardDate, setClaimedRewardDate] = useState<string | null>(lastRewardClaimedDate || null)
+
+  // Check Daily Login Gems Modal (appears once per day based on authoritative server date)
   useEffect(() => {
+    if (!studentId) return
+    // If server authoritative date indicates today was already claimed, never open!
+    if (claimedRewardDate === todayStr) {
+      return
+    }
     if (typeof window !== "undefined") {
       const key = `daily_gems_${studentId}_${todayStr}`
       if (!localStorage.getItem(key)) {
@@ -136,7 +145,7 @@ export default function StudentPortal({
         return () => clearTimeout(timer)
       }
     }
-  }, [studentId, todayStr])
+  }, [studentId, todayStr, claimedRewardDate])
 
   async function handleClaimDailyGems(amount: number) {
     try {
@@ -147,11 +156,13 @@ export default function StudentPortal({
           action: "claim_daily_gems",
           studentId,
           amount,
+          date: todayStr,
         }),
       })
       const data = await res.json()
       if (data.success) {
         setGems(data.gems_balance)
+        setClaimedRewardDate(todayStr)
         if (typeof window !== "undefined") {
           localStorage.setItem(`daily_gems_${studentId}_${todayStr}`, "claimed")
         }

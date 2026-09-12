@@ -14,7 +14,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { action, studentId, itemId, category, amount } = body
+    const { action, studentId, itemId, category, amount, date } = body
 
     if (!studentId) {
       return NextResponse.json({ error: "studentId is required" }, { status: 400 })
@@ -24,10 +24,21 @@ export async function POST(req: NextRequest) {
 
     // 1. ACTION: CLAIM DAILY GEMS
     if (action === "claim_daily_gems") {
+      const claimDate = date || new Date().toISOString().split("T")[0]
+      if (state.last_reward_claimed_date === claimDate) {
+        return NextResponse.json({
+          error: "لقد استلمت مكافأتك اليومية بالفعل لليوم 🎁",
+          alreadyClaimed: true,
+          gems_balance: state.gems_balance,
+        }, { status: 400 })
+      }
       const added = Math.max(1, Math.min(50, Number(amount) || 10))
       const nextGems = state.gems_balance + added
-      await updateStudentHeroState(studentId, { gems_balance: nextGems })
-      return NextResponse.json({ success: true, gems_balance: nextGems, added })
+      await updateStudentHeroState(studentId, {
+        gems_balance: nextGems,
+        last_reward_claimed_date: claimDate,
+      })
+      return NextResponse.json({ success: true, gems_balance: nextGems, added, last_reward_claimed_date: claimDate })
     }
 
     // 2. ACTION: CLAIM 100% COMPLETION GEMS

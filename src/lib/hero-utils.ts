@@ -114,6 +114,7 @@ export interface HeroState {
     weapon?: ShopItem | null
     feet?: ShopItem | null
   }
+  last_reward_claimed_date?: string | null
 }
 
 // ================= VISUAL LAYER PRESETS (FOR ADMIN DRESSING ROOM) =================
@@ -554,12 +555,13 @@ export async function getStudentHeroState(studentId: string): Promise<HeroState>
   const supabase = getAdminClient()
   let gemsBalance = 0
   let inventoryItems: StudentInventoryItem[] = []
+  let lastRewardClaimedDate: string | null = null
 
   try {
     // 1. Fetch profile & metadata
     const { data: profile } = await supabase
       .from("profiles")
-      .select("gems_balance")
+      .select("gems_balance, last_reward_claimed_date")
       .eq("id", studentId)
       .single()
 
@@ -568,6 +570,7 @@ export async function getStudentHeroState(studentId: string): Promise<HeroState>
 
     gemsBalance = Number(profile?.gems_balance ?? meta.gems_balance ?? 0)
     if (isNaN(gemsBalance)) gemsBalance = 0
+    lastRewardClaimedDate = profile?.last_reward_claimed_date || meta.last_reward_claimed_date || null
 
     // 2. Fetch inventory from student_inventory table or auth metadata
     const { data: dbInventory, error: invError } = await supabase
@@ -620,6 +623,7 @@ export async function getStudentHeroState(studentId: string): Promise<HeroState>
     gems_balance: gemsBalance,
     inventory: inventoryItems,
     equipped,
+    last_reward_claimed_date: lastRewardClaimedDate,
   }
 }
 
@@ -631,19 +635,22 @@ export async function updateStudentHeroState(
   updates: {
     gems_balance?: number
     inventory?: StudentInventoryItem[]
+    last_reward_claimed_date?: string | null
   }
-): Promise<{ success: boolean; gems_balance: number; inventory: StudentInventoryItem[] }> {
+): Promise<{ success: boolean; gems_balance: number; inventory: StudentInventoryItem[]; last_reward_claimed_date?: string | null }> {
   const supabase = getAdminClient()
   const current = await getStudentHeroState(studentId)
 
   const nextGems = updates.gems_balance !== undefined ? Math.max(0, updates.gems_balance) : current.gems_balance
   const nextInventory = updates.inventory !== undefined ? updates.inventory : current.inventory
+  const nextClaimedDate = updates.last_reward_claimed_date !== undefined ? updates.last_reward_claimed_date : current.last_reward_claimed_date
 
   // 1. Update Auth user_metadata
   try {
     await supabase.auth.admin.updateUserById(studentId, {
       user_metadata: {
         gems_balance: nextGems,
+        last_reward_claimed_date: nextClaimedDate,
         inventory: nextInventory.map(inv => ({
           id: inv.id,
           item_id: inv.item_id,
@@ -659,7 +666,9 @@ export async function updateStudentHeroState(
 
   // 2. Try updating DB tables
   try {
-    await supabase.from("profiles").update({ gems_balance: nextGems }).eq("id", studentId)
+    const profileUpdate: any = { gems_balance: nextGems }
+    if (nextClaimedDate !== undefined) profileUpdate.last_reward_claimed_date = nextClaimedDate
+    await supabase.from("profiles").update(profileUpdate).eq("id", studentId)
   } catch {}
 
   try {
