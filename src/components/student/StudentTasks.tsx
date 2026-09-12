@@ -312,6 +312,33 @@ function StudentTasks({
     }
   }
 
+  // Helper to ensure an assignment object exists for penalty logging
+  async function ensurePenaltyAssignment(taskId: string, name: string, points: number, emoji: string): Promise<Assignment> {
+    const existing = assignments.find(a => a.task_id === taskId || a.tasks?.name?.includes(name))
+    if (existing) return existing
+
+    const newAssignment: Assignment = {
+      id: `asg_${taskId}_${Date.now()}`,
+      student_id: studentId,
+      task_id: taskId,
+      assigned_date: todayStr,
+      completed: false,
+      tasks: {
+        id: taskId,
+        name,
+        points,
+        emoji,
+        description: name,
+        created_by: "",
+        created_at: new Date().toISOString(),
+      },
+    }
+    const updated = [...assignments, newAssignment]
+    setAssignments(updated)
+    setAssignmentsCache(prev => ({ ...prev, [selectedDate]: updated }))
+    return newAssignment
+  }
+
   // Attendance selector handler
   async function handleSelectAttendance(status: "present" | "no_memorization" | "absent") {
     if (!isToday) return
@@ -349,12 +376,9 @@ function StudentTasks({
       if (isAbsent && absenceAssignment) {
         await completeTask(absenceAssignment)
       }
-      if (noMemorizationAssignment) {
-        if (!noMemorizationAssignment.completed) {
-          await completeTask(noMemorizationAssignment)
-        }
-      } else {
-        activateAlternativeTask("attendance", todayStr)
+      const targetAsg = noMemorizationAssignment || await ensurePenaltyAssignment("b8854b90-3cbb-4a04-9d04-41ef3e3d9edb", "الحضور بدون حفظ الدرس", -10, "⚠️")
+      if (!targetAsg.completed) {
+        await completeTask(targetAsg)
       }
     } else if (status === "absent") {
       if (isAbsent) {
@@ -364,12 +388,9 @@ function StudentTasks({
       if (isNoMemorization && noMemorizationAssignment) {
         await completeTask(noMemorizationAssignment)
       }
-      if (absenceAssignment) {
-        if (!absenceAssignment.completed) {
-          await completeTask(absenceAssignment)
-        }
-      } else {
-        activateAlternativeTask("absence", todayStr)
+      const targetAsg = absenceAssignment || await ensurePenaltyAssignment("b319de27-d965-461f-aa70-b75821a58a29", "الغياب", -20, "🚫")
+      if (!targetAsg.completed) {
+        await completeTask(targetAsg)
       }
     }
   }
@@ -1168,7 +1189,6 @@ function StudentTasks({
     "المراجعة",
     "قيام الليل",
   ]
-  const PENALTY_ORDER = ["الغياب", "الحضور بدون حفظ الدرس", "الحضور بدون حفظ"]
 
   // Penalty detection for conditional task locking
   const hasAbsencePenalty = assignments.some(
@@ -1208,14 +1228,6 @@ function StudentTasks({
     .sort((a, b) => {
       const idxA = TASK_ORDER.indexOf(a.tasks?.name ?? "")
       const idxB = TASK_ORDER.indexOf(b.tasks?.name ?? "")
-      return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99)
-    })
-
-  const penaltyTasks = assignments
-    .filter(a => (a.tasks?.points ?? 0) < 0)
-    .sort((a, b) => {
-      const idxA = PENALTY_ORDER.indexOf(a.tasks?.name ?? "")
-      const idxB = PENALTY_ORDER.indexOf(b.tasks?.name ?? "")
       return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99)
     })
 
@@ -2742,26 +2754,39 @@ function StudentTasks({
                   marginBottom: "1rem",
                   background: "white",
                   borderRadius: "1.25rem",
-                  padding: "1.1rem 1.25rem",
-                  boxShadow: "0 4px 15px rgba(0,0,0,0.06)",
+                  padding: "1.15rem 1.25rem",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
                   border: "1px solid #e2e8f0",
+                  fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.85rem" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.9rem", flexWrap: "wrap", gap: "0.5rem" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ fontSize: "1.3rem" }}>🏫</span>
-                    <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900, color: "#1e293b" }}>
+                    <span style={{ fontSize: "1.35rem" }}>🏫</span>
+                    <h3
+                      style={{
+                        margin: 0,
+                        fontSize: "1.08rem",
+                        fontWeight: 900,
+                        color: "#1e293b",
+                        fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        letterSpacing: "0.01em",
+                      }}
+                    >
                       ما حالة حضورك اليوم في الحلقة؟
                     </h3>
                   </div>
                   <span
                     style={{
-                      fontSize: "0.75rem",
+                      fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                      fontSize: "0.78rem",
                       fontWeight: 800,
                       color: isAbsent ? "#dc2626" : isNoMemorization ? "#d97706" : "#059669",
                       background: isAbsent ? "#fee2e2" : isNoMemorization ? "#fef3c7" : "#dcfce7",
-                      padding: "0.2rem 0.65rem",
+                      padding: "0.25rem 0.75rem",
                       borderRadius: "9999px",
+                      letterSpacing: "0.01em",
+                      border: isAbsent ? "1px solid #fca5a5" : isNoMemorization ? "1px solid #fde68a" : "1px solid #a7f3d0",
                     }}
                   >
                     {isAbsent ? "غائب عن الحلقة ❌" : isNoMemorization ? "حضور بدون حفظ ⚠️" : "حاضر ومستعد للتسميع ✅"}
@@ -2772,7 +2797,7 @@ function StudentTasks({
                   style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-                    gap: "0.6rem",
+                    gap: "0.65rem",
                   }}
                 >
                   {/* Option 1: Present & Ready */}
@@ -2782,19 +2807,37 @@ function StudentTasks({
                     style={{
                       border: isPresent ? "2px solid #10b981" : "1px solid #e2e8f0",
                       background: isPresent ? "linear-gradient(135deg, #ecfdf5, #d1fae5)" : "#f8fafc",
-                      borderRadius: "0.9rem",
-                      padding: "0.75rem 0.6rem",
+                      borderRadius: "0.95rem",
+                      padding: "0.85rem 0.65rem",
                       cursor: "pointer",
                       textAlign: "center",
-                      transition: "all 0.2s",
-                      boxShadow: isPresent ? "0 4px 12px rgba(16,185,129,0.15)" : "none",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: isPresent ? "0 4px 15px rgba(16,185,129,0.18)" : "none",
+                      transform: isPresent ? "scale(1.02)" : "scale(1)",
+                      fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
                     }}
                   >
-                    <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>✅</div>
-                    <div style={{ fontWeight: 800, fontSize: "0.88rem", color: isPresent ? "#065f46" : "#334155" }}>
+                    <div style={{ fontSize: "1.45rem", marginBottom: "0.25rem" }}>✅</div>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        fontSize: "0.92rem",
+                        color: isPresent ? "#065f46" : "#334155",
+                        fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        letterSpacing: "0.01em",
+                      }}
+                    >
                       حاضر ومستعد
                     </div>
-                    <div style={{ fontSize: "0.72rem", color: isPresent ? "#047857" : "#64748b", marginTop: "0.15rem" }}>
+                    <div
+                      style={{
+                        fontSize: "0.74rem",
+                        fontWeight: 600,
+                        color: isPresent ? "#047857" : "#64748b",
+                        marginTop: "0.2rem",
+                        fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                      }}
+                    >
                       كامل النقاط (لا خصم)
                     </div>
                   </button>
@@ -2806,19 +2849,37 @@ function StudentTasks({
                     style={{
                       border: isNoMemorization ? "2px solid #f59e0b" : "1px solid #e2e8f0",
                       background: isNoMemorization ? "linear-gradient(135deg, #fffbeb, #fef3c7)" : "#f8fafc",
-                      borderRadius: "0.9rem",
-                      padding: "0.75rem 0.6rem",
+                      borderRadius: "0.95rem",
+                      padding: "0.85rem 0.65rem",
                       cursor: "pointer",
                       textAlign: "center",
-                      transition: "all 0.2s",
-                      boxShadow: isNoMemorization ? "0 4px 12px rgba(245,158,11,0.2)" : "none",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: isNoMemorization ? "0 4px 15px rgba(245,158,11,0.2)" : "none",
+                      transform: isNoMemorization ? "scale(1.02)" : "scale(1)",
+                      fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
                     }}
                   >
-                    <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>⚠️</div>
-                    <div style={{ fontWeight: 800, fontSize: "0.88rem", color: isNoMemorization ? "#92400e" : "#334155" }}>
+                    <div style={{ fontSize: "1.45rem", marginBottom: "0.25rem" }}>⚠️</div>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        fontSize: "0.92rem",
+                        color: isNoMemorization ? "#92400e" : "#334155",
+                        fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        letterSpacing: "0.01em",
+                      }}
+                    >
                       حضور بدون حفظ
                     </div>
-                    <div style={{ fontSize: "0.72rem", color: isNoMemorization ? "#b45309" : "#64748b", marginTop: "0.15rem" }}>
+                    <div
+                      style={{
+                        fontSize: "0.74rem",
+                        fontWeight: 600,
+                        color: isNoMemorization ? "#b45309" : "#64748b",
+                        marginTop: "0.2rem",
+                        fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                      }}
+                    >
                       -10 نقاط (تعويض بالمهمة)
                     </div>
                   </button>
@@ -2830,19 +2891,37 @@ function StudentTasks({
                     style={{
                       border: isAbsent ? "2px solid #ef4444" : "1px solid #e2e8f0",
                       background: isAbsent ? "linear-gradient(135deg, #fef2f2, #fee2e2)" : "#f8fafc",
-                      borderRadius: "0.9rem",
-                      padding: "0.75rem 0.6rem",
+                      borderRadius: "0.95rem",
+                      padding: "0.85rem 0.65rem",
                       cursor: "pointer",
                       textAlign: "center",
-                      transition: "all 0.2s",
-                      boxShadow: isAbsent ? "0 4px 12px rgba(239,68,68,0.2)" : "none",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: isAbsent ? "0 4px 15px rgba(239,68,68,0.2)" : "none",
+                      transform: isAbsent ? "scale(1.02)" : "scale(1)",
+                      fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
                     }}
                   >
-                    <div style={{ fontSize: "1.4rem", marginBottom: "0.2rem" }}>❌</div>
-                    <div style={{ fontWeight: 800, fontSize: "0.88rem", color: isAbsent ? "#991b1b" : "#334155" }}>
+                    <div style={{ fontSize: "1.45rem", marginBottom: "0.25rem" }}>❌</div>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        fontSize: "0.92rem",
+                        color: isAbsent ? "#991b1b" : "#334155",
+                        fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        letterSpacing: "0.01em",
+                      }}
+                    >
                       غياب عن الحلقة
                     </div>
-                    <div style={{ fontSize: "0.72rem", color: isAbsent ? "#b91c1c" : "#64748b", marginTop: "0.15rem" }}>
+                    <div
+                      style={{
+                        fontSize: "0.74rem",
+                        fontWeight: 600,
+                        color: isAbsent ? "#b91c1c" : "#64748b",
+                        marginTop: "0.2rem",
+                        fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                      }}
+                    >
                       -20 نقطة (إيقاف التأخير)
                     </div>
                   </button>
@@ -4198,84 +4277,6 @@ function StudentTasks({
                 })}
               </div>
             )
-          )}
-
-          {/* Penalty Options (Only for today/past, never for future) */}
-          {!isFuture && penaltyTasks.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.65rem", marginTop: "0.5rem" }}>
-              <h2 style={{ color: "white", fontWeight: 800, margin: 0, fontSize: "1.1rem" }}>
-                ⚠️ خصومات (إن وُجدت)
-              </h2>
-              {penaltyTasks.map(a => {
-                const canClick = isToday
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() => completeTask(a)}
-                    disabled={!canClick}
-                    className="task-btn"
-                    style={{
-                      width: "100%",
-                      background: a.completed ? "rgba(254,226,226,0.75)" : "white",
-                      border: a.completed ? "2px solid #f87171" : "1px solid #fee2e2",
-                      borderRadius: "1rem",
-                      padding: "0.85rem 1rem",
-                      cursor: canClick ? "pointer" : "default",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.85rem",
-                      opacity: a.completed ? 0.9 : 1,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "3rem",
-                        height: "3rem",
-                        borderRadius: "0.75rem",
-                        background: a.completed ? "#fee2e2" : "#fff7ed",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "1.8rem",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {a.completed ? "❌" : a.tasks?.emoji ?? "⚠️"}
-                    </div>
-                    <div style={{ flex: 1, textAlign: "right" }}>
-                      <p
-                        style={{
-                          fontWeight: 800,
-                          fontSize: "1.05rem",
-                          margin: 0,
-                          color: a.completed ? "#991b1b" : "#dc2626",
-                          textDecoration: a.completed ? "line-through" : "none",
-                        }}
-                      >
-                        {a.tasks?.name}
-                      </p>
-                      <p style={{ fontSize: "0.75rem", color: a.completed ? "#991b1b" : "#6b7280", margin: "0.15rem 0 0" }}>
-                        {a.completed
-                          ? isToday
-                            ? "تم تطبيق الخصم (اضغط للتراجع ↩️)"
-                            : "تم تطبيق الخصم"
-                          : isPast
-                          ? "غير مسجل"
-                          : a.tasks?.name?.includes("غياب")
-                          ? "اضغط عند الغياب"
-                          : "اضغط عند الحضور بدون حفظ الدرس"}
-                      </p>
-                    </div>
-                    <div style={{ textAlign: "center", flexShrink: 0 }}>
-                      <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#dc2626" }}>
-                        {a.tasks?.points}
-                      </div>
-                      <div style={{ fontSize: "0.65rem", color: "#dc2626" }}>نقطة</div>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
           )}
         </>
       )}
