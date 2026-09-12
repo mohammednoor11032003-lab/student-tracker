@@ -16,8 +16,9 @@ export async function POST(req: NextRequest) {
     const todayStr = getTodayDateStr()
     const effectiveDate = assignedDate || todayStr
 
-    // 1. If this is a dynamic task like 'المهمة البديلة' without an assignmentId, upsert it into daily_assignments
-    let effectiveAssignmentId = assignmentId
+    // 1. If this is a dynamic task like 'المهمة البديلة' without an assignmentId (or non-UUID ID), upsert it into daily_assignments
+    const isValidUuid = typeof assignmentId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignmentId)
+    let effectiveAssignmentId = isValidUuid ? assignmentId : undefined
     if (!effectiveAssignmentId && studentId && taskId) {
       const { data: upsertedDA } = await supabase
         .from("daily_assignments")

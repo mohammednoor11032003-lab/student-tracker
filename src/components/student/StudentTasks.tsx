@@ -356,107 +356,267 @@ function StudentTasks({
 
   // Attendance selector handler with toggle support and null initial state
   async function handleSelectAttendance(status: "present" | "no_memorization" | "absent") {
-    if (!isToday) return
+    if (!isToday) {
+      toast.error("🔒 انتهى وقت هذا اليوم عند الساعة 12:00 منتصف الليل (الذي فات مات)", { duration: 4000, icon: "🔒" })
+      return
+    }
 
     const absenceAssignment = assignments.find(
-      a => (a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب") || a.task_id === "b319de27-d965-461f-aa70-b75821a58a29")
+      a => (a.task_id === "b319de27-d965-461f-aa70-b75821a58a29" || a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب"))
     )
     const noMemorizationAssignment = assignments.find(
-      a => (a.tasks?.name?.includes("الحضور بدون حفظ") || a.task_id === "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb")
+      a => (a.task_id === "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb" || a.tasks?.name?.includes("الحضور بدون حفظ"))
     )
     const presentAssignment = assignments.find(
       a => (a.task_id === "c1111111-2222-3333-4444-555555555555" || a.tasks?.name?.includes("حاضر ومستعد"))
     )
-    const isAbsent = Boolean(absenceAssignment?.completed)
-    const isNoMemorization = Boolean(noMemorizationAssignment?.completed)
-    const isPresent = !isAbsent && !isNoMemorization && Boolean(presentAssignment?.completed || presentChoiceMap[selectedDate])
+    const isCurAbsent = Boolean(absenceAssignment?.completed)
+    const isCurNoMemo = Boolean(noMemorizationAssignment?.completed)
+    const isCurPresent = !isCurAbsent && !isCurNoMemo && Boolean(presentAssignment?.completed || presentChoiceMap[selectedDate])
 
-    // ================= 1. PRESENT TOGGLE =================
-    if (status === "present") {
-      if (isPresent) {
-        // Toggle off: unselect and return to null
-        togglePresentChoice(selectedDate, false)
-        if (presentAssignment && presentAssignment.completed) {
-          await completeTask(presentAssignment)
-        }
-        toast("تم إلغاء تحديد حالة الحضور ↩️", { icon: "↩️" })
-        return
-      }
+    const currentStatus: "present" | "no_memorization" | "absent" | null =
+      isCurAbsent ? "absent" : isCurNoMemo ? "no_memorization" : isCurPresent ? "present" : null
 
-      // If absent or no_memorization was active, cancel them first
-      if (isAbsent && absenceAssignment) {
-        await completeTask(absenceAssignment)
-      }
-      if (isNoMemorization && noMemorizationAssignment) {
-        await completeTask(noMemorizationAssignment)
-      }
+    // If user clicks the currently active option, TOGGLE OFF to null (unselected)!
+    const nextStatus: "present" | "no_memorization" | "absent" | null =
+      currentStatus === status ? null : status
+
+    // 1. If currently absent and transitioning away: restore 20 points
+    if (currentStatus === "absent") {
+      setWeeklyPoints(prev => prev + 20)
       if (altTaskState && altTaskState.assignedDate === todayStr) {
         saveAltTaskState(null)
       }
+      fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "b319de27-d965-461f-aa70-b75821a58a29",
+          points: -20,
+          completed: false,
+          assignedDate: todayStr,
+        }),
+      }).catch(err => console.error("Error restoring absence points:", err))
+    }
 
-      const targetAsg = presentAssignment || await ensurePenaltyAssignment("c1111111-2222-3333-4444-555555555555", "تسجيل الحضور (حاضر ومستعد)", 0, "✅")
-      if (!targetAsg.completed) {
-        await completeTask(targetAsg)
+    // 2. If currently no_memorization and transitioning away: restore 10 points
+    if (currentStatus === "no_memorization") {
+      setWeeklyPoints(prev => prev + 10)
+      if (altTaskState && altTaskState.assignedDate === todayStr) {
+        saveAltTaskState(null)
       }
+      fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb",
+          points: -10,
+          completed: false,
+          assignedDate: todayStr,
+        }),
+      }).catch(err => console.error("Error restoring no_memo points:", err))
+    }
 
+    // 3. If currently present and transitioning away: clear present state
+    if (currentStatus === "present") {
+      togglePresentChoice(selectedDate, false)
+      fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "c1111111-2222-3333-4444-555555555555",
+          points: 0,
+          completed: false,
+          assignedDate: todayStr,
+        }),
+      }).catch(err => console.error("Error clearing present task:", err))
+    }
+
+    // 4. Handle target state:
+    if (nextStatus === null) {
+      // Toggle off: set all attendance states to false
+      togglePresentChoice(selectedDate, false)
+      setAssignments(prev => {
+        const updated = prev.map(a => {
+          if (
+            a.task_id === "c1111111-2222-3333-4444-555555555555" ||
+            a.task_id === "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb" ||
+            a.task_id === "b319de27-d965-461f-aa70-b75821a58a29" ||
+            a.tasks?.name?.includes("حاضر ومستعد") ||
+            a.tasks?.name?.includes("الغياب") ||
+            a.tasks?.name?.includes("الحضور بدون حفظ")
+          ) {
+            return { ...a, completed: false }
+          }
+          return a
+        })
+        setAssignmentsCache(c => ({ ...c, [selectedDate]: updated }))
+        return updated
+      })
+      toast("تم إلغاء التحديد (لم يتم التحديد بعد) ↩️", { icon: "↩️" })
+      return
+    }
+
+    if (nextStatus === "present") {
       togglePresentChoice(selectedDate, true)
+      setAssignments(prev => {
+        const hasPresent = prev.some(a => a.task_id === "c1111111-2222-3333-4444-555555555555" || a.tasks?.name?.includes("حاضر ومستعد"))
+        let list = prev.map(a => {
+          if (a.task_id === "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb" || a.task_id === "b319de27-d965-461f-aa70-b75821a58a29" || a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("الحضور بدون حفظ")) {
+            return { ...a, completed: false }
+          }
+          if (a.task_id === "c1111111-2222-3333-4444-555555555555" || a.tasks?.name?.includes("حاضر ومستعد")) {
+            return { ...a, completed: true }
+          }
+          return a
+        })
+        if (!hasPresent) {
+          list.push({
+            id: `present_${Date.now()}`,
+            student_id: studentId,
+            task_id: "c1111111-2222-3333-4444-555555555555",
+            assigned_date: todayStr,
+            completed: true,
+            tasks: {
+              id: "c1111111-2222-3333-4444-555555555555",
+              name: "تسجيل الحضور (حاضر ومستعد)",
+              description: "حاضر ومستعد",
+              points: 0,
+              emoji: "✅",
+              created_by: "",
+              created_at: new Date().toISOString(),
+            },
+          })
+        }
+        setAssignmentsCache(c => ({ ...c, [selectedDate]: list }))
+        return list
+      })
+
+      fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "c1111111-2222-3333-4444-555555555555",
+          points: 0,
+          completed: true,
+          assignedDate: todayStr,
+        }),
+      }).catch(err => console.error("Error setting present:", err))
+
       toast.success("أهلاً بك! تم تثبيت حضورك واستعدادك للتسميع، بالتوفيق في إنجاز مهامك 🌟", { duration: 4500 })
-    } 
-    // ================= 2. NO MEMORIZATION TOGGLE =================
-    else if (status === "no_memorization") {
-      if (isNoMemorization) {
-        // Toggle off: unselect and return to null
-        if (noMemorizationAssignment && noMemorizationAssignment.completed) {
-          await completeTask(noMemorizationAssignment)
-        }
-        if (altTaskState && altTaskState.assignedDate === todayStr) {
-          saveAltTaskState(null)
-        }
-        toast("تم إلغاء تسجيل الحضور بدون حفظ واسترداد الـ 10 نقاط ↩️", { icon: "↩️" })
-        return
-      }
+      return
+    }
 
-      // If present was selected, clear it
+    if (nextStatus === "no_memorization") {
       togglePresentChoice(selectedDate, false)
-      if (presentAssignment && presentAssignment.completed) {
-        await completeTask(presentAssignment)
-      }
+      setWeeklyPoints(prev => prev - 10)
+      activateAlternativeTask("attendance", todayStr)
 
-      if (isAbsent && absenceAssignment) {
-        await completeTask(absenceAssignment)
-      }
-      const targetAsg = noMemorizationAssignment || await ensurePenaltyAssignment("b8854b90-3cbb-4a04-9d04-41ef3e3d9edb", "الحضور بدون حفظ الدرس", -10, "⚠️")
-      if (!targetAsg.completed) {
-        await completeTask(targetAsg)
-      }
-    } 
-    // ================= 3. ABSENT TOGGLE =================
-    else if (status === "absent") {
-      if (isAbsent) {
-        // Toggle off: unselect and return to null
-        if (absenceAssignment && absenceAssignment.completed) {
-          await completeTask(absenceAssignment)
+      setAssignments(prev => {
+        const hasNoMemo = prev.some(a => a.task_id === "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb" || a.tasks?.name?.includes("الحضور بدون حفظ"))
+        let list = prev.map(a => {
+          if (a.task_id === "c1111111-2222-3333-4444-555555555555" || a.task_id === "b319de27-d965-461f-aa70-b75821a58a29" || a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("حاضر ومستعد")) {
+            return { ...a, completed: false }
+          }
+          if (a.task_id === "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb" || a.tasks?.name?.includes("الحضور بدون حفظ")) {
+            return { ...a, completed: true }
+          }
+          return a
+        })
+        if (!hasNoMemo) {
+          list.push({
+            id: `nomemo_${Date.now()}`,
+            student_id: studentId,
+            task_id: "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb",
+            assigned_date: todayStr,
+            completed: true,
+            tasks: {
+              id: "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb",
+              name: "الحضور بدون حفظ الدرس",
+              description: "الحضور بدون حفظ الدرس",
+              points: -10,
+              emoji: "⚠️",
+              created_by: "",
+              created_at: new Date().toISOString(),
+            },
+          })
         }
-        if (altTaskState && altTaskState.assignedDate === todayStr) {
-          saveAltTaskState(null)
-        }
-        toast("تم إلغاء تسجيل الغياب واسترداد الـ 20 نقطة ↩️", { icon: "↩️" })
-        return
-      }
+        setAssignmentsCache(c => ({ ...c, [selectedDate]: list }))
+        return list
+      })
 
-      // If present was selected, clear it
+      fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb",
+          points: -10,
+          completed: true,
+          assignedDate: todayStr,
+        }),
+      }).catch(err => console.error("Error setting no_memo:", err))
+
+      toast("تم تسجيل حضور بدون حفظ (-10 نقاط) ⚠️ تم تفعيل المهمة البديلة لتعويض النقاط!", { icon: "⚠️", duration: 5000 })
+      return
+    }
+
+    if (nextStatus === "absent") {
       togglePresentChoice(selectedDate, false)
-      if (presentAssignment && presentAssignment.completed) {
-        await completeTask(presentAssignment)
-      }
+      setWeeklyPoints(prev => prev - 20)
+      activateAlternativeTask("absence", todayStr)
 
-      if (isNoMemorization && noMemorizationAssignment) {
-        await completeTask(noMemorizationAssignment)
-      }
-      const targetAsg = absenceAssignment || await ensurePenaltyAssignment("b319de27-d965-461f-aa70-b75821a58a29", "الغياب", -20, "🚫")
-      if (!targetAsg.completed) {
-        await completeTask(targetAsg)
-      }
+      setAssignments(prev => {
+        const hasAbsence = prev.some(a => a.task_id === "b319de27-d965-461f-aa70-b75821a58a29" || a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب"))
+        let list = prev.map(a => {
+          if (a.task_id === "c1111111-2222-3333-4444-555555555555" || a.task_id === "b8854b90-3cbb-4a04-9d04-41ef3e3d9edb" || a.tasks?.name?.includes("الحضور بدون حفظ") || a.tasks?.name?.includes("حاضر ومستعد")) {
+            return { ...a, completed: false }
+          }
+          if (a.task_id === "b319de27-d965-461f-aa70-b75821a58a29" || a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب")) {
+            return { ...a, completed: true }
+          }
+          return a
+        })
+        if (!hasAbsence) {
+          list.push({
+            id: `absence_${Date.now()}`,
+            student_id: studentId,
+            task_id: "b319de27-d965-461f-aa70-b75821a58a29",
+            assigned_date: todayStr,
+            completed: true,
+            tasks: {
+              id: "b319de27-d965-461f-aa70-b75821a58a29",
+              name: "الغياب",
+              description: "الغياب",
+              points: -20,
+              emoji: "❌",
+              created_by: "",
+              created_at: new Date().toISOString(),
+            },
+          })
+        }
+        setAssignmentsCache(c => ({ ...c, [selectedDate]: list }))
+        return list
+      })
+
+      fetch("/api/complete-task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          taskId: "b319de27-d965-461f-aa70-b75821a58a29",
+          points: -20,
+          completed: true,
+          assignedDate: todayStr,
+        }),
+      }).catch(err => console.error("Error setting absence:", err))
+
+      toast("تم تسجيل غياب عن الحلقة (-20 نقطة) ❌ تم تفعيل المهمة البديلة لحماية نقاطك من خصومات التأخير!", { icon: "❌", duration: 5000 })
+      return
     }
   }
 
@@ -1694,7 +1854,11 @@ function StudentTasks({
 
   // Toggle task completion (Complete / Uncomplete) with instant Optimistic UI and Rollback
   async function completeTask(a: Assignment) {
-    if (isEffectiveFriday) {
+    const isAttendancePenalty = a.tasks?.name?.includes("الحضور بدون حفظ")
+    const isAbsencePenalty = a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب")
+    const isPresentTask = a.task_id === "c1111111-2222-3333-4444-555555555555" || a.tasks?.name?.includes("حاضر ومستعد")
+
+    if (isEffectiveFriday && !isAttendancePenalty && !isAbsencePenalty && !isPresentTask) {
       toast("🕌 اليوم الجمعة إجازة قرآنية، لا توجد مهام مقررة اليوم!", { icon: "🕌", duration: 3500 })
       return
     }
@@ -1719,8 +1883,6 @@ function StudentTasks({
     }
 
     // Check if task is 'الحضور بدون حفظ الدرس' or 'الغياب'
-    const isAttendancePenalty = a.tasks?.name?.includes("الحضور بدون حفظ")
-    const isAbsencePenalty = a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب")
     if (isAttendancePenalty) {
       if (nextCompleted) {
         // Trigger mandatory pinned alternative task!
@@ -1845,7 +2007,11 @@ function StudentTasks({
 
   // Intercept click on task to check if it's 'المراجعة'
   function handleTaskClick(a: Assignment) {
-    if (isEffectiveFriday) {
+    const isAttendancePenalty = a.tasks?.name?.includes("الحضور بدون حفظ")
+    const isAbsencePenalty = a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب")
+    const isPresentTask = a.task_id === "c1111111-2222-3333-4444-555555555555" || a.tasks?.name?.includes("حاضر ومستعد")
+
+    if (isEffectiveFriday && !isAttendancePenalty && !isAbsencePenalty && !isPresentTask) {
       toast("🕌 اليوم الجمعة إجازة قرآنية، لا توجد مهام مقررة اليوم!", { icon: "🕌", duration: 3500 })
       return
     }
@@ -2433,28 +2599,7 @@ function StudentTasks({
           <div style={{ fontSize: "2rem" }}>⏳</div>
           <p style={{ color: "#6b7280", margin: "0.5rem 0 0" }}>جاري تحميل مهام هذا اليوم...</p>
         </div>
-      ) : (!activeManualForDate && planDetails.isFriday) ? (
-        <div
-          className="card"
-          style={{
-            background: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
-            color: "white",
-            textAlign: "center",
-            padding: "2.5rem 1.5rem",
-            borderRadius: "1.25rem",
-            border: "2px solid #34d399",
-            boxShadow: "0 10px 25px rgba(4,120,87,0.3)",
-          }}
-        >
-          <div style={{ fontSize: "3.5rem", marginBottom: "0.5rem" }}>🕌</div>
-          <h2 style={{ margin: "0 0 0.5rem", fontSize: "1.6rem", fontWeight: 900, color: "#fef08a" }}>
-            جمعة مباركة - إجازة قرآنية
-          </h2>
-          <p style={{ margin: "0 auto", maxWidth: "450px", fontSize: "1.05rem", lineHeight: 1.6, opacity: 0.95 }}>
-            اليوم الجمعة إجازة، لا توجد مهام حفظ أو مراجعة مقررة. تقبل الله طاعاتكم وصالح أعمالكم!
-          </p>
-        </div>
-      ) : (!isFuture && assignments.length === 0) ? (
+      ) : (!isFuture && assignments.length === 0 && !isFridayDate(selectedDate) && !planDetails.isFriday) ? (
         <div className="card" style={{ textAlign: "center", padding: "2.5rem" }}>
           <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>📭</div>
           <p style={{ color: "#6b7280", fontWeight: 700, fontSize: "1.05rem", margin: 0 }}>
@@ -2463,6 +2608,30 @@ function StudentTasks({
         </div>
       ) : (
         <>
+          {/* Friday Informational Banner (when not under active manual consolidation) */}
+          {(!activeManualForDate && (planDetails.isFriday || isFridayDate(selectedDate))) && (
+            <div
+              className="card fade-in-down"
+              style={{
+                background: "linear-gradient(135deg, #065f46 0%, #047857 100%)",
+                color: "white",
+                textAlign: "center",
+                padding: "1.4rem 1.25rem",
+                borderRadius: "1.25rem",
+                border: "2px solid #34d399",
+                boxShadow: "0 8px 20px rgba(4,120,87,0.25)",
+                marginBottom: "1rem",
+              }}
+            >
+              <div style={{ fontSize: "2.4rem", marginBottom: "0.35rem" }}>🕌</div>
+              <h2 style={{ margin: "0 0 0.35rem", fontSize: "1.45rem", fontWeight: 900, color: "#fef08a" }}>
+                جمعة مباركة - حلقة التفسير الأسبوعية
+              </h2>
+              <p style={{ margin: "0 auto", maxWidth: "480px", fontSize: "0.95rem", lineHeight: 1.5, opacity: 0.95 }}>
+                اليوم مخصص لدرس التفسير الأسبوعي وحضور الحلقة (إجازة من مقررات الحفظ والتسميع اليومية).
+              </p>
+            </div>
+          )}
           {/* Quick Plan Link Banner */}
           <Link
             href="/student/plan"
@@ -2801,7 +2970,7 @@ function StudentTasks({
           })()}
 
           {/* ================= 🏫 ATTENDANCE STATUS SELECTOR ================= */}
-          {isToday && (() => {
+          {(() => {
             const absenceAssignment = assignments.find(
               a => (a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب") || a.task_id === "b319de27-d965-461f-aa70-b75821a58a29")
             )
@@ -2844,21 +3013,28 @@ function StudentTasks({
                       ما حالة حضورك اليوم في الحلقة؟
                     </h3>
                   </div>
-                  <span
-                    style={{
-                      fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-                      fontSize: "0.78rem",
-                      fontWeight: 800,
-                      color: isAbsent ? "#dc2626" : isNoMemorization ? "#d97706" : isPresent ? "#059669" : "#64748b",
-                      background: isAbsent ? "#fee2e2" : isNoMemorization ? "#fef3c7" : isPresent ? "#dcfce7" : "#f1f5f9",
-                      padding: "0.25rem 0.75rem",
-                      borderRadius: "9999px",
-                      letterSpacing: "0.01em",
-                      border: isAbsent ? "1px solid #fca5a5" : isNoMemorization ? "1px solid #fde68a" : isPresent ? "1px solid #a7f3d0" : "1px solid #cbd5e1",
-                    }}
-                  >
-                    {isAbsent ? "غائب عن الحلقة ❌" : isNoMemorization ? "حضور بدون حفظ ⚠️" : isPresent ? "حاضر ومستعد للتسميع ✅" : "لم يتم التحديد بعد ⏳"}
-                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    {!isToday && (
+                      <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 700 }}>
+                        سجل محفوظ 🔒
+                      </span>
+                    )}
+                    <span
+                      style={{
+                        fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                        fontSize: "0.78rem",
+                        fontWeight: 800,
+                        color: isAbsent ? "#dc2626" : isNoMemorization ? "#d97706" : isPresent ? "#059669" : "#64748b",
+                        background: isAbsent ? "#fee2e2" : isNoMemorization ? "#fef3c7" : isPresent ? "#dcfce7" : "#f1f5f9",
+                        padding: "0.25rem 0.75rem",
+                        borderRadius: "9999px",
+                        letterSpacing: "0.01em",
+                        border: isAbsent ? "1px solid #fca5a5" : isNoMemorization ? "1px solid #fde68a" : isPresent ? "1px solid #a7f3d0" : "1px solid #cbd5e1",
+                      }}
+                    >
+                      {isAbsent ? "غائب عن الحلقة ❌" : isNoMemorization ? "حضور بدون حفظ ⚠️" : isPresent ? "حاضر ومستعد للتسميع ✅" : "لم يتم التحديد بعد ⏳"}
+                    </span>
+                  </div>
                 </div>
 
                 <div
@@ -2871,18 +3047,25 @@ function StudentTasks({
                   {/* Option 1: Present & Ready */}
                   <button
                     type="button"
-                    onClick={() => handleSelectAttendance("present")}
+                    onClick={() => {
+                      if (!isToday) {
+                        toast.error("🔒 انتهى وقت هذا اليوم عند الساعة 12:00 منتصف الليل (الذي فات مات)", { duration: 4000, icon: "🔒" })
+                        return
+                      }
+                      handleSelectAttendance("present")
+                    }}
                     style={{
                       border: isPresent ? "2px solid #10b981" : "1px solid #e2e8f0",
                       background: isPresent ? "linear-gradient(135deg, #ecfdf5, #d1fae5)" : "#f8fafc",
                       borderRadius: "0.95rem",
                       padding: "0.85rem 0.65rem",
-                      cursor: "pointer",
+                      cursor: isToday ? "pointer" : "default",
                       textAlign: "center",
                       transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                       boxShadow: isPresent ? "0 4px 15px rgba(16,185,129,0.18)" : "none",
                       transform: isPresent ? "scale(1.02)" : "scale(1)",
                       fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                      opacity: isToday ? 1 : 0.85,
                     }}
                   >
                     <div style={{ fontSize: "1.45rem", marginBottom: "0.25rem" }}>✅</div>
@@ -2902,18 +3085,25 @@ function StudentTasks({
                   {/* Option 2: Attended without memorizing */}
                   <button
                     type="button"
-                    onClick={() => handleSelectAttendance("no_memorization")}
+                    onClick={() => {
+                      if (!isToday) {
+                        toast.error("🔒 انتهى وقت هذا اليوم عند الساعة 12:00 منتصف الليل (الذي فات مات)", { duration: 4000, icon: "🔒" })
+                        return
+                      }
+                      handleSelectAttendance("no_memorization")
+                    }}
                     style={{
                       border: isNoMemorization ? "2px solid #f59e0b" : "1px solid #e2e8f0",
                       background: isNoMemorization ? "linear-gradient(135deg, #fffbeb, #fef3c7)" : "#f8fafc",
                       borderRadius: "0.95rem",
                       padding: "0.85rem 0.65rem",
-                      cursor: "pointer",
+                      cursor: isToday ? "pointer" : "default",
                       textAlign: "center",
                       transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                       boxShadow: isNoMemorization ? "0 4px 15px rgba(245,158,11,0.2)" : "none",
                       transform: isNoMemorization ? "scale(1.02)" : "scale(1)",
                       fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                      opacity: isToday ? 1 : 0.85,
                     }}
                   >
                     <div style={{ fontSize: "1.45rem", marginBottom: "0.25rem" }}>⚠️</div>
@@ -2944,18 +3134,25 @@ function StudentTasks({
                   {/* Option 3: Absent */}
                   <button
                     type="button"
-                    onClick={() => handleSelectAttendance("absent")}
+                    onClick={() => {
+                      if (!isToday) {
+                        toast.error("🔒 انتهى وقت هذا اليوم عند الساعة 12:00 منتصف الليل (الذي فات مات)", { duration: 4000, icon: "🔒" })
+                        return
+                      }
+                      handleSelectAttendance("absent")
+                    }}
                     style={{
                       border: isAbsent ? "2px solid #ef4444" : "1px solid #e2e8f0",
                       background: isAbsent ? "linear-gradient(135deg, #fef2f2, #fee2e2)" : "#f8fafc",
                       borderRadius: "0.95rem",
                       padding: "0.85rem 0.65rem",
-                      cursor: "pointer",
+                      cursor: isToday ? "pointer" : "default",
                       textAlign: "center",
                       transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                       boxShadow: isAbsent ? "0 4px 15px rgba(239,68,68,0.2)" : "none",
                       transform: isAbsent ? "scale(1.02)" : "scale(1)",
                       fontFamily: "'Tajawal', 'Cairo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                      opacity: isToday ? 1 : 0.85,
                     }}
                   >
                     <div style={{ fontSize: "1.45rem", marginBottom: "0.25rem" }}>❌</div>
@@ -2988,7 +3185,7 @@ function StudentTasks({
           })()}
 
           {/* ================= 🕌 FRIDAY TAFSIR DAY TASKS (مهام يوم التفسير الأسبوعي) ================= */}
-          {isFridayDate(selectedDate) && (
+          {(isFridayDate(selectedDate) || planDetails.isFriday) && (
             <FridayTafsirSection
               studentId={studentId}
               selectedDate={selectedDate}

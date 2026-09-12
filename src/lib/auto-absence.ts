@@ -52,21 +52,9 @@ export async function runAutoAbsenceSweep(
   try {
     const targetDate = overrideTargetDate || getYesterdayJordanDateStr()
 
-    // 1. Check if targetDate was Friday (Quranic day off / Tafsir day)
+    // 1. Check day of week
     const targetDayOfWeek = new Date(targetDate + "T12:00:00Z").getUTCDay()
     const isFriday = targetDayOfWeek === 5
-
-    if (isFriday) {
-      return {
-        success: true,
-        targetDate,
-        isFriday: true,
-        totalProcessed: 0,
-        absentCount: 0,
-        skippedCount: 0,
-        studentsMarkedAbsent: [],
-      }
-    }
 
     // 2. Fetch all real students
     const { data: students, error: studentsErr } = await supabase
@@ -132,6 +120,20 @@ export async function runAutoAbsenceSweep(
       if (attendedPresent || hasCompletedAnyTask) {
         skippedCount++
         continue
+      }
+
+      // 2d. On Friday, also check Friday Tafsir tasks (attendance, homework, interaction)
+      if (isFriday) {
+        try {
+          const { getFridayTafsirState } = await import("./friday-tafsir-server")
+          const tafsir = await getFridayTafsirState(student.id, targetDate)
+          if (tafsir && (tafsir.attendance.completed || tafsir.homework.completed || tafsir.interaction.completed)) {
+            skippedCount++
+            continue
+          }
+        } catch (e) {
+          console.error("Auto-absence: error checking Friday Tafsir state:", e)
+        }
       }
 
       // 3. Student did NOT record attendance! Mark as ABSENT.
