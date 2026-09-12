@@ -79,7 +79,9 @@ function StudentTasks({
 
   // State
   const [selectedDate, setSelectedDate] = useState(todayStr)
-  const [studentPlan, setStudentPlan] = useState<StudentPlan>(initialPlan || DEFAULT_PLAN)
+  const todayBasePlan = useMemo<StudentPlan>(() => {
+    return initialPlan || DEFAULT_PLAN
+  }, [initialPlan])
   const [allManualConsolidations, setAllManualConsolidations] = useState<ManualConsolidation[]>(
     initialManualConsolidations && initialManualConsolidations.length > 0
       ? initialManualConsolidations
@@ -882,17 +884,54 @@ function StudentTasks({
     .filter(a => a.completed)
     .reduce((sum, a) => sum + (a.tasks?.points ?? 0), 0)
 
-  // Plan Details (simulated for future dates, active for today/past)
+  // Plan Details (simulated for future dates, active immutable snapshot for today/past)
   const projectedInfo = useMemo(() => {
-    if (isFuture) {
-      return calculateProjectedPlan(studentPlan, selectedDate, todayStr, allManualConsolidations)
+    // 1. If viewing today: ALWAYS use todayBasePlan snapshot (100% immutable)!
+    if (selectedDate === todayStr) {
+      return {
+        projectedPlan: todayBasePlan,
+        planDetails: getDailyPlanDetails(todayBasePlan, todayStr),
+        diffDays: 0,
+      }
     }
-    return {
-      projectedPlan: studentPlan,
-      planDetails: getDailyPlanDetails(studentPlan, selectedDate),
-      diffDays: 0,
+
+    // 2. If viewing past date: Check snapshot from initialPlan.daily_plan_snapshots or fallback
+    if (selectedDate < todayStr) {
+      const snap = initialPlan?.daily_plan_snapshots?.[selectedDate]
+      if (snap) {
+        const pastPlan: StudentPlan = {
+          ...todayBasePlan,
+          current_page: snap.page,
+          page_part: snap.part,
+          current_review_hizb: snap.hizb ?? todayBasePlan.current_review_hizb,
+          is_in_consolidation: snap.is_in_consolidation ?? false,
+          consolidation_day: snap.consolidation_day ?? 0,
+          consolidation_juz: snap.consolidation_juz ?? 0,
+        }
+        return {
+          projectedPlan: pastPlan,
+          planDetails: getDailyPlanDetails(pastPlan, selectedDate),
+          diffDays: 0,
+        }
+      }
+      return {
+        projectedPlan: todayBasePlan,
+        planDetails: getDailyPlanDetails(todayBasePlan, selectedDate),
+        diffDays: 0,
+      }
     }
-  }, [studentPlan, selectedDate, todayStr, isFuture, allManualConsolidations])
+
+    // 3. Future dates (selectedDate > todayStr):
+    // Check if today's lesson is completed in current assignments to project accurately
+    const isLessonCompletedToday = assignments.some(
+      a => (a.tasks?.name?.includes("الدرس") && !a.tasks?.name?.includes("جنب")) && a.completed
+    )
+    const futureBasePlan = isLessonCompletedToday
+      ? calculateNextPlanState(todayBasePlan, "الدرس", true)
+      : todayBasePlan
+
+    return calculateProjectedPlan(futureBasePlan, selectedDate, todayStr, allManualConsolidations)
+  }, [todayBasePlan, selectedDate, todayStr, initialPlan, assignments, allManualConsolidations])
 
   const activePlan = projectedInfo.projectedPlan
   const planDetails = projectedInfo.planDetails
@@ -1095,7 +1134,7 @@ function StudentTasks({
   })
 
   // 2. Auto-Consolidation State (3 Tasks)
-  const consolidationDay = studentPlan?.consolidation_day || 1
+  const consolidationDay = planDetails.consolidationDay || todayBasePlan?.consolidation_day || 1
   const [consolidationCount, setConsolidationCount] = useState<number>(0)
   const [isSavingConsolidation, setIsSavingConsolidation] = useState(false)
   const [isAutoCompleted, setIsAutoCompleted] = useState<boolean>(() => {
@@ -1329,9 +1368,6 @@ function StudentTasks({
 
     setIsSavingConsolidation(true)
     try {
-      const nextPlan = calculateNextPlanState(studentPlan, "التثبيت", true)
-      setStudentPlan(nextPlan)
-
       if (typeof window !== "undefined") {
         localStorage.setItem(`auto_consolidation_done_${studentId}_${selectedDate}`, "true")
       }
@@ -1347,16 +1383,6 @@ function StudentTasks({
           points: repPoints,
           completed: true,
           assignedDate: todayStr,
-        }),
-      })
-
-      await fetch("/api/student-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId,
-          updates: nextPlan,
-          dateStr: todayStr,
         }),
       })
 
@@ -1475,12 +1501,6 @@ function StudentTasks({
       updateDoubleRevision(a.id, false)
     }
 
-    // Check if task is 'الدرس' or 'المراجعة' to update plan state optimistically
-    const tName = a.tasks?.name || ""
-    if ((tName.includes("الدرس") && !tName.includes("جنب")) || tName.includes("المراجعة")) {
-      setStudentPlan(prev => calculateNextPlanState(prev, tName, nextCompleted))
-    }
-
     // Check if task is 'الحضور بدون حفظ الدرس'
     const isAttendancePenalty = a.tasks?.name?.includes("الحضور بدون حفظ")
     if (isAttendancePenalty) {
@@ -1586,9 +1606,6 @@ function StudentTasks({
         setAssignments(prevAssignments)
         setAssignmentsCache(prev => ({ ...prev, [selectedDate]: prevAssignments }))
         setWeeklyPoints(prevWeeklyPoints)
-        if ((tName.includes("الدرس") && !tName.includes("جنب")) || tName.includes("المراجعة")) {
-          setStudentPlan(prev => calculateNextPlanState(prev, tName, !nextCompleted))
-        }
         const errorMsg = err instanceof Error ? err.message : "حدث خطأ غير متوقع"
         toast.error(`❌ تعذر حفظ المهمة، تم التراجع: ${errorMsg}`, { duration: 4500 })
       }
@@ -2240,7 +2257,7 @@ function StudentTasks({
                   خطة الحفظ اليومية الحالية
                 </span>
                 <span style={{ fontSize: "0.95rem", fontWeight: 900, color: "#7c3aed" }}>
-                  صفحة {studentPlan.current_page} ({studentPlan.page_part === "top" ? "النصف العلوي" : "النصف السفلي"}) • الحزب {studentPlan.current_review_hizb}
+                  صفحة {todayBasePlan.current_page} ({todayBasePlan.page_part === "top" ? "النصف العلوي" : "النصف السفلي"}) • الحزب {todayBasePlan.current_review_hizb}
                 </span>
               </div>
             </div>
@@ -2703,7 +2720,7 @@ function StudentTasks({
           )}
 
           {/* ================= 🛡️ AUTO-CONSOLIDATION WEEK (أسبوع التثبيت التلقائي - 3 مهام) ================= */}
-          {studentPlan?.is_in_consolidation && (
+          {(planDetails.isInConsolidation || todayBasePlan.is_in_consolidation) && (
             <div
               className="card"
               style={{
@@ -2724,7 +2741,7 @@ function StudentTasks({
                   <span style={{ fontSize: "2rem" }}>🛡️</span>
                   <div>
                     <h3 style={{ margin: 0, fontWeight: 900, fontSize: "1.2rem", color: "#9f1239" }}>
-                      أسبوع التثبيت التلقائي - الجزء {studentPlan.consolidation_juz || planDetails.juz}
+                      أسبوع التثبيت التلقائي - الجزء {planDetails.consolidationJuz || todayBasePlan.consolidation_juz || planDetails.juz}
                     </h3>
                     <span style={{ fontSize: "0.85rem", color: "#be123c", fontWeight: 700 }}>
                       اليوم {consolidationDay} من أصل 7 أيام تثبيت مكثف (3 مهام يومية)

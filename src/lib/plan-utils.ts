@@ -20,6 +20,16 @@ export interface StudentPlan {
   plan_start_date?: string
   plan_end_date?: string
   plan_active?: boolean
+  plan_date?: string
+  last_lesson_completed_date?: string | null
+  daily_plan_snapshots?: Record<string, {
+    page: number
+    part: "top" | "bottom"
+    hizb?: number
+    is_in_consolidation?: boolean
+    consolidation_day?: number
+    consolidation_juz?: number
+  }>
 }
 
 export interface ConsolidationTaskInfo {

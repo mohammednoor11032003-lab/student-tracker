@@ -124,9 +124,8 @@ export async function POST(req: NextRequest) {
           const { data: taskObj } = await supabase.from("tasks").select("name").eq("id", taskId).single()
           const tName = taskObj?.name || ""
           if ((tName.includes("الدرس") && !tName.includes("جنب")) || tName.includes("المراجعة")) {
-            const currentPlan = await getStudentPlan(studentId)
-            const nextPlan = calculateNextPlanState(currentPlan, tName, completed)
-            await updateStudentPlan(studentId, nextPlan)
+            const { markStudentLessonCompleted } = await import("@/lib/student-plan")
+            await markStudentLessonCompleted(studentId, effectiveDate, completed)
           }
         }
       }
