@@ -57,60 +57,18 @@ export async function POST(req: NextRequest) {
     }
 
     const deltaPoints = completed ? points : -points
-    const deltaCompleted = completed ? 1 : -1
+    // Penalties or zero-points tasks should not count towards completed count
+    const deltaCompleted = points <= 0 ? 0 : (completed ? 1 : -1)
 
-    const weekInfo = getWeekAndMonthInfo(effectiveDate)
-    const weekStartStr = formatDateStr(weekInfo.weekStart)
-    const weekEndStr = formatDateStr(weekInfo.weekEnd)
-    const month = weekInfo.month
-    const year = weekInfo.year
-
-    // Weekly summary upsert (allow points to be negative if penalties exceed score, do not clamp total_points to 0!)
-    const { data: existingWeekly } = await supabase
-      .from("weekly_summaries")
-      .select("id, total_points, tasks_completed")
-      .eq("student_id", studentId)
-      .eq("week_start", weekStartStr)
-      .single()
-
-    if (existingWeekly) {
-      await supabase.from("weekly_summaries").update({
-        total_points: existingWeekly.total_points + deltaPoints,
-        tasks_completed: Math.max(0, existingWeekly.tasks_completed + deltaCompleted),
-      }).eq("id", existingWeekly.id)
-    } else {
-      await supabase.from("weekly_summaries").insert({
-        student_id: studentId,
-        week_start: weekStartStr,
-        week_end: weekEndStr,
-        total_points: deltaPoints,
-        tasks_completed: Math.max(0, deltaCompleted),
-      })
-    }
-
-    // Monthly summary upsert (do not clamp total_points to 0!)
-    const { data: existingMonthly } = await supabase
-      .from("monthly_summaries")
-      .select("id, total_points, tasks_completed")
-      .eq("student_id", studentId)
-      .eq("month", month)
-      .eq("year", year)
-      .single()
-
-    if (existingMonthly) {
-      await supabase.from("monthly_summaries").update({
-        total_points: existingMonthly.total_points + deltaPoints,
-        tasks_completed: Math.max(0, existingMonthly.tasks_completed + deltaCompleted),
-      }).eq("id", existingMonthly.id)
-    } else {
-      await supabase.from("monthly_summaries").insert({
-        student_id: studentId,
-        month,
-        year,
-        total_points: deltaPoints,
-        tasks_completed: Math.max(0, deltaCompleted),
-      })
-    }
+    // Unified atomic sync across weekly_summaries, monthly_summaries, profiles, and auth metadata
+    const { syncStudentPoints } = await import("@/lib/points-sync")
+    const syncResult = await syncStudentPoints(
+      supabase,
+      studentId,
+      deltaPoints,
+      deltaCompleted,
+      effectiveDate
+    )
 
     // Auto-progression for Daily Memorization Plan (الدرس والمراجعة)
     try {
@@ -144,17 +102,11 @@ export async function POST(req: NextRequest) {
           supabase.from("profiles").select("phone").eq("role", "parent").eq("student_id", studentId).single(),
         ])
         if (parentRes.data?.phone) {
-          const { data: updatedWeekly } = await supabase
-            .from("weekly_summaries")
-            .select("total_points")
-            .eq("student_id", studentId)
-            .eq("week_start", weekStartStr)
-            .single()
           // eslint-disable-next-line @typescript-eslint/no-require-imports
           const twilio = require("twilio")
           const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
           await client.messages.create({
-            body: `🎉 ابنك/ابنتك ${studentRes.data?.full_name} أكمل مهمة "${taskRes.data?.name}" وحصل على ${taskRes.data?.points} نقطة!\n⭐ إجمالي نقاطه هذا الأسبوع: ${updatedWeekly?.total_points ?? points} نقطة`,
+            body: `🎉 ابنك/ابنتك ${studentRes.data?.full_name} أكمل مهمة "${taskRes.data?.name}" وحصل على ${taskRes.data?.points} نقطة!\n⭐ إجمالي نقاطه هذا الأسبوع: ${syncResult.weeklyPoints} نقطة`,
             from: process.env.TWILIO_WHATSAPP_FROM,
             to: `whatsapp:${parentRes.data.phone}`,
           })

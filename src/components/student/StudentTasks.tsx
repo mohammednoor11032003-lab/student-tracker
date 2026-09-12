@@ -236,41 +236,20 @@ function StudentTasks({
     }
   }, [assignments, altTaskState, selectedDate])
 
-  // Check and apply carry-over delay penalty (-5 points per day delayed)
+  // Display reminder if carry-over alternative task is pending (No automatic points on login)
   useEffect(() => {
     if (!altTaskState || altTaskState.completed || !altTaskState.active || !altTaskState.assignedDate) return
     const daysDelayed = Math.max(
       0,
       Math.floor((new Date(todayStr + "T00:00:00").getTime() - new Date(altTaskState.assignedDate + "T00:00:00").getTime()) / (1000 * 60 * 60 * 24))
     )
-    const appliedDays = altTaskState.appliedDelayDays || 0
-    if (daysDelayed > appliedDays) {
-      const newDelayedDays = daysDelayed - appliedDays
-      const delayDeduction = newDelayedDays * 5
-      setWeeklyPoints(prev => prev - delayDeduction)
-      const updatedState: AlternativeTaskState = {
-        ...altTaskState,
-        appliedDelayDays: daysDelayed,
-      }
-      saveAltTaskState(updatedState)
-      toast.error(
-        `⚠️ تأخير في إنجاز المهمة البديلة (${daysDelayed} يوم تأخير): تم تطبيق خصم -${delayDeduction} نقطة! سارع بإنجازها لوقف تراكم الخصم.`,
-        { duration: 6000 }
+    if (daysDelayed > 0) {
+      toast(
+        `📌 تذكير: لديك مهمة بديلة معلقة منذ (${daysDelayed} يوم)، سارع بإنجازها لتعويض النقاط!`,
+        { icon: "⚠️", duration: 6000 }
       )
-      // Background sync deduction to server
-      fetch("/api/complete-task", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId,
-          taskId: "680903aa-0b9a-42f3-a725-49eaf05a9148",
-          points: -delayDeduction,
-          completed: false,
-          assignedDate: todayStr,
-        }),
-      }).catch(err => console.error("Failed to sync delay penalty:", err))
     }
-  }, [altTaskState, todayStr, studentId])
+  }, [altTaskState, todayStr])
 
   // Save altTaskState to localStorage
   function saveAltTaskState(state: AlternativeTaskState | null) {

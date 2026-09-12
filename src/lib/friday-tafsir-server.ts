@@ -147,56 +147,14 @@ export async function updateFridayTafsirState(
 
   try {
     if (deltaPoints !== 0) {
-      // 1. Weekly summary
-      const { data: existingWeekly } = await supabase
-        .from("weekly_summaries")
-        .select("id, total_points, tasks_completed")
-        .eq("student_id", studentId)
-        .eq("week_start", weekStartStr)
-        .single()
-
-      if (existingWeekly) {
-        await supabase
-          .from("weekly_summaries")
-          .update({
-            total_points: existingWeekly.total_points + deltaPoints,
-          })
-          .eq("id", existingWeekly.id)
-      } else {
-        await supabase.from("weekly_summaries").insert({
-          student_id: studentId,
-          week_start: weekStartStr,
-          week_end: weekEndStr,
-          total_points: deltaPoints,
-          tasks_completed: 1,
-        })
-      }
-
-      // 2. Monthly summary
-      const { data: existingMonthly } = await supabase
-        .from("monthly_summaries")
-        .select("id, total_points, tasks_completed")
-        .eq("student_id", studentId)
-        .eq("month", month)
-        .eq("year", year)
-        .single()
-
-      if (existingMonthly) {
-        await supabase
-          .from("monthly_summaries")
-          .update({
-            total_points: existingMonthly.total_points + deltaPoints,
-          })
-          .eq("id", existingMonthly.id)
-      } else {
-        await supabase.from("monthly_summaries").insert({
-          student_id: studentId,
-          month,
-          year,
-          total_points: deltaPoints,
-          tasks_completed: 1,
-        })
-      }
+      const { syncStudentPoints } = await import("./points-sync")
+      await syncStudentPoints(
+        supabase,
+        studentId,
+        deltaPoints,
+        deltaPoints > 0 ? 1 : -1,
+        dateStr
+      )
     }
 
     // 3. Award gems if qualified
