@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "id": "tx_test_مستخدم1_1789195186586",
+    "student_id": "862f7c11-d807-48ad-b3ae-c7e1e7afe2d4",
+    "amount": 100,
+    "type": "earn",
+    "description": "رصيد تجريبي للشرح والعرض التقديمي (100 دينار)",
+    "reference_id": "ref_test_balance_مستخدم1",
+    "created_by": "system",
+    "created_at": "2026-09-12T06:39:46.586Z"
+  },
+  {
+    "id": "tx_test_مستخدم2_1789195188367",
+    "student_id": "a0643aae-2611-4791-a62b-5d129be57adb",
+    "amount": 100,
+    "type": "earn",
+    "description": "رصيد تجريبي للشرح والعرض التقديمي (100 دينار)",
+    "reference_id": "ref_test_balance_مستخدم2",
+    "created_by": "system",
+    "created_at": "2026-09-12T06:39:48.367Z"
+  }
+]

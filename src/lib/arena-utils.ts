@@ -336,7 +336,7 @@ export async function getAvailableOpponents(currentStudentId: string): Promise<A
       .select("id, full_name")
       .eq("role", "student")
       .neq("id", currentStudentId)
-      .limit(10)
+      .limit(50)
 
     if (students && students.length > 0) {
       for (const s of students) {

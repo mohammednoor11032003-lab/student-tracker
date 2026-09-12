@@ -42,6 +42,10 @@ export default function LoginPage() {
           "abdallah": "abdallah@tracker.app",
           "abdullah": "abdallah@tracker.app",
           "yahya": "yahya@tracker.app",
+          "user1": "user1@tracker.app",
+          "user2": "user2@tracker.app",
+          "مستخدم1": "user1@tracker.app",
+          "مستخدم2": "user2@tracker.app",
 
           "احمدالحلو": "ahmed_m@tracker.app",
           "احمدمعتز": "ahmed_m@tracker.app",
