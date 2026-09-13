@@ -46,6 +46,7 @@ function writeLocalConsolidations(items: ManualConsolidation[]) {
 /**
  * Fetch all active and upcoming manual consolidations for a student (where end_date >= currentDateStr),
  * ordered ascending by start_date so the student sees their active and future scheduled plans.
+ * Primary authoritative store: Supabase manual_consolidations table
  */
 export async function getStudentActiveAndUpcomingConsolidations(
   studentId: string,
@@ -63,12 +64,17 @@ export async function getStudentActiveAndUpcomingConsolidations(
       .order("start_date", { ascending: true })
 
     if (!error && data) {
-      return data.map(normalizeConsolidation)
+      const formatted = data.map(normalizeConsolidation)
+      return formatted
     }
-  } catch {
-    // Fallback to local store
+    if (error) {
+      console.warn("Supabase query error for manual_consolidations:", error.message)
+    }
+  } catch (err) {
+    console.error("Database query failed for manual_consolidations:", err)
   }
 
+  // Fallback to local store
   const localList = readLocalConsolidations()
   return localList
     .filter(c => c.student_id === studentId && c.is_active && c.end_date >= currentDateStr)
@@ -91,6 +97,7 @@ export async function getActiveManualConsolidation(
 
 /**
  * Fetch all manual consolidations for a student (for teacher view/management).
+ * Primary authoritative store: Supabase manual_consolidations table
  */
 export async function getStudentManualConsolidations(
   studentId: string
@@ -105,12 +112,17 @@ export async function getStudentManualConsolidations(
       .order("start_date", { ascending: false })
 
     if (!error && data) {
-      return data.map(normalizeConsolidation)
+      const formatted = data.map(normalizeConsolidation)
+      return formatted
     }
-  } catch {
-    // Fallback
+    if (error) {
+      console.warn("Supabase query error for manual_consolidations:", error.message)
+    }
+  } catch (err) {
+    console.error("Database query failed for student manual consolidations:", err)
   }
 
+  // Fallback to local store
   const localList = readLocalConsolidations()
   return localList
     .filter(c => c.student_id === studentId)
@@ -145,7 +157,7 @@ export function normalizeConsolidation(raw: any): ManualConsolidation {
 }
 
 /**
- * Save or update a manual consolidation record.
+ * Save or update a manual consolidation record in Supabase (primary) with local backup.
  */
 export async function saveManualConsolidation(
   record: Partial<ManualConsolidation> & { student_id: string; start_date: string; end_date: string }
@@ -178,22 +190,29 @@ export async function saveManualConsolidation(
     updated_at: now,
   }
 
-  // 1. Try Supabase
+  // 1. Primary insert/update into Supabase
   try {
-    await supabase.from("manual_consolidations").upsert(fullRecord)
+    const { error } = await supabase.from("manual_consolidations").upsert(fullRecord)
+    if (error) {
+      console.error("Supabase manual_consolidations upsert error:", error.message)
+    }
   } catch (err) {
-    console.warn("Supabase upsert failed for manual_consolidations, saving locally:", err)
+    console.error("Supabase upsert failed for manual_consolidations:", err)
   }
 
-  // 2. Always persist to local store
-  const localList = readLocalConsolidations()
-  const existingIdx = localList.findIndex(c => c.id === id)
-  if (existingIdx >= 0) {
-    localList[existingIdx] = { ...localList[existingIdx], ...fullRecord, updated_at: now }
-  } else {
-    localList.unshift(fullRecord)
+  // 2. Keep local cache updated as backup
+  try {
+    const localList = readLocalConsolidations()
+    const existingIdx = localList.findIndex(c => c.id === id)
+    if (existingIdx >= 0) {
+      localList[existingIdx] = { ...localList[existingIdx], ...fullRecord, updated_at: now }
+    } else {
+      localList.unshift(fullRecord)
+    }
+    writeLocalConsolidations(localList)
+  } catch (err) {
+    console.error("Error updating local consolidations cache:", err)
   }
-  writeLocalConsolidations(localList)
 
   return fullRecord
 }
@@ -203,23 +222,34 @@ export async function saveManualConsolidation(
  */
 export async function cancelManualConsolidation(id: string): Promise<boolean> {
   const supabase = getAdminClient()
+  const now = new Date().toISOString()
 
+  // 1. Update in Supabase
   try {
-    await supabase
+    const { error } = await supabase
       .from("manual_consolidations")
-      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .update({ is_active: false, updated_at: now })
       .eq("id", id)
+
+    if (error) {
+      console.error("Supabase cancelManualConsolidation error:", error.message)
+    }
+  } catch (err) {
+    console.error("Error canceling manual consolidation in Supabase:", err)
+  }
+
+  // 2. Update local backup cache
+  try {
+    const localList = readLocalConsolidations()
+    const target = localList.find(c => c.id === id)
+    if (target) {
+      target.is_active = false
+      target.updated_at = now
+      writeLocalConsolidations(localList)
+    }
   } catch {}
 
-  const localList = readLocalConsolidations()
-  const target = localList.find(c => c.id === id)
-  if (target) {
-    target.is_active = false
-    target.updated_at = new Date().toISOString()
-    writeLocalConsolidations(localList)
-    return true
-  }
-  return false
+  return true
 }
 
 /**
@@ -228,16 +258,27 @@ export async function cancelManualConsolidation(id: string): Promise<boolean> {
 export async function deleteManualConsolidation(id: string): Promise<boolean> {
   const supabase = getAdminClient()
 
+  // 1. Delete from Supabase
   try {
-    await supabase
+    const { error } = await supabase
       .from("manual_consolidations")
       .delete()
       .eq("id", id)
+
+    if (error) {
+      console.error("Supabase deleteManualConsolidation error:", error.message)
+    }
+  } catch (err) {
+    console.error("Error deleting manual consolidation from Supabase:", err)
+  }
+
+  // 2. Remove from local backup cache
+  try {
+    const localList = readLocalConsolidations()
+    const filtered = localList.filter(c => c.id !== id)
+    writeLocalConsolidations(filtered)
   } catch {}
 
-  const localList = readLocalConsolidations()
-  const filtered = localList.filter(c => c.id !== id)
-  writeLocalConsolidations(filtered)
   return true
 }
 

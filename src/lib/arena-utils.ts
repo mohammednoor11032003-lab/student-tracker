@@ -184,6 +184,7 @@ export async function getStudentCombatStats(studentId: string): Promise<{
 
 /**
  * Retrieves the count of battles the student has initiated today (Max 3).
+ * Authoritative primary: Supabase battle_history / arena_battles tables.
  */
 export async function getStudentTodayBattlesCount(studentId: string, todayStr: string): Promise<number> {
   const supabase = getAdminClient()
@@ -196,7 +197,7 @@ export async function getStudentTodayBattlesCount(studentId: string, todayStr: s
       .eq("attacker_id", studentId)
       .eq("battle_date", todayStr)
 
-    if (!error && typeof count === "number" && count > 0) {
+    if (!error && typeof count === "number") {
       return count
     }
   } catch {}
@@ -209,7 +210,7 @@ export async function getStudentTodayBattlesCount(studentId: string, todayStr: s
       .eq("attacker_id", studentId)
       .eq("battle_date", todayStr)
 
-    if (!error && typeof count === "number" && count > 0) {
+    if (!error && typeof count === "number") {
       return count
     }
   } catch {}
