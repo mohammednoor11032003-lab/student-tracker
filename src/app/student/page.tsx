@@ -52,32 +52,19 @@ export default async function StudentDashboard({ searchParams }: PageProps) {
 
   let assignments = (rawAssignments || []).filter(a => a.tasks && !isBountyTask(a.tasks))
 
-  // 2. If no assignments exist for today, automatically create them for the student
+  // 2. If no assignments exist for today, automatically ensure they exist via server helper (with Admin Client bypassing RLS safely on server)
   if (!assignments || assignments.length === 0) {
-    const { data: allTasks } = await supabase
-      .from("tasks")
-      .select("id, name, description")
-      .neq("name", "المهمة البديلة")
-      .neq("name", "المهمة الأسبوعية المفاجئة")
-    const routineTasks = (allTasks || []).filter(t => !isBountyTask(t))
-    if (routineTasks.length > 0) {
-      const toInsert = routineTasks.map(t => ({
-        student_id: user.id,
-        task_id: t.id,
-        assigned_date: today,
-        completed: false,
-      }))
-      await supabase.from("daily_assignments").upsert(toInsert, { onConflict: "student_id,task_id,assigned_date", ignoreDuplicates: true })
-      
-      const { data: freshAssignments } = await supabase
-        .from("daily_assignments")
-        .select("*, tasks(*)")
-        .eq("student_id", user.id)
-        .eq("assigned_date", today)
-        .order("completed", { ascending: true })
-      
-      assignments = (freshAssignments || []).filter((a: any) => !isBountyTask(a.tasks))
-    }
+    const { ensureDailyAssignmentsForAllStudents } = await import("@/lib/task-generator-server")
+    await ensureDailyAssignmentsForAllStudents(today, [user.id])
+
+    const { data: freshAssignments } = await supabase
+      .from("daily_assignments")
+      .select("*, tasks(*)")
+      .eq("student_id", user.id)
+      .eq("assigned_date", today)
+      .order("completed", { ascending: true })
+
+    assignments = (freshAssignments || []).filter((a: any) => !isBountyTask(a.tasks))
   }
 
   const [profileRes, weeklyRes, weekAssignmentsRes, studentPlan, leaderboardWeeklyRes, leaderboardMonthlyRes, starBadges, allTasksRes, heroState, bankSummary] = await Promise.all([

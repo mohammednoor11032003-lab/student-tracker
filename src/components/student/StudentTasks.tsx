@@ -1201,22 +1201,13 @@ function StudentTasks({
 
       if (isCurrent && data) {
         if (data.length === 0 && selectedDate === todayStr) {
-          // Auto-generate daily assignments for today if missing
-          const { data: allTasks } = await supabase
-            .from("tasks")
-            .select("id, name")
-            .neq("name", "المهمة البديلة")
-            .neq("name", "المهمة الأسبوعية المفاجئة")
-          if (allTasks && allTasks.length > 0) {
-            const toInsert = allTasks.map(t => ({
-              student_id: studentId,
-              task_id: t.id,
-              assigned_date: todayStr,
-              completed: false,
-            }))
-            await supabase
-              .from("daily_assignments")
-              .upsert(toInsert, { onConflict: "student_id,task_id,assigned_date", ignoreDuplicates: true })
+          // Auto-generate daily assignments for today via secure backend API (bypasses RLS safely on server)
+          try {
+            await fetch("/api/student/auto-generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ date: todayStr }),
+            })
 
             const { data: fresh } = await supabase
               .from("daily_assignments")
@@ -1231,6 +1222,8 @@ function StudentTasks({
               setFetchingDate(false)
               return
             }
+          } catch (genErr) {
+            console.error("Failed to auto-generate tasks via API:", genErr)
           }
         }
         setAssignments(data)

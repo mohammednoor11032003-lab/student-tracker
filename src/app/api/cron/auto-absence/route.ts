@@ -43,10 +43,17 @@ async function handleAutoAbsence(req: NextRequest) {
     // 3. Run the auto-absence sweep
     const result = await runAutoAbsenceSweep(supabase, targetDate)
 
+    // 4. Automatically generate daily routine tasks for all students for today
+    const { ensureDailyAssignmentsForAllStudents } = await import("@/lib/task-generator-server")
+    const { getTodayDateStr } = await import("@/lib/date-utils")
+    const todayStr = getTodayDateStr()
+    const taskGenResult = await ensureDailyAssignmentsForAllStudents(todayStr)
+
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
       result,
+      taskGenResult,
     })
   } catch (err: any) {
     console.error("Cron auto-absence error:", err)
