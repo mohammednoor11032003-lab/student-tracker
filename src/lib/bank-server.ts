@@ -69,6 +69,8 @@ export function calculateBalancesFromTransactions(transactions: BankTransaction[
 
 /**
  * Fetch all bank transactions for a specific student or all students
+ * Authoritative primary: Supabase bank_transactions table
+ * Fallback: local JSON cache (if DB is unreachable)
  */
 export async function getAllBankTransactions(): Promise<BankTransaction[]> {
   const supabase = getAdminClient()
@@ -89,9 +91,12 @@ export async function getAllBankTransactions(): Promise<BankTransaction[]> {
         created_by: r.created_by || null,
         created_at: r.created_at,
       }))
-      // Sync local cache
+      // Keep local cache synced in background as safety backup
       writeLocalTransactions(formatted)
       return formatted
+    }
+    if (error) {
+      console.warn('Supabase bank_transactions query returned error, using fallback:', error.message)
     }
   } catch (err) {
     console.error('Database query for bank_transactions failed (fallback to local):', err)
@@ -101,7 +106,7 @@ export async function getAllBankTransactions(): Promise<BankTransaction[]> {
 }
 
 /**
- * Insert a new bank transaction with dual persistence (Supabase + local fallback)
+ * Insert a new bank transaction into Supabase (primary) with local backup sync
  */
 export async function addBankTransaction(txData: {
   student_id: string
@@ -124,11 +129,13 @@ export async function addBankTransaction(txData: {
     created_at: new Date().toISOString(),
   }
 
-  // 1. Try DB insertion
+  // 1. Primary DB insertion into Supabase
+  let dbInserted = false
   try {
     const { data, error } = await supabase
       .from('bank_transactions')
       .insert({
+        id: newTx.id,
         student_id: newTx.student_id,
         amount: newTx.amount,
         type: newTx.type,
@@ -142,17 +149,23 @@ export async function addBankTransaction(txData: {
     if (!error && data) {
       newTx.id = String(data.id)
       newTx.created_at = data.created_at
+      dbInserted = true
+    } else if (error) {
+      console.error('Supabase bank_transactions insert error:', error.message)
     }
   } catch (err) {
-    console.error('Failed to insert into supabase bank_transactions table (saving locally):', err)
+    console.error('Failed to insert into supabase bank_transactions table:', err)
   }
 
-  // 2. Persist into local JSON ledger
-  const localList = readLocalTransactions()
-  // Check if reference_id already exists locally to avoid double counting
-  if (!newTx.reference_id || !localList.some(t => t.reference_id === newTx.reference_id)) {
-    localList.unshift(newTx)
-    writeLocalTransactions(localList)
+  // 2. Keep local cache updated as backup
+  try {
+    const localList = readLocalTransactions()
+    if (!newTx.reference_id || !localList.some(t => t.reference_id === newTx.reference_id)) {
+      localList.unshift(newTx)
+      writeLocalTransactions(localList)
+    }
+  } catch (err) {
+    console.error('Failed to update local backup ledger:', err)
   }
 
   return newTx
