@@ -1415,6 +1415,10 @@ function StudentTasks({
   const hasNoMemorizationPenalty = assignments.some(
     a => a.tasks?.name?.includes("الحضور بدون حفظ") && a.completed
   )
+  // Locking rule: Repetition (تكرار) & Night Prayer (قيام الليل) lock on absence OR no_memorization.
+  // Adjacent (جنب الدرس التثبيتي) remains unlocked under no_memorization, locking only on full absence.
+  const isConsolidationLocked = hasAbsencePenalty || hasNoMemorizationPenalty
+
 
   const regularTasks = assignments
     .filter(a => (a.tasks?.points ?? 0) >= 0)
@@ -1564,8 +1568,8 @@ function StudentTasks({
       toast.error("🔒 لا يمكن التفاعل مع مهام الأيام السابقة", { icon: "🔒" })
       return
     }
-    if (hasAbsencePenalty) {
-      toast.error("🔒 هذه المهمة معطلة بسبب تسجيل الغياب", { icon: "🔒" })
+    if (isConsolidationLocked) {
+      toast.error(hasAbsencePenalty ? "🔒 هذه المهمة معطلة بسبب تسجيل الغياب" : "🔒 مهمة التكرار معطلة بسبب حالة حاضر بدون حفظ", { icon: "🔒" })
       return
     }
     if (!activeManualForDate) return
@@ -1573,14 +1577,14 @@ function StudentTasks({
     setManualRepetitionsCount(prev => {
       const next = Math.min(target, prev + 1)
       if (typeof window !== "undefined") {
-        localStorage.setItem(manualConsolidationKey, String(next))
+        localStorage.setItem(`manual_rep_count_${studentId}_${activeManualForDate.id}_${selectedDate}`, String(next))
       }
       return next
     })
   }
 
   async function handleCompleteManualConsolidation() {
-    if (!isToday || isSavingManualConsolidation || hasAbsencePenalty || !activeManualForDate || !manualDetails) return
+    if (!isToday || isSavingManualConsolidation || isConsolidationLocked || !activeManualForDate || !manualDetails) return
     const target = activeManualForDate.repetitions_count || 5
     if (manualRepetitionsCount < target) {
       toast.error(`يجب إكمال العداد إلى ${target} تكرارات أولاً!`, { icon: "⚠️" })
@@ -1670,7 +1674,7 @@ function StudentTasks({
   }
 
   async function handleToggleManualNight() {
-    if (!isToday || hasAbsencePenalty || !activeManualForDate || !manualDetails) return
+    if (!isToday || isConsolidationLocked || !activeManualForDate || !manualDetails) return
     const nextCompleted = !isManualNightCompleted
     const pts = manualDetails.nightPrayerPoints // 5 or 0 on Friday
     const deltaPoints = nextCompleted ? pts : -pts
@@ -1711,8 +1715,8 @@ function StudentTasks({
       toast.error("🔒 لا يمكن التفاعل مع مهام الأيام السابقة", { icon: "🔒" })
       return
     }
-    if (hasAbsencePenalty) {
-      toast.error("🔒 هذه المهمة معطلة بسبب تسجيل الغياب", { icon: "🔒" })
+    if (isConsolidationLocked) {
+      toast.error(hasAbsencePenalty ? "🔒 هذه المهمة معطلة بسبب تسجيل الغياب" : "🔒 مهمة التكرار معطلة بسبب حالة حاضر بدون حفظ", { icon: "🔒" })
       return
     }
     const target = planDetails.consolidationTask?.target || 10
@@ -1726,7 +1730,7 @@ function StudentTasks({
   }
 
   async function handleCompleteConsolidation() {
-    if (!isToday || isSavingConsolidation || hasAbsencePenalty) return
+    if (!isToday || isSavingConsolidation || isConsolidationLocked) return
     const target = planDetails.consolidationTask?.target || 10
     if (consolidationCount < target) {
       toast.error(`يجب إكمال العداد إلى ${target} تكرارات أولاً!`, { icon: "⚠️" })
@@ -1809,7 +1813,7 @@ function StudentTasks({
   }
 
   async function handleToggleAutoNight() {
-    if (!isToday || hasAbsencePenalty) return
+    if (!isToday || isConsolidationLocked) return
     const isFridayZero = planDetails.consolidationTasksInfo?.isFridayZeroReward ?? planDetails.isFriday
     const pts = planDetails.consolidationTasksInfo?.task3.points ?? (isFridayZero ? 0 : 5)
     const nextCompleted = !isAutoNightCompleted
@@ -3513,40 +3517,40 @@ function StudentTasks({
                     <button
                       type="button"
                       onClick={handleIncrementConsolidation}
-                      disabled={!isToday || isTargetReached || hasAbsencePenalty || isAutoCompleted}
+                      disabled={!isToday || isTargetReached || isConsolidationLocked || isAutoCompleted}
                       style={{
                         width: "100%",
                         padding: "0.9rem 1rem",
                         borderRadius: "0.85rem",
-                        border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
-                        background: hasAbsencePenalty
+                        border: isConsolidationLocked ? "1.5px dashed #cbd5e1" : "none",
+                        background: isConsolidationLocked
                           ? "rgba(241, 245, 249, 0.85)"
                           : isAutoCompleted
                           ? "linear-gradient(135deg, #059669, #047857)"
                           : isTargetReached
                           ? "linear-gradient(135deg, #10b981, #059669)"
                           : "linear-gradient(135deg, #e11d48, #be123c)",
-                        color: hasAbsencePenalty ? "#64748b" : "white",
+                        color: isConsolidationLocked ? "#64748b" : "white",
                         fontWeight: 900,
                         fontSize: "1.1rem",
-                        cursor: hasAbsencePenalty || isAutoCompleted ? "default" : isTargetReached || !isToday ? "default" : "pointer",
+                        cursor: isConsolidationLocked || isAutoCompleted ? "default" : isTargetReached || !isToday ? "default" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        boxShadow: hasAbsencePenalty ? "none" : isTargetReached ? "0 4px 12px rgba(16,185,129,0.3)" : "0 4px 14px rgba(225,29,72,0.3)",
+                        boxShadow: isConsolidationLocked ? "none" : isTargetReached ? "0 4px 12px rgba(16,185,129,0.3)" : "0 4px 14px rgba(225,29,72,0.3)",
                         position: "relative",
                         overflow: "hidden",
                         transition: "all 0.15s",
-                        opacity: hasAbsencePenalty ? 0.6 : 1,
+                        opacity: isConsolidationLocked ? 0.6 : 1,
                       }}
                       onMouseDown={e => {
-                        if (!isTargetReached && isToday && !hasAbsencePenalty && !isAutoCompleted) e.currentTarget.style.transform = "scale(0.97)"
+                        if (!isTargetReached && isToday && !isConsolidationLocked && !isAutoCompleted) e.currentTarget.style.transform = "scale(0.97)"
                       }}
                       onMouseUp={e => {
-                        if (!isTargetReached && isToday && !hasAbsencePenalty && !isAutoCompleted) e.currentTarget.style.transform = "scale(1)"
+                        if (!isTargetReached && isToday && !isConsolidationLocked && !isAutoCompleted) e.currentTarget.style.transform = "scale(1)"
                       }}
                     >
-                      {!hasAbsencePenalty && !isAutoCompleted && (
+                      {!isConsolidationLocked && !isAutoCompleted && (
                         <div
                           style={{
                             position: "absolute",
@@ -3563,11 +3567,13 @@ function StudentTasks({
 
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", zIndex: 1 }}>
                         <span style={{ fontSize: "1.3rem" }}>
-                          {hasAbsencePenalty ? "🔒" : isAutoCompleted ? "✅" : isTargetReached ? "🎉" : "📿"}
+                          {isConsolidationLocked ? "🔒" : isAutoCompleted ? "✅" : isTargetReached ? "🎉" : "📿"}
                         </span>
                         <span>
                           {hasAbsencePenalty
                             ? "🔒 معطلة بسبب تسجيل الغياب"
+                            : hasNoMemorizationPenalty
+                            ? "🔒 معطلة بسبب حالة حاضر بدون حفظ"
                             : isAutoCompleted
                             ? "تم اعتماد إنجاز تكرار اليوم بنجاح!"
                             : isTargetReached
@@ -3579,14 +3585,14 @@ function StudentTasks({
                       <div
                         style={{
                           zIndex: 1,
-                          background: hasAbsencePenalty ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.2)",
+                          background: isConsolidationLocked ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.2)",
                           padding: "0.25rem 0.65rem",
                           borderRadius: "0.5rem",
                           fontSize: "1.05rem",
                           fontWeight: 900,
                           minWidth: "70px",
                           textAlign: "center",
-                          color: hasAbsencePenalty ? "#64748b" : "white",
+                          color: isConsolidationLocked ? "#64748b" : "white",
                         }}
                       >
                         {consolidationCount} / {target}
@@ -3598,7 +3604,7 @@ function StudentTasks({
                       <button
                         type="button"
                         onClick={handleCompleteConsolidation}
-                        disabled={!isToday || isSavingConsolidation || hasAbsencePenalty}
+                        disabled={!isToday || isSavingConsolidation || isConsolidationLocked}
                         style={{
                           width: "100%",
                           padding: "0.85rem",
@@ -3754,33 +3760,35 @@ function StudentTasks({
                     <button
                       type="button"
                       onClick={handleToggleAutoNight}
-                      disabled={!isToday || hasAbsencePenalty}
+                      disabled={!isToday || isConsolidationLocked}
                       style={{
                         width: "100%",
                         padding: "0.85rem 1rem",
                         borderRadius: "0.75rem",
-                        border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
-                        background: hasAbsencePenalty
+                        border: isConsolidationLocked ? "1.5px dashed #cbd5e1" : "none",
+                        background: isConsolidationLocked
                           ? "rgba(241, 245, 249, 0.85)"
                           : isAutoNightCompleted
                           ? "linear-gradient(135deg, #059669, #047857)"
                           : "linear-gradient(135deg, #7c3aed, #6d28d9)",
-                        color: hasAbsencePenalty ? "#64748b" : "white",
+                        color: isConsolidationLocked ? "#64748b" : "white",
                         fontWeight: 900,
                         fontSize: "1rem",
-                        cursor: hasAbsencePenalty || !isToday ? "default" : "pointer",
+                        cursor: isConsolidationLocked || !isToday ? "default" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        boxShadow: hasAbsencePenalty ? "none" : isAutoNightCompleted ? "0 4px 12px rgba(5,150,105,0.3)" : "0 4px 12px rgba(124,58,237,0.3)",
+                        boxShadow: isConsolidationLocked ? "none" : isAutoNightCompleted ? "0 4px 12px rgba(5,150,105,0.3)" : "0 4px 12px rgba(124,58,237,0.3)",
                         fontFamily: "'Tajawal', 'Cairo', sans-serif",
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span>{hasAbsencePenalty ? "🔒" : isAutoNightCompleted ? "✅" : "🌙"}</span>
+                        <span>{isConsolidationLocked ? "🔒" : isAutoNightCompleted ? "✅" : "🌙"}</span>
                         <span>
                           {hasAbsencePenalty
                             ? "🔒 معطلة بسبب تسجيل الغياب"
+                            : hasNoMemorizationPenalty
+                            ? "🔒 معطلة بسبب حالة حاضر بدون حفظ"
                             : isAutoNightCompleted
                             ? isToday ? "تم إنجاز صلاة قيام الليل بنجاح ✓ (اضغط للتراجع ↩️)" : "تم الإنجاز بنجاح ✓"
                             : `اضغط لتأكيد أداء قيام الليل (+${nightPts} نقاط)`}
@@ -3983,13 +3991,13 @@ function StudentTasks({
                           <button
                             type="button"
                             onClick={handleIncrementManualRepetition}
-                            disabled={!isToday || isTargetReached || hasAbsencePenalty || isManualCompleted}
+                            disabled={!isToday || isTargetReached || isConsolidationLocked || isManualCompleted}
                             style={{
                               width: "100%",
                               padding: "1rem 1.15rem",
                               borderRadius: "0.85rem",
-                              border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
-                              background: hasAbsencePenalty
+                              border: isConsolidationLocked ? "1.5px dashed #cbd5e1" : "none",
+                              background: isConsolidationLocked
                                 ? "rgba(241, 245, 249, 0.85)"
                                 : isManualCompleted
                                 ? "linear-gradient(135deg, #059669, #047857)"
@@ -3998,28 +4006,28 @@ function StudentTasks({
                                 : manualDetails.isHarvestDay
                                 ? "linear-gradient(135deg, #d97706, #b45309)"
                                 : "linear-gradient(135deg, #e11d48, #be123c)",
-                              color: hasAbsencePenalty ? "#64748b" : "white",
+                              color: isConsolidationLocked ? "#64748b" : "white",
                               fontWeight: 900,
                               fontSize: "1.15rem",
-                              cursor: hasAbsencePenalty || isManualCompleted ? "default" : isTargetReached || !isToday ? "default" : "pointer",
+                              cursor: isConsolidationLocked || isManualCompleted ? "default" : isTargetReached || !isToday ? "default" : "pointer",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "space-between",
-                              boxShadow: hasAbsencePenalty ? "none" : isTargetReached ? "0 4px 15px rgba(16,185,129,0.3)" : "0 4px 15px rgba(225,29,72,0.35)",
+                              boxShadow: isConsolidationLocked ? "none" : isTargetReached ? "0 4px 15px rgba(16,185,129,0.3)" : "0 4px 15px rgba(225,29,72,0.35)",
                               position: "relative",
                               overflow: "hidden",
                               transition: "all 0.15s",
-                              opacity: hasAbsencePenalty ? 0.6 : 1,
+                              opacity: isConsolidationLocked ? 0.6 : 1,
                               fontFamily: "'Tajawal', 'Cairo', sans-serif",
                             }}
                             onMouseDown={e => {
-                              if (!isTargetReached && isToday && !hasAbsencePenalty && !isManualCompleted) e.currentTarget.style.transform = "scale(0.97)"
+                              if (!isTargetReached && isToday && !isConsolidationLocked && !isManualCompleted) e.currentTarget.style.transform = "scale(0.97)"
                             }}
                             onMouseUp={e => {
-                              if (!isTargetReached && isToday && !hasAbsencePenalty && !isManualCompleted) e.currentTarget.style.transform = "scale(1)"
+                              if (!isTargetReached && isToday && !isConsolidationLocked && !isManualCompleted) e.currentTarget.style.transform = "scale(1)"
                             }}
                           >
-                            {!hasAbsencePenalty && !isManualCompleted && (
+                            {!isConsolidationLocked && !isManualCompleted && (
                               <div
                                 style={{
                                   position: "absolute",
@@ -4036,11 +4044,13 @@ function StudentTasks({
 
                             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", zIndex: 1 }}>
                               <span style={{ fontSize: "1.3rem" }}>
-                                {hasAbsencePenalty ? "🔒" : isManualCompleted ? "✅" : isTargetReached ? "🎉" : manualDetails.isHarvestDay ? "🌾" : "📿"}
+                                {isConsolidationLocked ? "🔒" : isManualCompleted ? "✅" : isTargetReached ? "🎉" : manualDetails.isHarvestDay ? "🌾" : "📿"}
                               </span>
                               <span>
                                 {hasAbsencePenalty
                                   ? "🔒 معطلة بسبب تسجيل الغياب"
+                                  : hasNoMemorizationPenalty
+                                  ? "🔒 معطلة بسبب حالة حاضر بدون حفظ"
                                   : isManualCompleted
                                   ? manualDetails.isHarvestDay ? "تم اعتماد إنجاز يوم حصاد التثبيت بنجاح!" : "تم اعتماد إنجاز مهمة التثبيت لليوم!"
                                   : isTargetReached
@@ -4052,14 +4062,14 @@ function StudentTasks({
                             <div
                               style={{
                                 zIndex: 1,
-                                background: hasAbsencePenalty ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.25)",
+                                background: isConsolidationLocked ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.25)",
                                 padding: "0.3rem 0.75rem",
                                 borderRadius: "0.55rem",
                                 fontSize: "1.1rem",
                                 fontWeight: 900,
                                 minWidth: "75px",
                                 textAlign: "center",
-                                color: hasAbsencePenalty ? "#64748b" : "white",
+                                color: isConsolidationLocked ? "#64748b" : "white",
                               }}
                             >
                               {manualRepetitionsCount} / {target}
@@ -4071,7 +4081,7 @@ function StudentTasks({
                             <button
                               type="button"
                               onClick={handleCompleteManualConsolidation}
-                              disabled={!isToday || isSavingManualConsolidation || hasAbsencePenalty}
+                              disabled={!isToday || isSavingManualConsolidation || isConsolidationLocked}
                               style={{
                                 width: "100%",
                                 padding: "0.95rem",
@@ -4223,33 +4233,35 @@ function StudentTasks({
                     <button
                       type="button"
                       onClick={handleToggleManualNight}
-                      disabled={!isToday || hasAbsencePenalty}
+                      disabled={!isToday || isConsolidationLocked}
                       style={{
                         width: "100%",
                         padding: "0.9rem 1.15rem",
                         borderRadius: "0.85rem",
-                        border: hasAbsencePenalty ? "1.5px dashed #cbd5e1" : "none",
-                        background: hasAbsencePenalty
+                        border: isConsolidationLocked ? "1.5px dashed #cbd5e1" : "none",
+                        background: isConsolidationLocked
                           ? "rgba(241, 245, 249, 0.85)"
                           : isManualNightCompleted
                           ? "linear-gradient(135deg, #059669, #047857)"
                           : "linear-gradient(135deg, #7c3aed, #6d28d9)",
-                        color: hasAbsencePenalty ? "#64748b" : "white",
+                        color: isConsolidationLocked ? "#64748b" : "white",
                         fontWeight: 900,
                         fontSize: "1.05rem",
-                        cursor: hasAbsencePenalty || !isToday ? "default" : "pointer",
+                        cursor: isConsolidationLocked || !isToday ? "default" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        boxShadow: hasAbsencePenalty ? "none" : isManualNightCompleted ? "0 4px 15px rgba(5,150,105,0.4)" : "0 4px 15px rgba(124,58,237,0.35)",
+                        boxShadow: isConsolidationLocked ? "none" : isManualNightCompleted ? "0 4px 15px rgba(5,150,105,0.4)" : "0 4px 15px rgba(124,58,237,0.35)",
                         fontFamily: "'Tajawal', 'Cairo', sans-serif",
                       }}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span>{hasAbsencePenalty ? "🔒" : isManualNightCompleted ? "✅" : "🌙"}</span>
+                        <span>{isConsolidationLocked ? "🔒" : isManualNightCompleted ? "✅" : "🌙"}</span>
                         <span>
                           {hasAbsencePenalty
                             ? "🔒 معطلة بسبب تسجيل الغياب"
+                            : hasNoMemorizationPenalty
+                            ? "🔒 معطلة بسبب حالة حاضر بدون حفظ"
                             : isManualNightCompleted
                             ? isToday ? "تم إنجاز صلاة قيام الليل بنجاح ✓ (اضغط للتراجع ↩️)" : "تم الإنجاز بنجاح ✓"
                             : `اضغط لتأكيد أداء قيام الليل (+${manualDetails.nightPrayerPoints} نقاط)`}
