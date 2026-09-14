@@ -25,7 +25,7 @@ export default async function TeacherChallengesPage() {
   const weekInfo = getWeekAndMonthInfo(todayStr)
   const currentWeekStartStr = formatDateStr(weekInfo.weekStart)
 
-  // Compute the 3 active bounties for this week
+  // Compute the 4 active bounties for this week
   const activeWeeklyBounties = getWeeklyBounties(currentWeekStartStr, bountyTasks)
   const activeWeeklyBountyIds = activeWeeklyBounties.map(b => b.id)
 

@@ -79,12 +79,12 @@ export function parseBountyTask(task: {
 }
 
 /**
- * Deterministically select 3 bounties from the pool for the given weekStartStr.
- * All students in that calendar week will see the EXACT same 3 challenges.
+ * Deterministically select 4 bounties from the pool for the given weekStartStr.
+ * All students in that calendar week will see the EXACT same 4 challenges.
  */
 export function getWeeklyBounties(weekStartStr: string, pool: BountyTask[]): BountyTask[] {
   if (!pool || pool.length === 0) return []
-  if (pool.length <= 3) return [...pool]
+  if (pool.length <= 4) return [...pool]
 
   // Deterministic seed based on weekStartStr
   let seed = 0
@@ -105,5 +105,5 @@ export function getWeeklyBounties(weekStartStr: string, pool: BountyTask[]): Bou
     ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
 
-  return shuffled.slice(0, 3)
+  return shuffled.slice(0, 4)
 }
