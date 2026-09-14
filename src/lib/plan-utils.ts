@@ -201,6 +201,86 @@ export const CONSOLIDATION_SCHEDULE: Record<number, { title: string; target: num
   7: { title: "تثبيت الجزء كامل", target: 3 },
 }
 
+// 3. مصفوفة سور الجزء 30 بالترتيب العكسي (من الناس إلى النبأ)
+// ملاحظة أمان: التفعيل الفعلي لمنطق 'سورة يومياً' مشروط بمفتاح الأمان أدناه وبموافقة صريحة
+export const ENABLE_JUZ_30_SURAH_BY_SURAH = false
+
+export interface Juz30Surah {
+  id: number
+  name: string
+  startPage: number
+  endPage: number
+}
+
+export const JUZ_30_SURAHS_REVERSE: Juz30Surah[] = [
+  { id: 114, name: "الناس", startPage: 604, endPage: 604 },
+  { id: 113, name: "الفلق", startPage: 604, endPage: 604 },
+  { id: 112, name: "الإخلاص", startPage: 604, endPage: 604 },
+  { id: 111, name: "المسد", startPage: 603, endPage: 603 },
+  { id: 110, name: "النصر", startPage: 603, endPage: 603 },
+  { id: 109, name: "الكافرون", startPage: 603, endPage: 603 },
+  { id: 108, name: "الكوثر", startPage: 602, endPage: 602 },
+  { id: 107, name: "الماعون", startPage: 602, endPage: 602 },
+  { id: 106, name: "قريش", startPage: 602, endPage: 602 },
+  { id: 105, name: "الفيل", startPage: 601, endPage: 601 },
+  { id: 104, name: "الهمزة", startPage: 601, endPage: 601 },
+  { id: 103, name: "العصر", startPage: 601, endPage: 601 },
+  { id: 102, name: "التكاثر", startPage: 600, endPage: 600 },
+  { id: 101, name: "القارعة", startPage: 600, endPage: 600 },
+  { id: 100, name: "العاديات", startPage: 599, endPage: 599 },
+  { id: 99, name: "الزلزلة", startPage: 599, endPage: 599 },
+  { id: 98, name: "البينة", startPage: 598, endPage: 598 },
+  { id: 97, name: "القدر", startPage: 598, endPage: 598 },
+  { id: 96, name: "العلق", startPage: 597, endPage: 597 },
+  { id: 95, name: "التين", startPage: 597, endPage: 597 },
+  { id: 94, name: "الشرح", startPage: 596, endPage: 596 },
+  { id: 93, name: "الضحى", startPage: 596, endPage: 596 },
+  { id: 92, name: "الليل", startPage: 595, endPage: 595 },
+  { id: 91, name: "الشمس", startPage: 595, endPage: 595 },
+  { id: 90, name: "البلد", startPage: 594, endPage: 594 },
+  { id: 89, name: "الفجر", startPage: 593, endPage: 594 },
+  { id: 88, name: "الغاشية", startPage: 592, endPage: 592 },
+  { id: 87, name: "الأعلى", startPage: 591, endPage: 592 },
+  { id: 86, name: "الطارق", startPage: 591, endPage: 591 },
+  { id: 85, name: "البروج", startPage: 590, endPage: 590 },
+  { id: 84, name: "الانشقاق", startPage: 589, endPage: 590 },
+  { id: 83, name: "المطففين", startPage: 587, endPage: 589 },
+  { id: 82, name: "الانفطار", startPage: 587, endPage: 587 },
+  { id: 81, name: "التكوير", startPage: 586, endPage: 586 },
+  { id: 80, name: "عبس", startPage: 585, endPage: 585 },
+  { id: 79, name: "النازعات", startPage: 583, endPage: 584 },
+  { id: 78, name: "النبأ", startPage: 582, endPage: 583 },
+]
+
+/**
+ * دالة نقاط القفز للمسار الموحد (Universal Path Jumps)
+ * تحدد الصفحة التالية بعد انتهاء تثبيت أي جزء وفق المسار الموحد:
+ * 30 -> 29 (ص562) -> 28 (ص542) -> 27 (ص522) -> 26 (ص502) -> 1 (ص1) -> 2...25
+ */
+export function getNextStageStart(completedJuz: number): { page: number; part: "top" | "bottom" } {
+  if (completedJuz === 30) {
+    return { page: 562, part: "top" } // قفزة 1: بداية جزء 29
+  }
+  if (completedJuz === 29) {
+    return { page: 542, part: "top" } // قفزة 2: بداية جزء 28
+  }
+  if (completedJuz === 28) {
+    return { page: 522, part: "top" } // قفزة 3: بداية جزء 27
+  }
+  if (completedJuz === 27) {
+    return { page: 502, part: "top" } // قفزة 4: بداية جزء 26
+  }
+  if (completedJuz === 26) {
+    return { page: 1, part: "top" } // قفزة 5: بداية جزء 1
+  }
+  if (completedJuz >= 1 && completedJuz < 25) {
+    const endOfJuz = JUZ_BOUNDARIES[completedJuz] || (completedJuz * 20 + 1)
+    return { page: Math.min(604, endOfJuz + 1), part: "top" }
+  }
+  // في حال ختام الجزء 25 (نهاية المصحف)
+  return { page: 501, part: "bottom" }
+}
+
 // Generate the custom non-linear review cycle based on memorized Ajza
 export function getReviewCycle(memorizedAjza: number[] | null | undefined): HizbInfo[] {
   // 1. Sanitize and sort Ajza in ascending Quran order (1, 2... 26, 27, etc.)
@@ -468,12 +548,14 @@ export function calculateNextPlanState(current: StudentPlan, taskName: string, c
       if (cDay < 7) {
         next.consolidation_day = cDay + 1
       } else {
-        // Finished day 7: resume standard plan for next Juz!
+        // Finished day 7: resume standard plan for next stage in Universal Path!
+        const completedJuz = Number(next.consolidation_juz) || getJuzNumber(next.current_page)
+        const nextStage = getNextStageStart(completedJuz)
         next.is_in_consolidation = false
         next.consolidation_day = 0
         next.consolidation_juz = 0
-        next.current_page = Math.min(604, next.current_page + 1)
-        next.page_part = "top"
+        next.current_page = nextStage.page
+        next.page_part = nextStage.part
       }
     } else if (isLesson) {
       if (next.page_part === "top") {
@@ -641,12 +723,14 @@ export function calculateProjectedPlan(
       if (sDay < 7) {
         sim.consolidation_day = sDay + 1
       } else {
-        // Finished Day 7: exit consolidation and advance page to next Juz!
+        // Finished Day 7: exit consolidation and advance page to next stage in Universal Path!
+        const completedJuz = Number(sim.consolidation_juz) || getJuzNumber(sim.current_page)
+        const nextStage = getNextStageStart(completedJuz)
         sim.is_in_consolidation = false
         sim.consolidation_day = 0
         sim.consolidation_juz = 0
-        sim.current_page = Math.min(604, sim.current_page + 1)
-        sim.page_part = "top"
+        sim.current_page = nextStage.page
+        sim.page_part = nextStage.part
       }
     } else {
       if (sim.page_part === "top") {
