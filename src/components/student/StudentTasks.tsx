@@ -255,23 +255,6 @@ function StudentTasks({
     })
   }
 
-  // Clean up stale localStorage altTaskState ONLY if penalty was on selectedDate and got unchecked
-  useEffect(() => {
-    if (!altTaskState) return
-    // If altTask is from a different date and not completed, keep it alive (it's an active carried-over debt)!
-    if (altTaskState.assignedDate && altTaskState.assignedDate !== selectedDate && !altTaskState.completed) {
-      return
-    }
-    // If on the assigned date, check if penalty was cancelled
-    if (altTaskState.assignedDate === selectedDate) {
-      const hasPenalty = assignments.some(a => (a.tasks?.name?.includes("الحضور بدون حفظ") || a.tasks?.name?.includes("الغياب") || a.tasks?.name?.includes("غياب")) && a.completed)
-      const hasAltInDb = assignments.some(a => a.tasks?.name === "المهمة البديلة" && a.completed)
-      if (!hasPenalty && !hasAltInDb && !altTaskState.completed) {
-        saveAltTaskState(null)
-      }
-    }
-  }, [assignments, altTaskState, selectedDate])
-
   // Display reminder if carry-over alternative task is pending (No automatic points on login)
   useEffect(() => {
     if (!altTaskState || altTaskState.completed || !altTaskState.active || !altTaskState.assignedDate) return
