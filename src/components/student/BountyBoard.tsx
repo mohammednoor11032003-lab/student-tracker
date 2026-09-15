@@ -1,5 +1,6 @@
 "use client"
 import React, { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { BountyTask, BountyProgress } from "@/lib/bounty-utils"
 import { Award, CheckCircle2, ChevronRight, Flame, Sparkles, Swords, Trophy } from "lucide-react"
 
@@ -20,19 +21,37 @@ export default function BountyBoard({
   completedBountyTaskIds = [],
   onClaimBounty,
 }: BountyBoardProps) {
-  const storageKey = `bounties_${studentId}_${weekStartStr}`
+  const supabase = createClient()
+  const [progressMap, setProgressMap] = useState<Record<string, BountyProgress>>({})
 
-  const [progressMap, setProgressMap] = useState<Record<string, BountyProgress>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(storageKey)
-        if (saved) return JSON.parse(saved)
-      } catch (e) {
-        console.error("Failed to parse saved bounties:", e)
-      }
-    }
-    return {}
-  })
+  // Fetch bounties from Supabase cloud table
+  useEffect(() => {
+    if (!studentId || !weekStartStr) return
+    let isMounted = true
+    supabase
+      .from("student_bounties")
+      .select("*")
+      .eq("student_id", studentId)
+      .eq("week_start", weekStartStr)
+      .then(({ data }) => {
+        if (isMounted && data && data.length > 0) {
+          const map: Record<string, BountyProgress> = {}
+          data.forEach((b: any) => {
+            map[b.bounty_id] = {
+              taskId: b.bounty_id,
+              accepted: b.accepted,
+              acceptedAt: b.accepted_at,
+              current: b.current_progress,
+              target: b.target_progress,
+              completed: b.completed,
+              completedAt: b.completed_at,
+            }
+          })
+          setProgressMap(map)
+        }
+      })
+    return () => { isMounted = false }
+  }, [studentId, weekStartStr, supabase])
 
   const [claimingId, setClaimingId] = useState<string | null>(null)
 
@@ -55,23 +74,32 @@ export default function BountyBoard({
           changed = true
         }
       })
-      if (changed && typeof window !== "undefined") {
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(updated))
-        } catch {}
-      }
+
       return changed ? updated : prev
     })
-  }, [completedBountyTaskIds, storageKey])
+  }, [completedBountyTaskIds])
 
-  function saveProgress(next: Record<string, BountyProgress>) {
+  async function saveProgress(next: Record<string, BountyProgress>) {
     setProgressMap(next)
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(next))
-      } catch (e) {
-        console.error("Failed to save bounty progress:", e)
+    try {
+      const records = Object.values(next).map(b => ({
+        student_id: studentId,
+        week_start: weekStartStr,
+        bounty_id: b.taskId,
+        accepted: b.accepted,
+        accepted_at: b.acceptedAt || new Date().toISOString(),
+        current_progress: b.current,
+        target_progress: b.target,
+        completed: b.completed,
+        completed_at: b.completedAt || null,
+        claimed: b.completed,
+        updated_at: new Date().toISOString(),
+      }))
+      if (records.length > 0) {
+        await supabase.from("student_bounties").upsert(records, { onConflict: "student_id,week_start,bounty_id" })
       }
+    } catch (e) {
+      console.error("Cloud save bounty progress error:", e)
     }
   }
 

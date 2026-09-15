@@ -34,24 +34,14 @@ export default function FridayTafsirSection({
     if (!studentId || !selectedDate) return
     let isMounted = true
 
-    // Optimistic cache lookup
-    if (typeof window !== "undefined") {
-      const cached = localStorage.getItem(`friday_tafsir_${studentId}_${selectedDate}`)
-      if (cached) {
-        try {
-          setState(JSON.parse(cached))
-        } catch {}
-      }
-    }
+    // Server-first state fetch (Cloud-authoritative)
 
     fetch(`/api/friday-tafsir?studentId=${studentId}&date=${selectedDate}`)
       .then(res => res.json())
       .then(data => {
         if (isMounted && data.success && data.state) {
           setState(data.state)
-          if (typeof window !== "undefined") {
-            localStorage.setItem(`friday_tafsir_${studentId}_${selectedDate}`, JSON.stringify(data.state))
-          }
+
         }
       })
       .catch(() => {})
@@ -88,9 +78,7 @@ export default function FridayTafsirSection({
     }
 
     setState(updatedState)
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`friday_tafsir_${studentId}_${selectedDate}`, JSON.stringify(updatedState))
-    }
+
     onPointsDelta(delta)
 
     if (nextCompleted) {
@@ -173,9 +161,7 @@ export default function FridayTafsirSection({
     }
 
     setState(updatedState)
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`friday_tafsir_${studentId}_${selectedDate}`, JSON.stringify(updatedState))
-    }
+
     if (delta !== 0) {
       onPointsDelta(delta)
     }

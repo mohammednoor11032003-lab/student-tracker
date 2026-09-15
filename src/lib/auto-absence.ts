@@ -171,7 +171,7 @@ export async function runAutoAbsenceSweep(
         console.error(`Failed to deduct points for student ${student.id}:`, pointsErr)
       }
 
-      // 3c. Ensure alternative task assignment exists for recovery
+      // 3c. Ensure alternative task assignment exists in daily_assignments and student_alternative_tasks for recovery
       try {
         await supabase
           .from("daily_assignments")
@@ -184,6 +184,25 @@ export async function runAutoAbsenceSweep(
               completed_at: null,
             },
             { onConflict: "student_id,task_id,assigned_date" }
+          )
+
+        // Seed directly into student_alternative_tasks table so it appears immediately on client login
+        await supabase
+          .from("student_alternative_tasks")
+          .upsert(
+            {
+              student_id: student.id,
+              assigned_date: targetDate,
+              penalty_type: "absence",
+              active: true,
+              opened: false,
+              tasks: [],
+              completed: false,
+              completed_at: null,
+              exempted: false,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "student_id,assigned_date,penalty_type" }
           )
       } catch (altErr) {
         console.warn(`Non-critical: failed to seed alternative task for student ${student.id}:`, altErr)

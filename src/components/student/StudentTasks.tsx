@@ -176,61 +176,28 @@ function StudentTasks({
   // Revision Test Modal state
   const [pendingRevisionAssignment, setPendingRevisionAssignment] = useState<Assignment | null>(null)
   // Track tasks that require double revision (keyed by assignment id)
-  const [doubleRevisionIds, setDoubleRevisionIds] = useState<Record<string, boolean>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(`double_revision_${studentId}`)
-        return saved ? JSON.parse(saved) : {}
-      } catch {
-        return {}
-      }
-    }
-    return {}
-  })
+  const [doubleRevisionIds, setDoubleRevisionIds] = useState<Record<string, boolean>>({})
 
-  // Helper to save doubleRevisionIds to localStorage
-  function updateDoubleRevision(assignmentId: string, isDouble: boolean) {
-    setDoubleRevisionIds(prev => {
-      const next = { ...prev, [assignmentId]: isDouble }
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem(`double_revision_${studentId}`, JSON.stringify(next))
-        } catch (e) {
-          console.error("Failed to save double revision state to localStorage:", e)
-        }
-      }
-      return next
-    })
+  // Helper to save doubleRevisionIds (Cloud + React State)
+  async function updateDoubleRevision(assignmentId: string, isDouble: boolean) {
+    setDoubleRevisionIds(prev => ({ ...prev, [assignmentId]: isDouble }))
+    try {
+      await supabase
+        .from("student_double_revisions")
+        .upsert({ student_id: studentId, assignment_id: assignmentId, active: isDouble }, { onConflict: "student_id,assignment_id" })
+    } catch (e) {
+      console.error("Cloud error saving double revision:", e)
+    }
   }
 
   // Alternative Task State (Carry-over across days until completed)
-  const [altTaskState, setAltTaskState] = useState<AlternativeTaskState | null>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(`alt_task_${studentId}`)
-        return saved ? JSON.parse(saved) : null
-      } catch {
-        return null
-      }
-    }
-    return null
-  })
+  const [altTaskState, setAltTaskState] = useState<AlternativeTaskState | null>(null)
 
   const [isMysteryModalOpen, setIsMysteryModalOpen] = useState(false)
   const [isOpeningChest, setIsOpeningChest] = useState(false)
 
-  // Explicit attendance choice for "حاضر ومستعد" (Initial state is null / unselected)
-  const [presentChoiceMap, setPresentChoiceMap] = useState<Record<string, boolean>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(`attendance_choice_${studentId}_${todayStr}`)
-        return saved === "present" ? { [todayStr]: true } : {}
-      } catch {
-        return {}
-      }
-    }
-    return {}
-  })
+  // Explicit attendance choice for "حاضر ومستعد" (React State)
+  const [presentChoiceMap, setPresentChoiceMap] = useState<Record<string, boolean>>({})
 
   function togglePresentChoice(date: string, enable?: boolean) {
     setPresentChoiceMap(prev => {
@@ -238,18 +205,8 @@ function StudentTasks({
       const shouldEnable = enable !== undefined ? enable : !next[date]
       if (shouldEnable) {
         next[date] = true
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.setItem(`attendance_choice_${studentId}_${date}`, "present")
-          } catch {}
-        }
       } else {
         delete next[date]
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.removeItem(`attendance_choice_${studentId}_${date}`)
-          } catch {}
-        }
       }
       return next
     })
@@ -270,19 +227,35 @@ function StudentTasks({
     }
   }, [altTaskState, todayStr])
 
-  // Save altTaskState to localStorage
-  function saveAltTaskState(state: AlternativeTaskState | null) {
+  // Save altTaskState directly to Supabase cloud table
+  async function saveAltTaskState(state: AlternativeTaskState | null) {
     setAltTaskState(state)
-    if (typeof window !== "undefined") {
-      try {
-        if (state) {
-          localStorage.setItem(`alt_task_${studentId}`, JSON.stringify(state))
-        } else {
-          localStorage.removeItem(`alt_task_${studentId}`)
-        }
-      } catch (e) {
-        console.error("Failed to save altTaskState:", e)
+    try {
+      if (state) {
+        await supabase
+          .from("student_alternative_tasks")
+          .upsert({
+            student_id: studentId,
+            assigned_date: state.assignedDate,
+            penalty_type: state.penaltyType || "attendance",
+            active: state.active,
+            opened: Boolean(state.opened),
+            tasks: state.tasks || [],
+            completed: Boolean(state.completed),
+            completed_at: state.completedAt || null,
+            completion_summary: state.completionSummary || null,
+            exempted: Boolean(state.exempted),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "student_id,assigned_date,penalty_type" })
+      } else {
+        await supabase
+          .from("student_alternative_tasks")
+          .update({ active: false, updated_at: new Date().toISOString() })
+          .eq("student_id", studentId)
+          .eq("assigned_date", todayStr)
       }
+    } catch (e) {
+      console.error("Cloud saveAltTaskState error:", e)
     }
   }
 
@@ -794,17 +767,134 @@ function StudentTasks({
   const questDropDate = getWeeklyQuestDropDate(currentWeekStartStr)
   const isQuestDropped = todayStr >= questDropDate
 
-  const [weeklyQuestState, setWeeklyQuestState] = useState<WeeklyQuestState | null>(() => {
-    if (typeof window !== "undefined") {
+  const [weeklyQuestState, setWeeklyQuestState] = useState<WeeklyQuestState | null>(null)
+
+  // --- CLOUD HYDRATION & LAZY MIGRATION ---
+  useEffect(() => {
+    if (!studentId) return
+    let isMounted = true
+
+    async function syncCloudState() {
       try {
-        const saved = localStorage.getItem(`weekly_quest_${studentId}_${currentWeekStartStr}`)
-        if (saved) return JSON.parse(saved)
-      } catch (e) {
-        console.error("Failed to load weeklyQuestState:", e)
+        // A. Load active alternative task from Supabase
+        const { data: altRows } = await supabase
+          .from("student_alternative_tasks")
+          .select("*")
+          .eq("student_id", studentId)
+          .eq("active", true)
+          .order("created_at", { ascending: false })
+          .limit(1)
+
+        if (isMounted && altRows && altRows.length > 0) {
+          const row = altRows[0]
+          setAltTaskState({
+            active: row.active,
+            opened: row.opened,
+            tasks: row.tasks || [],
+            completed: row.completed,
+            completedAt: row.completed_at,
+            completionSummary: row.completion_summary,
+            exempted: row.exempted,
+            createdAt: row.created_at,
+            assignedDate: row.assigned_date,
+            penaltyType: row.penalty_type,
+          })
+        }
+
+        // B. Load active weekly quest from Supabase
+        const { data: questRow } = await supabase
+          .from("student_weekly_quests")
+          .select("*")
+          .eq("student_id", studentId)
+          .eq("week_start", currentWeekStartStr)
+          .maybeSingle()
+
+        if (isMounted && questRow) {
+          setWeeklyQuestState({
+            weekStart: questRow.week_start,
+            dropDate: questRow.drop_date,
+            active: questRow.active,
+            opened: questRow.opened,
+            tasks: questRow.tasks || [],
+            completed: questRow.completed,
+            completedAt: questRow.completed_at,
+            claimedPoints: questRow.points_awarded,
+          })
+        }
+
+        // C. Load double revision penalties
+        const { data: revRows } = await supabase
+          .from("student_double_revisions")
+          .select("*")
+          .eq("student_id", studentId)
+          .eq("active", true)
+
+        if (isMounted && revRows && revRows.length > 0) {
+          const revMap: Record<string, boolean> = {}
+          revRows.forEach((r: any) => { revMap[r.assignment_id] = true })
+          setDoubleRevisionIds(revMap)
+        }
+
+        // D. Perform one-time migration of legacy localStorage data
+        const migKey = "cloud_migrated_v1_" + studentId
+        if (typeof window !== "undefined" && !localStorage.getItem(migKey)) {
+          let legacyAlt: any = null
+          try {
+            const raw = localStorage.getItem("alt_task_" + studentId)
+            if (raw) legacyAlt = JSON.parse(raw)
+          } catch {}
+
+          let legacyQuests: any[] = []
+          try {
+            const raw = localStorage.getItem("weekly_quest_" + studentId + "_" + currentWeekStartStr)
+            if (raw) legacyQuests.push(JSON.parse(raw))
+          } catch {}
+
+          let legacyBounties: any[] = []
+          try {
+            const raw = localStorage.getItem("bounties_" + studentId + "_" + currentWeekStartStr)
+            if (raw) {
+              const bMap = JSON.parse(raw)
+              Object.values(bMap).forEach((b: any) => {
+                legacyBounties.push({ ...b, weekStart: currentWeekStartStr, bountyId: b.taskId })
+              })
+            }
+          } catch {}
+
+          let legacyDouble: any[] = []
+          try {
+            const raw = localStorage.getItem("double_revision_" + studentId)
+            if (raw) {
+              const dMap = JSON.parse(raw)
+              Object.keys(dMap).forEach(k => {
+                if (dMap[k]) legacyDouble.push({ assignmentId: k, active: true })
+              })
+            }
+          } catch {}
+
+          if (legacyAlt || legacyQuests.length > 0 || legacyBounties.length > 0 || legacyDouble.length > 0) {
+            await fetch("/api/student/migrate-local-storage", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                studentId,
+                altTask: legacyAlt,
+                weeklyQuests: legacyQuests,
+                bounties: legacyBounties,
+                doubleRevisions: legacyDouble,
+              }),
+            })
+          }
+          localStorage.setItem(migKey, "true")
+        }
+      } catch (err) {
+        console.error("Cloud sync/migration error:", err)
       }
     }
-    return null
-  })
+
+    syncCloudState()
+    return () => { isMounted = false }
+  }, [studentId, currentWeekStartStr, supabase])
 
   const [isWeeklyQuestModalOpen, setIsWeeklyQuestModalOpen] = useState(false)
   const [isOpeningGoldenChest, setIsOpeningGoldenChest] = useState(false)
@@ -852,18 +942,33 @@ function StudentTasks({
     }
   }, [isQuestDropped, weeklyQuestState, currentWeekStartStr, questDropDate])
 
-  function saveWeeklyQuestState(state: WeeklyQuestState | null) {
+  async function saveWeeklyQuestState(state: WeeklyQuestState | null) {
     setWeeklyQuestState(state)
-    if (typeof window !== "undefined") {
-      try {
-        if (state) {
-          localStorage.setItem(`weekly_quest_${studentId}_${currentWeekStartStr}`, JSON.stringify(state))
-        } else {
-          localStorage.removeItem(`weekly_quest_${studentId}_${currentWeekStartStr}`)
-        }
-      } catch (e) {
-        console.error("Failed to save weeklyQuestState:", e)
+    try {
+      if (state) {
+        await supabase
+          .from("student_weekly_quests")
+          .upsert({
+            student_id: studentId,
+            week_start: state.weekStart,
+            drop_date: state.dropDate,
+            active: state.active,
+            opened: Boolean(state.opened),
+            tasks: state.tasks || [],
+            completed: Boolean(state.completed),
+            completed_at: state.completedAt || null,
+            points_awarded: state.claimedPoints || 0,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "student_id,week_start" })
+      } else {
+        await supabase
+          .from("student_weekly_quests")
+          .update({ active: false, updated_at: new Date().toISOString() })
+          .eq("student_id", studentId)
+          .eq("week_start", currentWeekStartStr)
       }
+    } catch (e) {
+      console.error("Cloud saveWeeklyQuestState error:", e)
     }
   }
 
@@ -1470,80 +1575,53 @@ function StudentTasks({
 
   // 1. Manual Consolidation State (3 Tasks)
   const manualConsolidationKey = `manual_consolidation_count_${studentId}_${selectedDate}`
-  const manualCompletedKey = `manual_consolidation_done_${studentId}_${selectedDate}`
-  const [isManualCompleted, setIsManualCompleted] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(`manual_consolidation_done_${studentId}_${todayStr}`) === "true"
-    }
-    return false
-  })
-  const [isManualAdjCompleted, setIsManualAdjCompleted] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(`manual_adj_done_${studentId}_${todayStr}`) === "true"
-    }
-    return false
-  })
-  const [isManualNightCompleted, setIsManualNightCompleted] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(`manual_night_done_${studentId}_${todayStr}`) === "true"
-    }
-    return false
-  })
+  const [isManualCompleted, setIsManualCompleted] = useState<boolean>(false)
+  const [isManualAdjCompleted, setIsManualAdjCompleted] = useState<boolean>(false)
+  const [isManualNightCompleted, setIsManualNightCompleted] = useState<boolean>(false)
 
   // 2. Auto-Consolidation State (3 Tasks)
   const consolidationDay = planDetails.consolidationDay || todayBasePlan?.consolidation_day || 1
   const [consolidationCount, setConsolidationCount] = useState<number>(0)
   const [isSavingConsolidation, setIsSavingConsolidation] = useState(false)
-  const [isAutoCompleted, setIsAutoCompleted] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(`auto_consolidation_done_${studentId}_${todayStr}`) === "true"
-    }
-    return false
-  })
-  const [isAutoAdjCompleted, setIsAutoAdjCompleted] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(`auto_adj_done_${studentId}_${todayStr}`) === "true"
-    }
-    return false
-  })
-  const [isAutoNightCompleted, setIsAutoNightCompleted] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(`auto_night_done_${studentId}_${todayStr}`) === "true"
-    }
-    return false
-  })
+  const [isAutoCompleted, setIsAutoCompleted] = useState<boolean>(false)
+  const [isAutoAdjCompleted, setIsAutoAdjCompleted] = useState<boolean>(false)
+  const [isAutoNightCompleted, setIsAutoNightCompleted] = useState<boolean>(false)
 
   // Synchronize completion states across dates and database records
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      // Manual
-      const savedCount = localStorage.getItem(`manual_consolidation_count_${studentId}_${selectedDate}`)
-      setManualRepetitionsCount(savedCount ? Number(savedCount) : 0)
-      const savedManualDone = localStorage.getItem(`manual_consolidation_done_${studentId}_${selectedDate}`)
-      const savedManualAdj = localStorage.getItem(`manual_adj_done_${studentId}_${selectedDate}`)
-      const savedManualNight = localStorage.getItem(`manual_night_done_${studentId}_${selectedDate}`)
+    const dbRepDone = assignments.some(a => a.tasks?.name === "الدرس" && a.completed)
+    const dbAdjDone = assignments.some(a => a.tasks?.name === "جنب الدرس" && a.completed)
+    const dbNightDone = assignments.some(a => a.tasks?.name === "قيام الليل" && a.completed)
 
-      // DB check
-      const dbRepDone = assignments.some(a => a.tasks?.name === "الدرس" && a.completed)
-      const dbAdjDone = assignments.some(a => a.tasks?.name === "جنب الدرس" && a.completed)
-      const dbNightDone = assignments.some(a => a.tasks?.name === "قيام الليل" && a.completed)
+    setIsManualCompleted(dbRepDone)
+    setIsManualAdjCompleted(dbAdjDone)
+    setIsManualNightCompleted(dbNightDone)
 
-      setIsManualCompleted(savedManualDone === "true" || dbRepDone)
-      setIsManualAdjCompleted(savedManualAdj === "true" || dbAdjDone)
-      setIsManualNightCompleted(savedManualNight === "true" || dbNightDone)
+    setIsAutoCompleted(dbRepDone)
+    setIsAutoAdjCompleted(dbAdjDone)
+    setIsAutoNightCompleted(dbNightDone)
 
-      // Auto
-      const savedAutoCount = localStorage.getItem(`consolidation_count_${studentId}_d${consolidationDay}`)
-      setConsolidationCount(savedAutoCount ? Number(savedAutoCount) : 0)
-      const savedAutoDone = localStorage.getItem(`auto_consolidation_done_${studentId}_${selectedDate}`)
-      const savedAutoAdj = localStorage.getItem(`auto_adj_done_${studentId}_${selectedDate}`)
-      const savedAutoNight = localStorage.getItem(`auto_night_done_${studentId}_${selectedDate}`)
-
-      setIsAutoCompleted(savedAutoDone === "true" || dbRepDone)
-      setIsAutoAdjCompleted(savedAutoAdj === "true" || dbAdjDone)
-      setIsAutoNightCompleted(savedAutoNight === "true" || dbNightDone)
+    // Load progress counts from Supabase student_consolidation_progress
+    if (studentId && selectedDate) {
+      supabase
+        .from("student_consolidation_progress")
+        .select("*")
+        .eq("student_id", studentId)
+        .eq("assigned_date", selectedDate)
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            const autoRow = data.find((r: any) => r.consolidation_type === "auto")
+            const manualRow = data.find((r: any) => r.consolidation_type === "manual")
+            if (autoRow) {
+              setConsolidationCount(autoRow.repetition_count)
+            }
+            if (manualRow) {
+              setManualRepetitionsCount(manualRow.repetition_count)
+            }
+          }
+        })
     }
-  }, [studentId, selectedDate, consolidationDay, assignments])
+  }, [studentId, selectedDate, consolidationDay, assignments, supabase])
 
   // --- Manual Consolidation Handlers ---
   function handleIncrementManualRepetition() {
@@ -1559,9 +1637,14 @@ function StudentTasks({
     const target = activeManualForDate.repetitions_count || 5
     setManualRepetitionsCount(prev => {
       const next = Math.min(target, prev + 1)
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`manual_rep_count_${studentId}_${activeManualForDate.id}_${selectedDate}`, String(next))
-      }
+      supabase.from("student_consolidation_progress").upsert({
+        student_id: studentId,
+        assigned_date: selectedDate,
+        consolidation_type: "manual",
+        repetition_count: next,
+        target_repetitions: target,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "student_id,assigned_date,consolidation_type" }).then(null, () => {})
       return next
     })
   }
@@ -1579,9 +1662,6 @@ function StudentTasks({
     const awardedPoints = manualDetails.repetitionPoints // 20 pts (or 0 on Friday)
 
     try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem(manualCompletedKey, "true")
-      }
       setIsManualCompleted(true)
       setWeeklyPoints(prev => prev + awardedPoints)
 
@@ -1627,9 +1707,6 @@ function StudentTasks({
     const deltaPoints = nextCompleted ? pts : -pts
 
     setIsManualAdjCompleted(nextCompleted)
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`manual_adj_done_${studentId}_${selectedDate}`, String(nextCompleted))
-    }
     setWeeklyPoints(prev => prev + deltaPoints)
 
     if (nextCompleted) {
@@ -1663,9 +1740,6 @@ function StudentTasks({
     const deltaPoints = nextCompleted ? pts : -pts
 
     setIsManualNightCompleted(nextCompleted)
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`manual_night_done_${studentId}_${selectedDate}`, String(nextCompleted))
-    }
     setWeeklyPoints(prev => prev + deltaPoints)
 
     if (nextCompleted) {
@@ -1705,9 +1779,14 @@ function StudentTasks({
     const target = planDetails.consolidationTask?.target || 10
     setConsolidationCount(prev => {
       const next = Math.min(target, prev + 1)
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`consolidation_count_${studentId}_d${consolidationDay}`, String(next))
-      }
+      supabase.from("student_consolidation_progress").upsert({
+        student_id: studentId,
+        assigned_date: selectedDate,
+        consolidation_type: "auto",
+        repetition_count: next,
+        target_repetitions: target,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "student_id,assigned_date,consolidation_type" }).then(null, () => {})
       return next
     })
   }
@@ -1725,9 +1804,6 @@ function StudentTasks({
 
     setIsSavingConsolidation(true)
     try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`auto_consolidation_done_${studentId}_${selectedDate}`, "true")
-      }
       setIsAutoCompleted(true)
       setWeeklyPoints(prev => prev + repPoints)
 
@@ -1766,9 +1842,6 @@ function StudentTasks({
     const deltaPoints = nextCompleted ? pts : -pts
 
     setIsAutoAdjCompleted(nextCompleted)
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`auto_adj_done_${studentId}_${selectedDate}`, String(nextCompleted))
-    }
     setWeeklyPoints(prev => prev + deltaPoints)
 
     if (nextCompleted) {
@@ -1803,9 +1876,6 @@ function StudentTasks({
     const deltaPoints = nextCompleted ? pts : -pts
 
     setIsAutoNightCompleted(nextCompleted)
-    if (typeof window !== "undefined") {
-      localStorage.setItem(`auto_night_done_${studentId}_${selectedDate}`, String(nextCompleted))
-    }
     setWeeklyPoints(prev => prev + deltaPoints)
 
     if (nextCompleted) {
