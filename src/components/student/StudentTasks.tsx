@@ -1365,6 +1365,7 @@ function StudentTasks({
           current_page: snap.page,
           page_part: snap.part,
           current_review_hizb: snap.hizb ?? todayBasePlan.current_review_hizb,
+          current_review_index: snap.review_index ?? todayBasePlan.current_review_index,
           is_in_consolidation: snap.is_in_consolidation ?? false,
           consolidation_day: snap.consolidation_day ?? 0,
           consolidation_juz: snap.consolidation_juz ?? 0,
@@ -1383,15 +1384,7 @@ function StudentTasks({
     }
 
     // 3. Future dates (selectedDate > todayStr):
-    // Check if today's lesson is completed in current assignments to project accurately
-    const isLessonCompletedToday = assignments.some(
-      a => (a.tasks?.name?.includes("الدرس") && !a.tasks?.name?.includes("جنب")) && a.completed
-    )
-    const futureBasePlan = isLessonCompletedToday
-      ? calculateNextPlanState(todayBasePlan, "الدرس", true)
-      : todayBasePlan
-
-    return calculateProjectedPlan(futureBasePlan, selectedDate, todayStr, allManualConsolidations)
+    return calculateProjectedPlan(todayBasePlan, selectedDate, todayStr, allManualConsolidations)
   }, [todayBasePlan, selectedDate, todayStr, initialPlan, assignments, allManualConsolidations])
 
   const activePlan = projectedInfo.projectedPlan

@@ -22,10 +22,12 @@ export interface StudentPlan {
   plan_active?: boolean
   plan_date?: string
   last_lesson_completed_date?: string | null
+  last_review_completed_date?: string | null
   daily_plan_snapshots?: Record<string, {
     page: number
     part: "top" | "bottom"
     hizb?: number
+    review_index?: number
     is_in_consolidation?: boolean
     consolidation_day?: number
     consolidation_juz?: number
@@ -614,7 +616,11 @@ export function calculateProjectedPlan(
   studentPlan: StudentPlan,
   targetDateStr: string,
   fromDateStr?: string,
-  manualConsolidations?: ManualConsolidation[]
+  manualConsolidations?: ManualConsolidation[],
+  completedDates?: {
+    reviews?: Set<string> | Record<string, boolean>
+    lessons?: Set<string> | Record<string, boolean>
+  }
 ): {
   projectedPlan: StudentPlan
   planDetails: DailyPlanDetails
@@ -751,8 +757,32 @@ export function calculateProjectedPlan(
 
     // Review Hizb progression: FROZEN during consolidation week!
     if (!sim.is_in_consolidation && cycle.length > 0) {
-      sim.current_review_index = (sim.current_review_index + 1) % cycle.length
-      sim.current_review_hizb = cycle[sim.current_review_index].hizb
+      const todayRealStr = getTodayDateStr()
+      let shouldAdvanceReview = true
+
+      // Rule 1: Past days (before today) only advance if actually completed in real records
+      if (curDateStr < todayRealStr) {
+        const snap = safePlan.daily_plan_snapshots?.[curDateStr]
+        const nextDate = new Date(curDate)
+        nextDate.setDate(curDate.getDate() + 1)
+        const nextDateStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}-${String(nextDate.getDate()).padStart(2, "0")}`
+        const nextSnap = safePlan.daily_plan_snapshots?.[nextDateStr]
+
+        if (snap && nextSnap && snap.review_index !== undefined && nextSnap.review_index !== undefined) {
+          shouldAdvanceReview = nextSnap.review_index !== snap.review_index
+        } else if (completedDates?.reviews) {
+          shouldAdvanceReview = Boolean(
+            completedDates.reviews instanceof Set
+              ? completedDates.reviews.has(curDateStr)
+              : (completedDates.reviews as any)[curDateStr]
+          )
+        }
+      }
+      // Rule 2 & 3: Today (optimistic or fact) and future days advance optimistically
+      if (shouldAdvanceReview) {
+        sim.current_review_index = (sim.current_review_index + 1) % cycle.length
+        sim.current_review_hizb = cycle[sim.current_review_index].hizb
+      }
     }
   }
 

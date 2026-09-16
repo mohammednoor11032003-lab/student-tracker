@@ -579,6 +579,53 @@ export default function TeacherPlansManager({
                     ملاحظة: هذا النظام ينشط تلقائياً للطالب بعد كل 20 صفحة (الأيام 1-4: 5 صفحات x 10 تكرارات | 5-6: 10 صفحات x 5 | 7: 20 صفحة x 3). الخيار اليدوي هنا يُستخدم فقط في حال رغبت بفرضه استثنائياً.
                   </span>
                 </div>
+
+                {/* Current Review Hizb Override */}
+                <div>
+                  <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, color: "#166534", marginBottom: "0.35rem" }}>
+                    🔄 تعديل حزب المراجعة الحالي (نقطة البداية)
+                  </label>
+                  <select
+                    value={plan.current_review_index || 0}
+                    onChange={e => {
+                      const selectedIdx = Number(e.target.value)
+                      const selectedItem = cycle[selectedIdx]
+                      const nextHizb = selectedItem?.hizb || 1
+                      setStudents(prev =>
+                        prev.map(item => {
+                          if (item.id !== s.id) return item
+                          return {
+                            ...item,
+                            plan: {
+                              ...item.plan,
+                              current_review_index: selectedIdx,
+                              current_review_hizb: nextHizb,
+                            },
+                          }
+                        })
+                      )
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "0.6rem 0.85rem",
+                      borderRadius: "0.65rem",
+                      border: "1.5px solid #86efac",
+                      fontWeight: 700,
+                      fontSize: "0.95rem",
+                      background: "#f0fdf4",
+                      color: "#166534",
+                    }}
+                  >
+                    {cycle.map((c, idx) => (
+                      <option key={idx} value={idx}>
+                        حزب {c.hizb}: {c.name} (الجزء {c.juz})
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ display: "block", fontSize: "0.75rem", color: "#15803d", marginTop: "0.3rem", lineHeight: 1.4 }}>
+                    اختر الحزب الذي سيراجعه الطالب اليوم كنقطة بداية رسمية جديدة.
+                  </span>
+                </div>
               </div>
 
               {/* Review Cycle Ajza Selection */}

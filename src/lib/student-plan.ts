@@ -50,50 +50,74 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
 
     let planDate: string = meta.plan_date || todayStr
     let lastCompletedDate: string | null = meta.last_lesson_completed_date || null
+    let lastReviewCompletedDate: string | null = meta.last_review_completed_date || null
     let dailySnapshots: Record<string, any> = { ...(meta.daily_plan_snapshots || {}) }
 
     // Check if new day has arrived (midnight rollover)
     if (todayStr > planDate) {
-      let didCompleteOnPlanDate = (lastCompletedDate === planDate)
+      // Step day by day from planDate up to todayStr - 1
+      const iterDate = new Date(planDate + "T12:00:00Z")
+      const todayDate = new Date(todayStr + "T12:00:00Z")
 
-      if (!didCompleteOnPlanDate) {
-        // Fallback check daily_assignments table for planDate
-        const { data: lessonRows } = await supabase
-          .from("daily_assignments")
-          .select("completed, tasks!inner(name)")
-          .eq("student_id", studentId)
-          .eq("assigned_date", planDate)
-          .like("tasks.name", "%الدرس%")
-          .eq("completed", true)
-          .limit(1)
+      while (iterDate < todayDate) {
+        const y = iterDate.getUTCFullYear()
+        const m = String(iterDate.getUTCMonth() + 1).padStart(2, "0")
+        const d = String(iterDate.getUTCDate()).padStart(2, "0")
+        const curDateStr = `${y}-${m}-${d}`
 
-        if (lessonRows && lessonRows.length > 0) {
-          didCompleteOnPlanDate = true
+        // 1. Did student complete lesson on curDateStr?
+        let didCompleteLesson = (lastCompletedDate === curDateStr)
+        if (!didCompleteLesson) {
+          const { data: lessonRows } = await supabase
+            .from("daily_assignments")
+            .select("completed, tasks!inner(name)")
+            .eq("student_id", studentId)
+            .eq("assigned_date", curDateStr)
+            .like("tasks.name", "%الدرس%")
+            .eq("completed", true)
+            .limit(1)
+          if (lessonRows && lessonRows.length > 0) {
+            didCompleteLesson = true
+          }
         }
-      }
 
-      // Check if student was under manual consolidation on planDate
-      let isManualActiveOnPlanDate = false
-      try {
-        const { getActiveManualConsolidation } = await import("@/lib/manual-consolidation")
-        const activeManual = await getActiveManualConsolidation(studentId, planDate)
-        if (activeManual) isManualActiveOnPlanDate = true
-      } catch {}
-
-      // Preserve snapshot for the previous planDate
-      if (!dailySnapshots[planDate]) {
-        dailySnapshots[planDate] = {
-          page: currentPage,
-          part: pagePart,
-          hizb: reviewHizb,
-          is_in_consolidation: isInConsolidation,
-          consolidation_day: consolidationDay,
-          consolidation_juz: consolidationJuz,
+        // 2. Did student complete review on curDateStr?
+        let didCompleteReview = (lastReviewCompletedDate === curDateStr)
+        if (!didCompleteReview) {
+          const { data: reviewRows } = await supabase
+            .from("daily_assignments")
+            .select("completed, tasks!inner(name)")
+            .eq("student_id", studentId)
+            .eq("assigned_date", curDateStr)
+            .like("tasks.name", "%المراجعة%")
+            .eq("completed", true)
+            .limit(1)
+          if (reviewRows && reviewRows.length > 0) {
+            didCompleteReview = true
+          }
         }
-      }
 
-      // If the lesson was completed on planDate, advance pointer to the next part!
-      if (didCompleteOnPlanDate && !isManualActiveOnPlanDate) {
+        // Check manual consolidation on curDateStr
+        let isManualActiveOnCurDate = false
+        try {
+          const { getActiveManualConsolidation } = await import("@/lib/manual-consolidation")
+          const activeManual = await getActiveManualConsolidation(studentId, curDateStr)
+          if (activeManual) isManualActiveOnCurDate = true
+        } catch {}
+
+        // Preserve snapshot for curDateStr if not present
+        if (!dailySnapshots[curDateStr]) {
+          dailySnapshots[curDateStr] = {
+            page: currentPage,
+            part: pagePart,
+            hizb: reviewHizb,
+            review_index: reviewIndexVal,
+            is_in_consolidation: isInConsolidation,
+            consolidation_day: consolidationDay,
+            consolidation_juz: consolidationJuz,
+          }
+        }
+
         const tempPlan: StudentPlan = {
           current_page: currentPage,
           page_part: pagePart,
@@ -104,12 +128,31 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
           consolidation_day: consolidationDay,
           consolidation_juz: consolidationJuz,
         }
-        const nextState = calculateNextPlanState(tempPlan, "الدرس", true)
-        currentPage = nextState.current_page
-        pagePart = nextState.page_part
-        isInConsolidation = Boolean(nextState.is_in_consolidation)
-        consolidationDay = nextState.consolidation_day || 0
-        consolidationJuz = nextState.consolidation_juz || 0
+
+        // Advance lesson if completed on curDateStr
+        if (didCompleteLesson && !isManualActiveOnCurDate) {
+          const nextLessonState = calculateNextPlanState(tempPlan, "الدرس", true)
+          currentPage = nextLessonState.current_page
+          pagePart = nextLessonState.page_part
+          isInConsolidation = Boolean(nextLessonState.is_in_consolidation)
+          consolidationDay = nextLessonState.consolidation_day || 0
+          consolidationJuz = nextLessonState.consolidation_juz || 0
+          tempPlan.current_page = currentPage
+          tempPlan.page_part = pagePart
+          tempPlan.is_in_consolidation = isInConsolidation
+          tempPlan.consolidation_day = consolidationDay
+          tempPlan.consolidation_juz = consolidationJuz
+        }
+
+        // Advance review if completed on curDateStr
+        if (didCompleteReview) {
+          const nextReviewState = calculateNextPlanState(tempPlan, "المراجعة", true)
+          reviewIndexVal = nextReviewState.current_review_index
+          reviewHizb = nextReviewState.current_review_hizb || reviewHizb
+        }
+
+        // Move to next day
+        iterDate.setUTCDate(iterDate.getUTCDate() + 1)
       }
 
       planDate = todayStr
@@ -119,6 +162,7 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
         page: currentPage,
         part: pagePart,
         hizb: reviewHizb,
+        review_index: reviewIndexVal,
         is_in_consolidation: isInConsolidation,
         consolidation_day: consolidationDay,
         consolidation_juz: consolidationJuz,
@@ -164,6 +208,7 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
           page: currentPage,
           part: pagePart,
           hizb: reviewHizb,
+          review_index: reviewIndexVal,
           is_in_consolidation: isInConsolidation,
           consolidation_day: consolidationDay,
           consolidation_juz: consolidationJuz,
@@ -192,6 +237,7 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
       plan_active: profile?.plan_active ?? meta.plan_active ?? DEFAULT_PLAN.plan_active,
       plan_date: planDate,
       last_lesson_completed_date: lastCompletedDate,
+      last_review_completed_date: lastReviewCompletedDate,
       daily_plan_snapshots: dailySnapshots,
     }
   } catch (err) {
@@ -213,6 +259,7 @@ export async function markStudentLessonCompleted(studentId: string, dateStr: str
         page: meta.current_page ?? DEFAULT_PLAN.current_page,
         part: meta.page_part ?? DEFAULT_PLAN.page_part,
         hizb: meta.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb,
+        review_index: meta.current_review_index ?? DEFAULT_PLAN.current_review_index,
         is_in_consolidation: meta.is_in_consolidation ?? false,
         consolidation_day: meta.consolidation_day ?? 0,
         consolidation_juz: meta.consolidation_juz ?? 0,
@@ -238,6 +285,45 @@ export async function markStudentLessonCompleted(studentId: string, dateStr: str
   }
 }
 
+export async function markStudentReviewCompleted(studentId: string, dateStr: string, completed: boolean): Promise<void> {
+  const supabase = getAdminClient()
+  try {
+    const { data: authData } = await supabase.auth.admin.getUserById(studentId)
+    const meta = authData?.user?.user_metadata || {}
+    const dailySnapshots = { ...(meta.daily_plan_snapshots || {}) }
+
+    // Ensure snapshot for dateStr is recorded if not present
+    if (!dailySnapshots[dateStr]) {
+      dailySnapshots[dateStr] = {
+        page: meta.current_page ?? DEFAULT_PLAN.current_page,
+        part: meta.page_part ?? DEFAULT_PLAN.page_part,
+        hizb: meta.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb,
+        review_index: meta.current_review_index ?? DEFAULT_PLAN.current_review_index,
+        is_in_consolidation: meta.is_in_consolidation ?? false,
+        consolidation_day: meta.consolidation_day ?? 0,
+        consolidation_juz: meta.consolidation_juz ?? 0,
+      }
+    }
+
+    let lastReviewCompletedDate: string | null = meta.last_review_completed_date || null
+    if (completed) {
+      lastReviewCompletedDate = dateStr
+    } else if (lastReviewCompletedDate === dateStr) {
+      lastReviewCompletedDate = null
+    }
+
+    await supabase.auth.admin.updateUserById(studentId, {
+      user_metadata: {
+        ...meta,
+        last_review_completed_date: lastReviewCompletedDate,
+        daily_plan_snapshots: dailySnapshots,
+      },
+    })
+  } catch (err) {
+    console.error("Error marking student review completed:", err)
+  }
+}
+
 export async function updateStudentPlan(studentId: string, updates: Partial<StudentPlan>): Promise<StudentPlan> {
   const supabase = getAdminClient()
   try {
@@ -258,9 +344,25 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
       consolidation_juz: updates.consolidation_juz !== undefined ? Number(updates.consolidation_juz) : current.consolidation_juz,
       plan_date: updates.plan_date || current.plan_date || todayStr,
       last_lesson_completed_date: updates.last_lesson_completed_date !== undefined ? updates.last_lesson_completed_date : current.last_lesson_completed_date,
+      last_review_completed_date: updates.last_review_completed_date !== undefined ? updates.last_review_completed_date : current.last_review_completed_date,
     }
 
-    // Update today's snapshot to match the teacher's explicit update
+    // Sync review index and hizb if one was updated explicitly
+    const { getReviewCycle } = await import("@/lib/plan-utils")
+    const cycle = getReviewCycle(merged.memorized_ajza)
+    if (updates.current_review_hizb !== undefined && updates.current_review_index === undefined) {
+      const foundIdx = cycle.findIndex(c => c.hizb === updates.current_review_hizb)
+      if (foundIdx !== -1) {
+        merged.current_review_index = foundIdx
+      }
+    } else if (updates.current_review_index !== undefined && updates.current_review_hizb === undefined) {
+      const safeIdx = merged.current_review_index % cycle.length
+      if (cycle[safeIdx]) {
+        merged.current_review_hizb = cycle[safeIdx].hizb
+      }
+    }
+
+    // Update today's snapshot to match the teacher's explicit update as new baseline
     const dailySnapshots = {
       ...(current.daily_plan_snapshots || {}),
       ...(updates.daily_plan_snapshots || {}),
@@ -268,6 +370,7 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
         page: merged.current_page,
         part: merged.page_part,
         hizb: merged.current_review_hizb,
+        review_index: merged.current_review_index,
         is_in_consolidation: merged.is_in_consolidation,
         consolidation_day: merged.consolidation_day,
         consolidation_juz: merged.consolidation_juz,
@@ -295,6 +398,7 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
         plan_active: merged.plan_active,
         plan_date: merged.plan_date,
         last_lesson_completed_date: merged.last_lesson_completed_date,
+        last_review_completed_date: merged.last_review_completed_date,
         daily_plan_snapshots: merged.daily_plan_snapshots,
       },
     })
@@ -382,6 +486,7 @@ export async function getAllStudentsPlans(studentIds?: string[]): Promise<Map<st
         plan_active: profile?.plan_active ?? meta.plan_active ?? DEFAULT_PLAN.plan_active,
         plan_date: meta.plan_date,
         last_lesson_completed_date: meta.last_lesson_completed_date || null,
+        last_review_completed_date: meta.last_review_completed_date || null,
         daily_plan_snapshots: meta.daily_plan_snapshots || {},
       }
 
