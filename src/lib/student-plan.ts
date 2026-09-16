@@ -10,52 +10,106 @@ function getAdminClient() {
   )
 }
 
+/**
+ * Maps a raw row from student_plans table into the StudentPlan TypeScript interface.
+ */
+function rowToStudentPlan(row: any): StudentPlan {
+  const memorizedAjza = Array.isArray(row.memorized_ajza) && row.memorized_ajza.length > 0
+    ? row.memorized_ajza
+    : [1]
+  const reviewIndex = Number(row.current_review_index ?? 0)
+
+  return {
+    current_page: row.current_page ?? DEFAULT_PLAN.current_page,
+    page_part: row.page_part === "bottom" ? "bottom" : "top",
+    current_review_hizb: row.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb,
+    memorized_ajza: memorizedAjza,
+    current_review_index: isNaN(reviewIndex) ? 0 : Math.max(0, reviewIndex),
+    is_in_consolidation: Boolean(row.is_in_consolidation),
+    consolidation_day: Number(row.consolidation_day ?? 0),
+    consolidation_juz: Number(row.consolidation_juz ?? 0),
+    plan_start_date: row.plan_start_date || DEFAULT_PLAN.plan_start_date,
+    plan_end_date: row.plan_end_date || DEFAULT_PLAN.plan_end_date,
+    plan_active: row.plan_active !== undefined ? Boolean(row.plan_active) : true,
+    plan_date: row.plan_date || null,
+    last_lesson_completed_date: row.last_lesson_completed_date || null,
+    last_review_completed_date: row.last_review_completed_date || null,
+    daily_plan_snapshots: row.daily_plan_snapshots || {},
+  }
+}
+
 export async function getStudentPlan(studentId: string, forDate?: string): Promise<StudentPlan> {
   const supabase = getAdminClient()
   const todayStr = forDate || getTodayDateStr()
   try {
-    // 1. Try checking profiles table first
-    const { data: profile } = await supabase
-      .from("profiles")
+    // 1. Primary Source of Truth: query dedicated student_plans table
+    const { data: planRow, error: planErr } = await supabase
+      .from("student_plans")
       .select("*")
-      .eq("id", studentId)
-      .single()
+      .eq("student_id", studentId)
+      .maybeSingle()
 
-    // 2. Also check auth user_metadata
-    const { data: authData } = await supabase.auth.admin.getUserById(studentId)
-    const meta = authData?.user?.user_metadata || {}
+    let record = planRow
 
-    // Parse memorized_ajza
-    let memorizedAjza: number[] = [1]
-    if (Array.isArray(profile?.memorized_ajza)) {
-      memorizedAjza = profile.memorized_ajza
-    } else if (Array.isArray(meta.memorized_ajza)) {
-      memorizedAjza = meta.memorized_ajza
-    } else if (typeof profile?.current_review_hizb === "number" || typeof meta.current_review_hizb === "number") {
-      // Fallback: deduce Juz from hizb
-      const h = Number(profile?.current_review_hizb ?? meta.current_review_hizb)
-      const j = Math.max(1, Math.min(30, Math.ceil(h / 2)))
-      memorizedAjza = [j]
+    // Graceful Fallback: If no record in student_plans yet (e.g. newly registered user), check auth metadata and seed
+    if (!record) {
+      const { data: authData } = await supabase.auth.admin.getUserById(studentId)
+      const meta = authData?.user?.user_metadata || {}
+
+      let memorizedAjza: number[] = [1]
+      if (Array.isArray(meta.memorized_ajza) && meta.memorized_ajza.length > 0) {
+        memorizedAjza = meta.memorized_ajza
+      } else if (typeof meta.current_review_hizb === "number") {
+        const h = Number(meta.current_review_hizb)
+        memorizedAjza = [Math.max(1, Math.min(30, Math.ceil(h / 2)))]
+      }
+
+      const newRow = {
+        student_id: studentId,
+        current_page: meta.current_page ?? DEFAULT_PLAN.current_page,
+        page_part: meta.page_part === "bottom" ? "bottom" : "top",
+        current_review_hizb: meta.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb,
+        memorized_ajza: memorizedAjza,
+        current_review_index: Math.max(0, Number(meta.current_review_index || 0)),
+        is_in_consolidation: Boolean(meta.is_in_consolidation),
+        consolidation_day: Number(meta.consolidation_day || 0),
+        consolidation_juz: Number(meta.consolidation_juz || 0),
+        plan_start_date: meta.plan_start_date || DEFAULT_PLAN.plan_start_date,
+        plan_end_date: meta.plan_end_date || DEFAULT_PLAN.plan_end_date,
+        plan_active: meta.plan_active !== undefined ? Boolean(meta.plan_active) : true,
+        plan_date: meta.plan_date || todayStr,
+        last_lesson_completed_date: meta.last_lesson_completed_date || null,
+        last_review_completed_date: meta.last_review_completed_date || null,
+        daily_plan_snapshots: meta.daily_plan_snapshots || {},
+      }
+
+      const { data: inserted } = await supabase
+        .from("student_plans")
+        .insert(newRow)
+        .select("*")
+        .single()
+
+      record = inserted || newRow
     }
 
-    const reviewIndex = Number(profile?.current_review_index ?? meta.current_review_index ?? 0)
+    const currentPlan = rowToStudentPlan(record)
+    let currentPage = currentPlan.current_page
+    let pagePart = currentPlan.page_part
+    let reviewHizb = currentPlan.current_review_hizb
+    let memorizedAjza = currentPlan.memorized_ajza
+    let reviewIndexVal = currentPlan.current_review_index
+    let isInConsolidation = currentPlan.is_in_consolidation
+    let consolidationDay = currentPlan.consolidation_day
+    let consolidationJuz = currentPlan.consolidation_juz
+    let planDate = currentPlan.plan_date
+    let lastCompletedDate = currentPlan.last_lesson_completed_date
+    let lastReviewCompletedDate = currentPlan.last_review_completed_date
+    let dailySnapshots: Record<string, any> = { ...(currentPlan.daily_plan_snapshots || {}) }
 
-    let currentPage = profile?.current_page ?? meta.current_page ?? DEFAULT_PLAN.current_page
-    let pagePart: "top" | "bottom" = (profile?.page_part === "bottom" || meta.page_part === "bottom") ? "bottom" : "top"
-    let reviewHizb = profile?.current_review_hizb ?? meta.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb
-    let reviewIndexVal = isNaN(reviewIndex) ? 0 : Math.max(0, reviewIndex)
-    let isInConsolidation = Boolean(profile?.is_in_consolidation ?? meta.is_in_consolidation ?? false)
-    let consolidationDay = Number(profile?.consolidation_day ?? meta.consolidation_day ?? 0)
-    let consolidationJuz = Number(profile?.consolidation_juz ?? meta.consolidation_juz ?? 0)
-
-    let planDate: string = meta.plan_date || todayStr
-    let lastCompletedDate: string | null = meta.last_lesson_completed_date || null
-    let lastReviewCompletedDate: string | null = meta.last_review_completed_date || null
-    let dailySnapshots: Record<string, any> = { ...(meta.daily_plan_snapshots || {}) }
+    if (!planDate) planDate = todayStr
 
     // Check if new day has arrived (midnight rollover)
     if (todayStr > planDate) {
-      // Step day by day from planDate up to todayStr - 1
       const iterDate = new Date(planDate + "T12:00:00Z")
       const todayDate = new Date(todayStr + "T12:00:00Z")
 
@@ -151,7 +205,6 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
           reviewHizb = nextReviewState.current_review_hizb || reviewHizb
         }
 
-        // Move to next day
         iterDate.setUTCDate(iterDate.getUTCDate() + 1)
       }
 
@@ -168,10 +221,10 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
         consolidation_juz: consolidationJuz,
       }
 
-      // Persist rollover state to Auth user_metadata
-      await supabase.auth.admin.updateUserById(studentId, {
-        user_metadata: {
-          ...meta,
+      // Persist rollover directly to student_plans (100% Single Source of Truth)
+      await supabase
+        .from("student_plans")
+        .update({
           current_page: currentPage,
           page_part: pagePart,
           current_review_hizb: reviewHizb,
@@ -182,25 +235,9 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
           consolidation_juz: consolidationJuz,
           plan_date: planDate,
           daily_plan_snapshots: dailySnapshots,
-        },
-      })
-
-      // Also persist to profiles table if columns exist
-      try {
-        await supabase
-          .from("profiles")
-          .update({
-            current_page: currentPage,
-            page_part: pagePart,
-            current_review_hizb: reviewHizb,
-            memorized_ajza: memorizedAjza,
-            current_review_index: reviewIndexVal,
-            is_in_consolidation: isInConsolidation,
-            consolidation_day: consolidationDay,
-            consolidation_juz: consolidationJuz,
-          })
-          .eq("id", studentId)
-      } catch {}
+          updated_at: new Date().toISOString(),
+        })
+        .eq("student_id", studentId)
     } else {
       // Ensure today's snapshot exists
       if (!dailySnapshots[todayStr]) {
@@ -213,13 +250,14 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
           consolidation_day: consolidationDay,
           consolidation_juz: consolidationJuz,
         }
-        await supabase.auth.admin.updateUserById(studentId, {
-          user_metadata: {
-            ...meta,
+        await supabase
+          .from("student_plans")
+          .update({
             plan_date: planDate,
             daily_plan_snapshots: dailySnapshots,
-          },
-        })
+            updated_at: new Date().toISOString(),
+          })
+          .eq("student_id", studentId)
       }
     }
 
@@ -232,9 +270,9 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
       is_in_consolidation: isInConsolidation,
       consolidation_day: consolidationDay,
       consolidation_juz: consolidationJuz,
-      plan_start_date: profile?.plan_start_date ?? meta.plan_start_date ?? DEFAULT_PLAN.plan_start_date,
-      plan_end_date: profile?.plan_end_date ?? meta.plan_end_date ?? DEFAULT_PLAN.plan_end_date,
-      plan_active: profile?.plan_active ?? meta.plan_active ?? DEFAULT_PLAN.plan_active,
+      plan_start_date: currentPlan.plan_start_date,
+      plan_end_date: currentPlan.plan_end_date,
+      plan_active: currentPlan.plan_active,
       plan_date: planDate,
       last_lesson_completed_date: lastCompletedDate,
       last_review_completed_date: lastReviewCompletedDate,
@@ -249,37 +287,36 @@ export async function getStudentPlan(studentId: string, forDate?: string): Promi
 export async function markStudentLessonCompleted(studentId: string, dateStr: string, completed: boolean): Promise<void> {
   const supabase = getAdminClient()
   try {
-    const { data: authData } = await supabase.auth.admin.getUserById(studentId)
-    const meta = authData?.user?.user_metadata || {}
-    const dailySnapshots = { ...(meta.daily_plan_snapshots || {}) }
+    const current = await getStudentPlan(studentId)
+    const dailySnapshots = { ...(current.daily_plan_snapshots || {}) }
 
-    // Ensure snapshot for dateStr is recorded if not present
     if (!dailySnapshots[dateStr]) {
       dailySnapshots[dateStr] = {
-        page: meta.current_page ?? DEFAULT_PLAN.current_page,
-        part: meta.page_part ?? DEFAULT_PLAN.page_part,
-        hizb: meta.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb,
-        review_index: meta.current_review_index ?? DEFAULT_PLAN.current_review_index,
-        is_in_consolidation: meta.is_in_consolidation ?? false,
-        consolidation_day: meta.consolidation_day ?? 0,
-        consolidation_juz: meta.consolidation_juz ?? 0,
+        page: current.current_page,
+        part: current.page_part,
+        hizb: current.current_review_hizb,
+        review_index: current.current_review_index,
+        is_in_consolidation: current.is_in_consolidation,
+        consolidation_day: current.consolidation_day,
+        consolidation_juz: current.consolidation_juz,
       }
     }
 
-    let lastCompletedDate: string | null = meta.last_lesson_completed_date || null
+    let lastCompletedDate: string | null = current.last_lesson_completed_date || null
     if (completed) {
       lastCompletedDate = dateStr
     } else if (lastCompletedDate === dateStr) {
       lastCompletedDate = null
     }
 
-    await supabase.auth.admin.updateUserById(studentId, {
-      user_metadata: {
-        ...meta,
+    await supabase
+      .from("student_plans")
+      .update({
         last_lesson_completed_date: lastCompletedDate,
         daily_plan_snapshots: dailySnapshots,
-      },
-    })
+        updated_at: new Date().toISOString(),
+      })
+      .eq("student_id", studentId)
   } catch (err) {
     console.error("Error marking student lesson completed:", err)
   }
@@ -288,37 +325,36 @@ export async function markStudentLessonCompleted(studentId: string, dateStr: str
 export async function markStudentReviewCompleted(studentId: string, dateStr: string, completed: boolean): Promise<void> {
   const supabase = getAdminClient()
   try {
-    const { data: authData } = await supabase.auth.admin.getUserById(studentId)
-    const meta = authData?.user?.user_metadata || {}
-    const dailySnapshots = { ...(meta.daily_plan_snapshots || {}) }
+    const current = await getStudentPlan(studentId)
+    const dailySnapshots = { ...(current.daily_plan_snapshots || {}) }
 
-    // Ensure snapshot for dateStr is recorded if not present
     if (!dailySnapshots[dateStr]) {
       dailySnapshots[dateStr] = {
-        page: meta.current_page ?? DEFAULT_PLAN.current_page,
-        part: meta.page_part ?? DEFAULT_PLAN.page_part,
-        hizb: meta.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb,
-        review_index: meta.current_review_index ?? DEFAULT_PLAN.current_review_index,
-        is_in_consolidation: meta.is_in_consolidation ?? false,
-        consolidation_day: meta.consolidation_day ?? 0,
-        consolidation_juz: meta.consolidation_juz ?? 0,
+        page: current.current_page,
+        part: current.page_part,
+        hizb: current.current_review_hizb,
+        review_index: current.current_review_index,
+        is_in_consolidation: current.is_in_consolidation,
+        consolidation_day: current.consolidation_day,
+        consolidation_juz: current.consolidation_juz,
       }
     }
 
-    let lastReviewCompletedDate: string | null = meta.last_review_completed_date || null
+    let lastReviewCompletedDate: string | null = current.last_review_completed_date || null
     if (completed) {
       lastReviewCompletedDate = dateStr
     } else if (lastReviewCompletedDate === dateStr) {
       lastReviewCompletedDate = null
     }
 
-    await supabase.auth.admin.updateUserById(studentId, {
-      user_metadata: {
-        ...meta,
+    await supabase
+      .from("student_plans")
+      .update({
         last_review_completed_date: lastReviewCompletedDate,
         daily_plan_snapshots: dailySnapshots,
-      },
-    })
+        updated_at: new Date().toISOString(),
+      })
+      .eq("student_id", studentId)
   } catch (err) {
     console.error("Error marking student review completed:", err)
   }
@@ -378,36 +414,12 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
     }
     merged.daily_plan_snapshots = dailySnapshots
 
-    // 1. Update Auth user_metadata
-    const { data: authData } = await supabase.auth.admin.getUserById(studentId)
-    const existingMeta = authData?.user?.user_metadata || {}
-
-    await supabase.auth.admin.updateUserById(studentId, {
-      user_metadata: {
-        ...existingMeta,
-        current_page: merged.current_page,
-        page_part: merged.page_part,
-        current_review_hizb: merged.current_review_hizb,
-        memorized_ajza: merged.memorized_ajza,
-        current_review_index: merged.current_review_index,
-        is_in_consolidation: merged.is_in_consolidation,
-        consolidation_day: merged.consolidation_day,
-        consolidation_juz: merged.consolidation_juz,
-        plan_start_date: merged.plan_start_date,
-        plan_end_date: merged.plan_end_date,
-        plan_active: merged.plan_active,
-        plan_date: merged.plan_date,
-        last_lesson_completed_date: merged.last_lesson_completed_date,
-        last_review_completed_date: merged.last_review_completed_date,
-        daily_plan_snapshots: merged.daily_plan_snapshots,
-      },
-    })
-
-    // 2. Try updating profiles table (will succeed if columns were added via SQL)
-    try {
-      await supabase
-        .from("profiles")
-        .update({
+    // Update student_plans table (100% Single Source of Truth)
+    const { error: upsertErr } = await supabase
+      .from("student_plans")
+      .upsert(
+        {
+          student_id: studentId,
           current_page: merged.current_page,
           page_part: merged.page_part,
           current_review_hizb: merged.current_review_hizb,
@@ -417,11 +429,20 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
           consolidation_day: merged.consolidation_day,
           consolidation_juz: merged.consolidation_juz,
           plan_start_date: merged.plan_start_date,
+          plan_end_date: merged.plan_end_date,
           plan_active: merged.plan_active,
-        })
-        .eq("id", studentId)
-    } catch {
-      // Ignore if columns do not exist in profiles yet
+          plan_date: merged.plan_date,
+          last_lesson_completed_date: merged.last_lesson_completed_date,
+          last_review_completed_date: merged.last_review_completed_date,
+          daily_plan_snapshots: merged.daily_plan_snapshots,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "student_id" }
+      )
+
+    if (upsertErr) {
+      console.error("Error upserting student_plans:", upsertErr)
+      throw upsertErr
     }
 
     return merged
@@ -432,65 +453,37 @@ export async function updateStudentPlan(studentId: string, updates: Partial<Stud
 }
 
 /**
- * Bulk fetches plans for all students in 2 parallel requests (profiles + listUsers)
- * completely eliminating N+1 queries (18 queries -> 2 queries).
+ * Bulk fetches plans for all students directly from student_plans table with a single query,
+ * completely eliminating N+1 queries and avoiding auth.listUsers().
  */
 export async function getAllStudentsPlans(studentIds?: string[]): Promise<Map<string, StudentPlan>> {
   const supabase = getAdminClient()
   const plansMap = new Map<string, StudentPlan>()
 
   try {
-    let profilesQuery = supabase.from("profiles").select("*").eq("role", "student")
+    let query = supabase.from("student_plans").select("*")
     if (studentIds && studentIds.length > 0) {
-      profilesQuery = profilesQuery.in("id", studentIds)
+      query = query.in("student_id", studentIds)
     }
 
-    const [profilesRes, authRes] = await Promise.all([
-      profilesQuery,
-      supabase.auth.admin.listUsers(),
-    ])
-
-    const authMetaMap = new Map<string, any>()
-    for (const u of authRes.data?.users || []) {
-      authMetaMap.set(u.id, u.user_metadata || {})
+    const { data: rows, error } = await query
+    if (error) {
+      console.error("Error fetching all student plans:", error)
+      return plansMap
     }
 
-    const profiles = profilesRes.data || []
-    for (const profile of profiles) {
-      const meta = authMetaMap.get(profile.id) || {}
+    for (const row of rows || []) {
+      plansMap.set(row.student_id, rowToStudentPlan(row))
+    }
 
-      let memorizedAjza: number[] = [1]
-      if (Array.isArray(profile.memorized_ajza)) {
-        memorizedAjza = profile.memorized_ajza
-      } else if (Array.isArray(meta.memorized_ajza)) {
-        memorizedAjza = meta.memorized_ajza
-      } else if (typeof profile.current_review_hizb === "number" || typeof meta.current_review_hizb === "number") {
-        const h = Number(profile.current_review_hizb ?? meta.current_review_hizb)
-        const j = Math.max(1, Math.min(30, Math.ceil(h / 2)))
-        memorizedAjza = [j]
+    // If specific studentIds were requested but not found in student_plans, fallback gracefully
+    if (studentIds && studentIds.length > 0) {
+      for (const id of studentIds) {
+        if (!plansMap.has(id)) {
+          const plan = await getStudentPlan(id)
+          plansMap.set(id, plan)
+        }
       }
-
-      const reviewIndex = Number(profile.current_review_index ?? meta.current_review_index ?? 0)
-
-      const plan: StudentPlan = {
-        current_page: profile.current_page ?? meta.current_page ?? DEFAULT_PLAN.current_page,
-        page_part: (profile.page_part ?? meta.page_part ?? DEFAULT_PLAN.page_part) as "top" | "bottom",
-        current_review_hizb: profile.current_review_hizb ?? meta.current_review_hizb ?? DEFAULT_PLAN.current_review_hizb,
-        memorized_ajza: memorizedAjza,
-        current_review_index: isNaN(reviewIndex) ? 0 : Math.max(0, reviewIndex),
-        is_in_consolidation: Boolean(profile.is_in_consolidation ?? meta.is_in_consolidation ?? false),
-        consolidation_day: Number(profile.consolidation_day ?? meta.consolidation_day ?? 0),
-        consolidation_juz: Number(profile.consolidation_juz ?? meta.consolidation_juz ?? 0),
-        plan_start_date: profile?.plan_start_date ?? meta.plan_start_date ?? DEFAULT_PLAN.plan_start_date,
-        plan_end_date: profile?.plan_end_date ?? meta.plan_end_date ?? DEFAULT_PLAN.plan_end_date,
-        plan_active: profile?.plan_active ?? meta.plan_active ?? DEFAULT_PLAN.plan_active,
-        plan_date: meta.plan_date,
-        last_lesson_completed_date: meta.last_lesson_completed_date || null,
-        last_review_completed_date: meta.last_review_completed_date || null,
-        daily_plan_snapshots: meta.daily_plan_snapshots || {},
-      }
-
-      plansMap.set(profile.id, plan)
     }
   } catch (err) {
     console.error("Error bulk fetching student plans:", err)
@@ -498,4 +491,3 @@ export async function getAllStudentsPlans(studentIds?: string[]): Promise<Map<st
 
   return plansMap
 }
-
