@@ -149,8 +149,77 @@ export async function syncStudentPoints(
     console.warn("Non-critical: auth user_metadata points update skipped:", authErr)
   }
 
+  // 6. Non-blocking points integrity check to detect and alert on any drift
+  checkPointsIntegrity(supabase, studentId, effectiveDate).catch(err =>
+    console.error("Points integrity check encountered an error:", err)
+  )
+
   return {
     weeklyPoints: nextWeeklyPts,
     monthlyPoints: nextMonthlyPts,
+  }
+}
+
+/**
+ * Permanent Integrity Check:
+ * Compares recorded monthly points with the ground truth sum from completed daily_assignments.
+ * Logs an explicit warning if any data drift is detected, without silent overwrites.
+ */
+export async function checkPointsIntegrity(
+  supabase: SupabaseClient,
+  studentId: string,
+  targetDateStr: string
+): Promise<void> {
+  try {
+    const weekInfo = getWeekAndMonthInfo(targetDateStr)
+    const weekStartStr = formatDateStr(weekInfo.weekStart)
+    const { month, year } = weekInfo
+
+    const [{ data: weekly }, { data: monthly }] = await Promise.all([
+      supabase
+        .from("weekly_summaries")
+        .select("total_points")
+        .eq("student_id", studentId)
+        .eq("week_start", weekStartStr)
+        .maybeSingle(),
+      supabase
+        .from("monthly_summaries")
+        .select("total_points")
+        .eq("student_id", studentId)
+        .eq("month", month)
+        .eq("year", year)
+        .maybeSingle(),
+    ])
+
+    const startOfMonth = `${year}-${String(month).padStart(2, "0")}-01`
+    const endOfMonth = `${year}-${String(month).padStart(2, "0")}-31`
+
+    const { data: assignments, error: daErr } = await supabase
+      .from("daily_assignments")
+      .select("tasks(points), completed")
+      .eq("student_id", studentId)
+      .gte("assigned_date", startOfMonth)
+      .lte("assigned_date", endOfMonth)
+      .eq("completed", true)
+
+    if (daErr) {
+      console.warn("Integrity check could not fetch assignments:", daErr.message)
+      return
+    }
+
+    const actualCompletedSum = (assignments || []).reduce(
+      (sum: number, a: any) => sum + (a.tasks?.points || 0),
+      0
+    )
+
+    if (monthly && monthly.total_points !== actualCompletedSum) {
+      console.warn(
+        `🚨 [POINTS_INTEGRITY_WARNING] Points drift detected for student ${studentId}! ` +
+        `Recorded Monthly: ${monthly.total_points}, Actual Assignments Sum: ${actualCompletedSum}. ` +
+        `Weekly Points: ${weekly?.total_points ?? "N/A"}`
+      )
+    }
+  } catch (err) {
+    console.error("Non-blocking integrity check error:", err)
   }
 }
