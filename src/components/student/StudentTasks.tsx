@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Task } from "@/lib/types"
 import toast from "react-hot-toast"
@@ -75,7 +75,7 @@ function StudentTasks({
   initialManualConsolidations?: ManualConsolidation[]
   initialManualConsolidation?: ManualConsolidation | null
 }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const todayStr = propTodayStr || getTodayDateStr()
 
   // State
@@ -99,6 +99,9 @@ function StudentTasks({
 
   const [manualRepetitionsCount, setManualRepetitionsCount] = useState<number>(0)
   const [isSavingManualConsolidation, setIsSavingManualConsolidation] = useState(false)
+  const manualRepCountRef = useRef<number>(0)
+  const autoRepCountRef = useRef<number>(0)
+  const activeDateRef = useRef<string>(todayStr)
 
   // Fetch all consolidations for this student to support future/past date navigation
   useEffect(() => {
@@ -1581,7 +1584,7 @@ function StudentTasks({
   const [isAutoAdjCompleted, setIsAutoAdjCompleted] = useState<boolean>(false)
   const [isAutoNightCompleted, setIsAutoNightCompleted] = useState<boolean>(false)
 
-  // Synchronize completion states across dates and database records
+  // 1. Synchronize completion states across database records and optimistic updates
   useEffect(() => {
     const dbRepDone = assignments.some(
       a => (a.tasks?.name === "تكرار التثبيت" || a.tasks?.name === "الدرس" || a.task_id === CONSOLIDATION_TASK_ID) && a.completed
@@ -1596,28 +1599,65 @@ function StudentTasks({
     setIsAutoCompleted(dbRepDone)
     setIsAutoAdjCompleted(dbAdjDone)
     setIsAutoNightCompleted(dbNightDone)
+  }, [assignments])
 
-    // Load progress counts from Supabase student_consolidation_progress
-    if (studentId && selectedDate) {
-      supabase
-        .from("student_consolidation_progress")
-        .select("*")
-        .eq("student_id", studentId)
-        .eq("assigned_date", selectedDate)
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            const autoRow = data.find((r: any) => r.consolidation_type === "auto")
-            const manualRow = data.find((r: any) => r.consolidation_type === "manual")
-            if (autoRow) {
-              setConsolidationCount(autoRow.repetition_count)
+  // 2. Load progress counts from Supabase student_consolidation_progress with Monotonic Shield
+  // Runs ONLY on initial mount or when selectedDate / studentId changes
+  useEffect(() => {
+    if (!studentId || !selectedDate) return
+    activeDateRef.current = selectedDate
+
+    let isMounted = true
+    supabase
+      .from("student_consolidation_progress")
+      .select("*")
+      .eq("student_id", studentId)
+      .eq("assigned_date", selectedDate)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error loading consolidation progress:", error)
+          return
+        }
+        if (!isMounted || activeDateRef.current !== selectedDate) return
+        if (data && data.length > 0) {
+          const autoRow = data.find((r: any) => r.consolidation_type === "auto")
+          const manualRow = data.find((r: any) => r.consolidation_type === "manual")
+
+          if (autoRow) {
+            const count = autoRow.repetition_count || 0
+            // Monotonic Shield: Never clobber higher local optimistic count on the active date
+            if (count >= autoRepCountRef.current) {
+              autoRepCountRef.current = count
+              setConsolidationCount(count)
             }
-            if (manualRow) {
-              setManualRepetitionsCount(manualRow.repetition_count)
-            }
+          } else {
+            autoRepCountRef.current = 0
+            setConsolidationCount(0)
           }
-        })
+
+          if (manualRow) {
+            const count = manualRow.repetition_count || 0
+            // Monotonic Shield: Never clobber higher local optimistic count on the active date
+            if (count >= manualRepCountRef.current) {
+              manualRepCountRef.current = count
+              setManualRepetitionsCount(count)
+            }
+          } else {
+            manualRepCountRef.current = 0
+            setManualRepetitionsCount(0)
+          }
+        } else {
+          autoRepCountRef.current = 0
+          manualRepCountRef.current = 0
+          setConsolidationCount(0)
+          setManualRepetitionsCount(0)
+        }
+      })
+
+    return () => {
+      isMounted = false
     }
-  }, [studentId, selectedDate, consolidationDay, assignments, supabase])
+  }, [studentId, selectedDate, supabase])
 
   // --- Manual Consolidation Handlers ---
   function handleIncrementManualRepetition() {
@@ -1631,18 +1671,33 @@ function StudentTasks({
     }
     if (!activeManualForDate) return
     const target = activeManualForDate.repetitions_count || 5
-    setManualRepetitionsCount(prev => {
-      const next = Math.min(target, prev + 1)
-      supabase.from("student_consolidation_progress").upsert({
-        student_id: studentId,
-        assigned_date: selectedDate,
-        consolidation_type: "manual",
-        repetition_count: next,
-        target_repetitions: target,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "student_id,assigned_date,consolidation_type" }).then(null, () => {})
-      return next
-    })
+
+    // 1. Calculate next count synchronously from Monotonic Shield ref
+    const current = manualRepCountRef.current
+    if (current >= target) return
+    const next = Math.min(target, current + 1)
+
+    // 2. Synchronously update ref shield and local React state (instant 0ms feedback)
+    manualRepCountRef.current = next
+    setManualRepetitionsCount(next)
+
+    // 3. Isolated side-effect outside setState updater
+    supabase
+      .from("student_consolidation_progress")
+      .upsert(
+        {
+          student_id: studentId,
+          assigned_date: selectedDate,
+          consolidation_type: "manual",
+          repetition_count: next,
+          target_repetitions: target,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "student_id,assigned_date,consolidation_type" }
+      )
+      .then(null, err => {
+        console.error("Failed to persist manual repetition count:", err)
+      })
   }
 
   async function handleCompleteManualConsolidation() {
@@ -1720,6 +1775,14 @@ function StudentTasks({
       toast(`تم التراجع عن إكمال جنب الدرس (-${pts} نقاط) ↩️`, { icon: "↩️" })
     }
 
+    setAssignments(prev =>
+      prev.map(a =>
+        a.task_id === "a6567c0e-d4de-494c-80f5-8daab2e90f93" || a.tasks?.name === "جنب الدرس"
+          ? { ...a, completed: nextCompleted }
+          : a
+      )
+    )
+
     try {
       await fetch("/api/complete-task", {
         method: "POST",
@@ -1745,6 +1808,14 @@ function StudentTasks({
 
     setIsManualNightCompleted(nextCompleted)
     setWeeklyPoints(prev => prev + deltaPoints)
+
+    setAssignments(prev =>
+      prev.map(a =>
+        a.task_id === "e2e191fe-782f-4727-a712-d22a1171c28d" || a.tasks?.name === "قيام الليل"
+          ? { ...a, completed: nextCompleted }
+          : a
+      )
+    )
 
     if (nextCompleted) {
       toast.success(pts > 0 ? `🎉 أحسنت! أنجزت صلاة قيام الليل بالتثبيت وكسبت +${pts} نقاط!` : "✓ تم إنجاز صلاة قيام الليل (إجازة الجمعة: 0 نقطة)")
@@ -1781,18 +1852,33 @@ function StudentTasks({
       return
     }
     const target = planDetails.consolidationTask?.target || 10
-    setConsolidationCount(prev => {
-      const next = Math.min(target, prev + 1)
-      supabase.from("student_consolidation_progress").upsert({
-        student_id: studentId,
-        assigned_date: selectedDate,
-        consolidation_type: "auto",
-        repetition_count: next,
-        target_repetitions: target,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "student_id,assigned_date,consolidation_type" }).then(null, () => {})
-      return next
-    })
+
+    // 1. Calculate next count synchronously from Monotonic Shield ref
+    const current = autoRepCountRef.current
+    if (current >= target) return
+    const next = Math.min(target, current + 1)
+
+    // 2. Synchronously update ref shield and local React state (instant 0ms feedback)
+    autoRepCountRef.current = next
+    setConsolidationCount(next)
+
+    // 3. Isolated side-effect outside setState updater
+    supabase
+      .from("student_consolidation_progress")
+      .upsert(
+        {
+          student_id: studentId,
+          assigned_date: selectedDate,
+          consolidation_type: "auto",
+          repetition_count: next,
+          target_repetitions: target,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "student_id,assigned_date,consolidation_type" }
+      )
+      .then(null, err => {
+        console.error("Failed to persist auto consolidation repetition count:", err)
+      })
   }
 
   async function handleCompleteConsolidation() {
