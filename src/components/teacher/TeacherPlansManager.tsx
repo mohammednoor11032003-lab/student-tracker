@@ -3,8 +3,9 @@ import React, { useState, useEffect, useCallback, useMemo } from "react"
 import toast from "react-hot-toast"
 import { StudentPlan, getDailyPlanDetails, DEFAULT_PLAN, getReviewCycle } from "@/lib/plan-utils"
 import ManualConsolidationModal from "@/components/teacher/ManualConsolidationModal"
+import PointsTransparencyModal from "@/components/teacher/PointsTransparencyModal"
 import { ManualConsolidation } from "@/lib/manual-consolidation-utils"
-import { Shield, Sparkles, Calendar, BookOpen, Trash2, Edit, Plus, CheckCircle2, Clock } from "lucide-react"
+import { Shield, Sparkles, Calendar, BookOpen, Trash2, Edit, Plus, CheckCircle2, Clock, Layers } from "lucide-react"
 
 interface StudentWithPlan {
   id: string
@@ -25,6 +26,7 @@ export default function TeacherPlansManager({
   const [manualModalStudent, setManualModalStudent] = useState<{ id: string; name: string; suggestedPointer: string } | null>(null)
   const [editingConsolidation, setEditingConsolidation] = useState<ManualConsolidation | null>(null)
   const [consolidationsMap, setConsolidationsMap] = useState<Record<string, ManualConsolidation[]>>({})
+  const [transparencyStudent, setTransparencyStudent] = useState<{ id: string; name: string } | null>(null)
 
   // Fetch consolidations for all students
   const fetchAllConsolidations = useCallback(async () => {
@@ -264,6 +266,29 @@ export default function TeacherPlansManager({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => setTransparencyStudent({ id: s.id, name: s.full_name })}
+                    style={{
+                      background: "linear-gradient(135deg, #0284c7, #0369a1)",
+                      color: "white",
+                      border: "none",
+                      padding: "0.75rem 1.25rem",
+                      borderRadius: "0.85rem",
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      fontSize: "0.95rem",
+                      boxShadow: "0 4px 12px rgba(2, 132, 199, 0.3)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      transition: "all 0.2s",
+                    }}
+                  >
+                    <Layers size={18} />
+                    <span>كشف النقاط والمطابقة 📊</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
@@ -756,6 +781,16 @@ export default function TeacherPlansManager({
           suggestedResumePointer={manualModalStudent.suggestedPointer}
           initialEditItem={editingConsolidation}
           onSaved={() => fetchAllConsolidations()}
+        />
+      )}
+
+      {/* Points Transparency & Live Integrity Modal */}
+      {transparencyStudent && (
+        <PointsTransparencyModal
+          isOpen={!!transparencyStudent}
+          onClose={() => setTransparencyStudent(null)}
+          studentId={transparencyStudent.id}
+          studentName={transparencyStudent.name}
         />
       )}
     </div>
