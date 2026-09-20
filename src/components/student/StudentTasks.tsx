@@ -44,6 +44,7 @@ import {
   getWorkingDayIndex,
   getManualConsolidationDailyTaskDetails,
   isFridayDate,
+  CONSOLIDATION_TASK_ID,
 } from "@/lib/manual-consolidation-utils"
 import FridayTafsirSection from "./FridayTafsirSection"
 
@@ -1582,7 +1583,9 @@ function StudentTasks({
 
   // Synchronize completion states across dates and database records
   useEffect(() => {
-    const dbRepDone = assignments.some(a => a.tasks?.name === "الدرس" && a.completed)
+    const dbRepDone = assignments.some(
+      a => (a.tasks?.name === "تكرار التثبيت" || a.tasks?.name === "الدرس" || a.task_id === CONSOLIDATION_TASK_ID) && a.completed
+    )
     const dbAdjDone = assignments.some(a => a.tasks?.name === "جنب الدرس" && a.completed)
     const dbNightDone = assignments.some(a => a.tasks?.name === "قيام الليل" && a.completed)
 
@@ -1663,12 +1666,20 @@ function StudentTasks({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentId,
-          taskId: "5962c81e-5ddd-49e8-93f8-73cc842db073", // الدرس (التكرار)
+          taskId: CONSOLIDATION_TASK_ID, // تكرار التثبيت (20 نقطة)
           points: awardedPoints,
           completed: true,
           assignedDate: todayStr,
         }),
       })
+
+      setAssignments(prev =>
+        prev.map(a =>
+          a.task_id === CONSOLIDATION_TASK_ID || a.tasks?.name === "تكرار التثبيت"
+            ? { ...a, completed: true }
+            : a
+        )
+      )
 
       if (awardedPoints > 0) {
         toast.success(
@@ -1805,12 +1816,20 @@ function StudentTasks({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentId,
-          taskId: "5962c81e-5ddd-49e8-93f8-73cc842db073", // الدرس
+          taskId: CONSOLIDATION_TASK_ID, // تكرار التثبيت (20 نقطة)
           points: repPoints,
           completed: true,
           assignedDate: todayStr,
         }),
       })
+
+      setAssignments(prev =>
+        prev.map(a =>
+          a.task_id === CONSOLIDATION_TASK_ID || a.tasks?.name === "تكرار التثبيت"
+            ? { ...a, completed: true }
+            : a
+        )
+      )
 
       if (repPoints > 0) {
         toast.success(`✓ تم إنجاز تكرار تثبيت اليوم ${consolidationDay} بنجاح (+${repPoints} نقطة)! بارك الله فيك 🌟`, { duration: 4500 })

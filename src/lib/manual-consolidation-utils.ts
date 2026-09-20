@@ -17,6 +17,9 @@ export interface ManualConsolidation {
   updated_at?: string
 }
 
+export const CONSOLIDATION_TASK_ID = "b7a96cb0-c3a3-421c-8c47-71f7ec1bdf42"
+export const CONSOLIDATION_TASK_NAME = "تكرار التثبيت"
+
 export function parseResumePointer(pointer: string): { page: number; part: "top" | "bottom" } {
   const match = pointer.match(/\d+/)
   const page = match ? Math.max(1, Math.min(604, parseInt(match[0], 10))) : 1

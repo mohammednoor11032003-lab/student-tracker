@@ -91,8 +91,38 @@ export async function ensureDailyAssignmentsForAllStudents(
     }
   }
 
-  // 3. Check existing assignments for today to count existing vs new
   const studentIds = studentList.map(s => s.id)
+
+  // 3. Identify students in consolidation (manual or auto) on dateStr
+  const isFriday = new Date(dateStr + "T12:00:00Z").getUTCDay() === 5
+
+  const [{ data: manualList }, { data: plansList }] = await Promise.all([
+    supabase
+      .from("manual_consolidations")
+      .select("student_id, start_date, end_date, include_fridays, is_active")
+      .in("student_id", studentIds)
+      .eq("is_active", true)
+      .lte("start_date", dateStr)
+      .gte("end_date", dateStr),
+    supabase
+      .from("student_plans")
+      .select("student_id, is_in_consolidation")
+      .in("student_id", studentIds)
+      .eq("is_in_consolidation", true),
+  ])
+
+  const consolidatingStudentIds = new Set<string>()
+  for (const m of manualList || []) {
+    if (isFriday && !m.include_fridays) continue
+    consolidatingStudentIds.add(m.student_id)
+  }
+  for (const p of plansList || []) {
+    if (p.is_in_consolidation) {
+      consolidatingStudentIds.add(p.student_id)
+    }
+  }
+
+  // 4. Check existing assignments for today to count existing vs new
   const { data: existingAssignments } = await supabase
     .from("daily_assignments")
     .select("student_id, task_id")
@@ -111,7 +141,16 @@ export async function ensureDailyAssignmentsForAllStudents(
   }[] = []
 
   for (const student of studentList) {
-    for (const task of routineTasks) {
+    const isConsolidating = consolidatingStudentIds.has(student.id)
+    const studentTasks = routineTasks.filter(t => {
+      if (isConsolidating) {
+        return t.name !== "الدرس" // Consolidation students get 'تكرار التثبيت', not regular 'الدرس'
+      } else {
+        return t.name !== "تكرار التثبيت" // Regular students get 'الدرس', not 'تكرار التثبيت'
+      }
+    })
+
+    for (const task of studentTasks) {
       const key = student.id + "_" + task.id
       if (!existingSet.has(key)) {
         toInsert.push({
