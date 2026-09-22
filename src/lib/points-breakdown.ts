@@ -3,6 +3,7 @@ import { getWeekAndMonthInfo, formatDateStr, getTodayDateStr, formatDisplayDate 
 
 export interface DailyTaskDetail {
   id: string
+  taskId?: string
   name: string
   points: number
   completed: boolean
@@ -178,6 +179,7 @@ export async function getDailyPointsBreakdown(
 
     dayObj.tasks.push({
       id: a.id,
+      taskId: a.task_id || a.tasks?.id,
       name: a.tasks?.name || 'مهمة بدون اسم',
       points: rawPoints,
       completed: isCompleted,

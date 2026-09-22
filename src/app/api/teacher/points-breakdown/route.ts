@@ -42,6 +42,56 @@ export async function POST(req: NextRequest) {
 
     const supabase = getAdminClient()
 
+    if (action === "toggle_task") {
+      const { assignmentId, completed } = body
+
+      if (!assignmentId) {
+        return NextResponse.json({ error: "assignmentId is required" }, { status: 400 })
+      }
+      if (typeof completed !== "boolean") {
+        return NextResponse.json({ error: "completed (boolean) is required" }, { status: 400 })
+      }
+
+      // Fetch assignment to retrieve its assigned_date
+      const { data: assignment, error: aErr } = await supabase
+        .from("daily_assignments")
+        .select("id, assigned_date, student_id")
+        .eq("id", assignmentId)
+        .single()
+
+      if (aErr || !assignment) {
+        console.error("Assignment not found:", aErr)
+        return NextResponse.json({ error: "المهمة غير موجودة" }, { status: 404 })
+      }
+
+      const effectiveStudentId = studentId || assignment.student_id
+
+      // Update completed in daily_assignments for any task without exception
+      const { error: updateErr } = await supabase
+        .from("daily_assignments")
+        .update({
+          completed,
+          completed_at: completed ? new Date().toISOString() : null,
+        })
+        .eq("id", assignmentId)
+
+      if (updateErr) {
+        console.error("Error updating daily_assignment:", updateErr)
+        return NextResponse.json({ error: "فشل تحديث حالة المهمة" }, { status: 500 })
+      }
+
+      // Reconcile points immediately after update to recalculate cumulative balance and summaries
+      const result = await reconcileSingleStudentPoints(supabase, effectiveStudentId, assignment.assigned_date)
+      const breakdown = await getDailyPointsBreakdown(supabase, effectiveStudentId)
+
+      return NextResponse.json({
+        success: true,
+        message: "تم تحديث حالة المهمة وإعادة احتساب وتوحيد النقاط بنجاح",
+        result,
+        breakdown,
+      })
+    }
+
     if (action === "reconcile_single") {
       const result = await reconcileSingleStudentPoints(supabase, studentId, targetDateStr)
       // Fetch fresh breakdown after reconciliation

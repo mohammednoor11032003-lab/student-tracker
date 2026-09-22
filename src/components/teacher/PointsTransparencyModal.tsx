@@ -14,8 +14,10 @@ import {
   Award,
   ShieldCheck,
   Clock,
+  Check,
+  Loader2,
 } from "lucide-react"
-import { PointsBreakdownResult, MonthBreakdown, WeekBreakdown, DayBreakdown } from "@/lib/points-breakdown"
+import { PointsBreakdownResult, MonthBreakdown, WeekBreakdown, DayBreakdown, DailyTaskDetail } from "@/lib/points-breakdown"
 
 interface PointsTransparencyModalProps {
   isOpen: boolean
@@ -32,6 +34,7 @@ export default function PointsTransparencyModal({
 }: PointsTransparencyModalProps) {
   const [loading, setLoading] = useState(true)
   const [reconciling, setReconciling] = useState(false)
+  const [togglingTaskId, setTogglingTaskId] = useState<string | null>(null)
   const [data, setData] = useState<PointsBreakdownResult | null>(null)
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({})
   const [expandedWeeks, setExpandedWeeks] = useState<Record<string, boolean>>({})
@@ -109,6 +112,53 @@ export default function PointsTransparencyModal({
       toast.error("حدث خطأ أثناء تنفيذ التصحيح")
     } finally {
       setReconciling(false)
+    }
+  }
+
+  // Toggle Individual Task Completion (Direct Administrative Override)
+  async function handleToggleTask(assignmentId: string, currentCompleted: boolean) {
+    if (!assignmentId) {
+      toast.error("معرّف المهمة غير متوفر")
+      return
+    }
+    if (!studentId) {
+      toast.error("معرّف الطالب غير متوفر")
+      return
+    }
+    if (togglingTaskId === assignmentId) return
+
+    const nextCompleted = !currentCompleted
+    setTogglingTaskId(assignmentId)
+    try {
+      const res = await fetch("/api/teacher/points-breakdown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle_task",
+          studentId,
+          assignmentId,
+          completed: nextCompleted,
+        }),
+      })
+      const resData = await res.json()
+      if (resData.success) {
+        toast.success(
+          nextCompleted
+            ? "✅ تم تعيين المهمة كمُنجزة وتحديث الرصيد فورياً!"
+            : "↩️ تم إلغاء إنجاز المهمة وإعادة احتساب الرصيد!"
+        )
+        if (resData.breakdown) {
+          setData(resData.breakdown)
+        }
+        await fetchBreakdown()
+      } else {
+        toast.error(resData.error || "فشل تعديل حالة المهمة")
+      }
+    } catch (err) {
+      console.error("Toggle task error:", err)
+      toast.error("حدث خطأ أثناء تعديل حالة المهمة")
+    } finally {
+      setTogglingTaskId(null)
     }
   }
 
@@ -582,22 +632,46 @@ export default function PointsTransparencyModal({
                                                     }}
                                                   >
                                                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                                                      <span
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.preventDefault()
+                                                          e.stopPropagation()
+                                                          handleToggleTask(task.id, task.completed)
+                                                        }}
+                                                        disabled={togglingTaskId === task.id}
+                                                        title={
+                                                          task.completed
+                                                            ? "اضغط لإلغاء إنجاز هذه المهمة وتحديث الرصيد"
+                                                            : "اضغط لتعيين هذه المهمة كمُنجزة واحتساب نقاطها"
+                                                        }
+                                                        className="cursor-pointer p-1 hover:bg-gray-100 rounded transition-all hover:scale-105 active:scale-95"
                                                         style={{
-                                                          width: "18px",
-                                                          height: "18px",
-                                                          borderRadius: "50%",
+                                                          width: "26px",
+                                                          height: "26px",
+                                                          borderRadius: "6px",
                                                           display: "inline-flex",
                                                           alignItems: "center",
                                                           justifyContent: "center",
-                                                          fontSize: "0.7rem",
+                                                          fontSize: "0.75rem",
                                                           fontWeight: 800,
-                                                          background: task.completed ? "#22c55e" : "#cbd5e1",
-                                                          color: "white",
+                                                          background: task.completed ? "#22c55e" : "#f1f5f9",
+                                                          color: task.completed ? "white" : "#64748b",
+                                                          border: `1.5px solid ${task.completed ? "#16a34a" : "#cbd5e1"}`,
+                                                          cursor: togglingTaskId === task.id ? "not-allowed" : "pointer",
+                                                          opacity: togglingTaskId === task.id ? 0.6 : 1,
+                                                          padding: 0,
+                                                          flexShrink: 0,
                                                         }}
                                                       >
-                                                        {task.completed ? "✓" : "✕"}
-                                                      </span>
+                                                        {togglingTaskId === task.id ? (
+                                                          <Loader2 size={13} className="animate-spin" />
+                                                        ) : task.completed ? (
+                                                          <Check size={15} strokeWidth={3} />
+                                                        ) : (
+                                                          <span style={{ fontSize: "12px", lineHeight: 1 }}>✕</span>
+                                                        )}
+                                                      </button>
                                                       <span style={{ fontWeight: 700, color: "#1e293b" }}>
                                                         {task.name}
                                                       </span>
@@ -661,7 +735,7 @@ export default function PointsTransparencyModal({
         >
           <div style={{ fontSize: "0.8rem", color: "#64748b", display: "flex", alignItems: "center", gap: "0.4rem" }}>
             <ShieldCheck size={16} color="#16a34a" />
-            <span>يتم الحساب والتجميع الرياضي اللحظي استناداً إلى جدول المهام الحقيقي (daily_assignments).</span>
+            <span>يمكنك النقر مباشرة على أيقونة الإنجاز بجانب أي مهمة لعكس حالتها مع إعادة تسوية وتحديث النقاط فورياً.</span>
           </div>
 
           <button
