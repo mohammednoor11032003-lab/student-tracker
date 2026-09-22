@@ -46,27 +46,13 @@ export async function POST(req: NextRequest) {
       const { assignmentId, completed } = body
 
       if (!assignmentId) {
-        return NextResponse.json({ error: "assignmentId is required" }, { status: 400 })
+        return NextResponse.json({ error: "Missing ID" }, { status: 400 })
       }
       if (typeof completed !== "boolean") {
         return NextResponse.json({ error: "completed (boolean) is required" }, { status: 400 })
       }
 
-      // Fetch assignment to retrieve its assigned_date
-      const { data: assignment, error: aErr } = await supabase
-        .from("daily_assignments")
-        .select("id, assigned_date, student_id")
-        .eq("id", assignmentId)
-        .single()
-
-      if (aErr || !assignment) {
-        console.error("Assignment not found:", aErr)
-        return NextResponse.json({ error: "المهمة غير موجودة" }, { status: 404 })
-      }
-
-      const effectiveStudentId = studentId || assignment.student_id
-
-      // Update completed in daily_assignments for any task without exception
+      // Update completed in daily_assignments for the specified assignment
       const { error: updateErr } = await supabase
         .from("daily_assignments")
         .update({
@@ -77,12 +63,19 @@ export async function POST(req: NextRequest) {
 
       if (updateErr) {
         console.error("Error updating daily_assignment:", updateErr)
-        return NextResponse.json({ error: "فشل تحديث حالة المهمة" }, { status: 500 })
+        return NextResponse.json({ error: updateErr.message }, { status: 500 })
       }
 
-      // Reconcile points immediately after update to recalculate cumulative balance and summaries
-      const result = await reconcileSingleStudentPoints(supabase, effectiveStudentId, assignment.assigned_date)
-      const breakdown = await getDailyPointsBreakdown(supabase, effectiveStudentId)
+      // Reconcile points immediately with expected arguments (supabase, studentId)
+      let result = null
+      try {
+        result = await reconcileSingleStudentPoints(supabase, studentId)
+      } catch (rErr: any) {
+        console.error("Reconcile error:", rErr)
+        return NextResponse.json({ error: rErr?.message || "فشل تسوية النقاط" }, { status: 500 })
+      }
+
+      const breakdown = await getDailyPointsBreakdown(supabase, studentId)
 
       return NextResponse.json({
         success: true,
